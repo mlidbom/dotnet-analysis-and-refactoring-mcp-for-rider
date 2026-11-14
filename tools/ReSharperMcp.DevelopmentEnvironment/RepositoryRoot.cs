@@ -1,7 +1,7 @@
 namespace ReSharperMcp.DevelopmentEnvironment;
 
 /// <summary>The root of the repository these tools were built from: the folder that holds <c>ReSharperMcp.sln</c>.</summary>
-static class RepositoryRoot
+public static class RepositoryRoot
 {
   public static string Folder { get; } = FindAbove(AppContext.BaseDirectory);
 

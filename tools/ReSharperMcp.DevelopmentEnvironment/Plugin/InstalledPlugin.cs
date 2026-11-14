@@ -10,10 +10,17 @@ namespace ReSharperMcp.DevelopmentEnvironment.Plugin;
 ///   A running Rider has the backend assembly open, so its files can't be overwritten or deleted. They can be moved
 ///   aside within the drive, though, and the running Rider keeps using the moved copy until it restarts. So installing
 ///   moves the current files to a folder of replaced builds and copies the new ones in, and a restart takes the new
-///   build. The replaced builds are kept, which is what <see cref="PutBackTheBuildItReplaced"/> restores.
+///   build. The newest <see cref="ReplacedBuildsKept"/> replaced builds are kept, for
+///   <see cref="PutBackTheBuildItReplaced"/> to restore.
 /// </remarks>
 public sealed class InstalledPlugin
 {
+  /// <summary>
+  ///   How many replaced builds are kept. Every run of the specifications installs a build in the sandbox, so without
+  ///   a limit they would pile up.
+  /// </summary>
+  const int ReplacedBuildsKept = 10;
+
   readonly string _pluginFolder;
   readonly string _replacedBuildsFolder;
 
@@ -34,6 +41,14 @@ public sealed class InstalledPlugin
       Directory.CreateDirectory(Path.Combine(_pluginFolder, subfolder));
       File.Copy(file, Path.Combine(_pluginFolder, subfolder, Path.GetFileName(file)));
     }
+    DeleteAllButTheNewestReplacedBuilds();
+  }
+
+  void DeleteAllButTheNewestReplacedBuilds()
+  {
+    if (!Directory.Exists(_replacedBuildsFolder)) return;
+    foreach (var old in Directory.GetDirectories(_replacedBuildsFolder).Order(StringComparer.Ordinal).SkipLast(ReplacedBuildsKept))
+      Directory.Delete(old, recursive: true);
   }
 
   /// <summary>
