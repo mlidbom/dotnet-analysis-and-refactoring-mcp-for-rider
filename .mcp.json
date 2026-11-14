@@ -6,6 +6,24 @@
       "headers": {
         "IJ_MCP_LAUNCH_ORIGIN": "${IJ_MCP_LAUNCH_ORIGIN:-}"
       }
+    },
+    "resharper-joshua": {
+      "type": "http",
+      "url": "http://127.0.0.1:23741/"
+    },
+    "sherlock": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "sherlock-mcp"],
+      "env": {}
+    },
+    "windows-mcp": {
+      "type": "stdio",
+      "command": "windows-mcp",
+      "args": ["serve", "--transport", "stdio"],
+      "env": {
+        "ANONYMIZED_TELEMETRY": "false"
+      }
     }
   }
 }
