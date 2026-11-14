@@ -32,6 +32,7 @@ public sealed class ToolsEntryPoint : IMcpToolsEntryPoint
       new GetDiagnosticsTool(solution),
       new InspectCodeTool(solution),
       new ReloadProjectsTool(solution),
+      new MoveTypeToNamespaceTool(solution),
       new ListQuickFixesTool(solution),
       new ApplyQuickFixTool(solution),
       new RenameSymbolTool(solution),

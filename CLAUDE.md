@@ -116,6 +116,7 @@ Mutation-capable tools (main-thread execution, with dispatch controlled by the m
 | Tool | Marker | Description |
 |------|--------|-------------|
 | `rename_symbol` | `IMcpSelfTransactingWriteTool` | Semantic solution-wide rename via `RenameRefactoring`; manages its own transaction to support `dryRun` rollback |
+| `move_type_to_namespace` | `IMcpSelfTransactingWriteTool` | `MoveToNamespaceWorkflow` headless; checks the declaration moved, adds usings for extension-method callers |
 | `generate_members` | `IMcpWriteTool` | Generate members via `GeneratorWorkflowFactory`; relies on the framework's auto-commit transaction |
 | `apply_quick_fix` | `IMcpAsyncTool` | Apply a bulb action via `BulbActionExecutor` (which self-transacts) |
 | `apply_suggestions` | `IMcpAsyncTool` | Apply scoped quick-fixes by inspection id via `IModernManualScopedAction.ExecuteAction` (ReSharper's "Fix all in file/folder/project/solution" engine, `scope`); complements position-based `apply_quick_fix` |
@@ -366,6 +367,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     ListQuickFixesTool.cs              # list_quick_fixes — bulb actions at a position
     CompleteAtTool.cs                  # complete_at — code completion suggestions (main-thread dispatch)
     RenameSymbolTool.cs                # rename_symbol — semantic solution-wide rename (self-transacting write)
+    MoveTypeToNamespaceTool.cs         # move_type_to_namespace — Move to Another Namespace, checked, extension usings
     GenerateMembersTool.cs             # generate_members — generate type members (write)
     ApplyQuickFixTool.cs               # apply_quick_fix — apply a bulb action (self-transacting write)
     ApplySuggestionsTool.cs            # apply_suggestions — file-wide scoped quick-fixes by inspection id

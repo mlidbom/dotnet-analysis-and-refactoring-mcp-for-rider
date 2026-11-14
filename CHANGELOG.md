@@ -15,6 +15,7 @@ plugin is a fork of.
 
 ### Added
 
+- `move_type_to_namespace`: ReSharper's Move to Another Namespace, checked: if the declaration didn't move, nothing is changed and the answer says so. Files that call the type's extension methods get the `using` the move gives them no other way. The file stays where it is
 - `apply_suggestions` takes a `scope`: `file` (the default), or the file's `folder`, `project` or the whole `solution`, as Rider's Fix in folder/project/solution. The file is where the fix is found
 - `inspect_code`: ReSharper's inspections over files, folders, projects or the whole solution, run by the engine of Rider's Inspect Code against its live model, in parallel. With Rider's solution-wide analysis on and complete, its inspections are in too, such as `UnusedMember.Global`: the whole-solution sweep that took `jb inspectcode`. Counts per inspection, then rg-style lines; filters by severity and inspection id
 - `reload_projects`: Rider's Reload Project for the projects of the given files, project files or folders, and a wait until Rider has loaded them and ReSharper has indexed the result. For a project whose model in Rider is stale, such as a new view's code-behind that reports `InitializeComponent` unresolved
