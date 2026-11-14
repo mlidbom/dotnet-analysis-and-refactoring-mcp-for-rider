@@ -1,7 +1,7 @@
 # Developing the plugin: the sandbox Rider, deploying, branches
 
 This repository is Magnus's fork of Joshua Light's plugin, renamed .NET Analysis&Refactoring MCP, and a development
-tool you own: see the user-level rule "resharper-joshua is a development tool you own". What it should do better is in
+tool you own: see the user-level rule "The dotnet-analysis-and-refactoring MCP is a development tool you own". What it should do better is in
 `dev_docs/backlog.md`.
 
 The plugin is two assemblies: the host, which Rider loads at startup, and the tools, which the host swaps for a newer
@@ -40,7 +40,8 @@ deploy in batches, and end the report with the heading `### RESTART RIDER ###` a
 brings. `everyday rollback` removes the newest tools build, so the Riders go back to the one before it at their next
 call; `everyday rollback-plugin` puts back the plugin build that the last host change replaced.
 
-Until Magnus switches his Riders over, they run the original plugin (`resharper-joshua`, port 23741), not this one.
+The original plugin (`resharper-joshua`, port 23741) stays installed beside this one in Magnus's Riders: his symbol
+linker depends on it. Projects switch their `.mcp.json` over as the user-level rule says.
 
 ## Branches: `main` is ours, a pull request's branch is upstream's
 

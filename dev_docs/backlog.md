@@ -1,7 +1,7 @@
 # Backlog: what the plugin should do better
 
 What Claude found the plugin lacking, or would build next, most valuable first. Sessions in other projects add what
-they run into here (see the user-level rule on resharper-joshua). An item that is done goes from the list.
+they run into here (see the user-level rule that the dotnet-analysis-and-refactoring MCP is a development tool you own). An item that is done goes from the list.
 
 ## Tools
 
