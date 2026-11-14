@@ -106,7 +106,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             // Base types for type elements
             if (declaredElement is ITypeElement typeElement)
             {
+                // An interface's super types include object, as the CLR has it, though C# lists no base for it.
                 var superTypes = typeElement.GetSuperTypes()
+                    .Where(t => !(typeElement is IInterface && t.GetClrName().FullName == "System.Object"))
                     .Select(t => t.GetPresentableName(lang))
                     .ToList();
                 if (superTypes.Any())

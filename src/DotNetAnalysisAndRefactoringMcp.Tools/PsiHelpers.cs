@@ -821,8 +821,15 @@ namespace DotNetAnalysisAndRefactoringMcp
             var lang = element.PresentationLanguage ?? CSharpLanguage.Instance;
             var sb = new StringBuilder();
 
-            // Modifiers
-            if (element is IModifiersOwner mod)
+            // Modifiers. For a type, ReSharper's IsStatic is true whatever the type is, and a static class is abstract
+            // and sealed, as in IL: so a type's modifier comes from those two. An interface's and a struct's are implied.
+            if (element is IClass type)
+            {
+                if (type.IsAbstract && type.IsSealed) sb.Append("static ");
+                else if (type.IsAbstract) sb.Append("abstract ");
+                else if (type.IsSealed) sb.Append("sealed ");
+            }
+            else if (element is not ITypeElement && element is IModifiersOwner mod)
             {
                 if (mod.IsStatic) sb.Append("static ");
                 if (mod.IsAbstract) sb.Append("abstract ");
