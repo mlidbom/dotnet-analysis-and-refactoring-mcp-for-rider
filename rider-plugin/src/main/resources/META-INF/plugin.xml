@@ -2,7 +2,7 @@
   <id>dev.magnus.dotnet-analysis-and-refactoring-mcp</id>
   <name>.NET Analysis&amp;Refactoring MCP</name>
   <version>0.13.0</version>
-  <vendor url="https://github.com/mlidbom/resharper-mcp">Magnus Lidbom</vendor>
+  <vendor url="https://github.com/mlidbom/dotnet-analysis-and-refactoring-mcp-for-rider">Magnus Lidbom</vendor>
   <idea-version since-build="253" />
   <depends>com.intellij.modules.rider</depends>
   <description><![CDATA[
