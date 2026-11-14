@@ -4,6 +4,13 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>DotNetAnalysisAndRefactoringMcp</RootNamespace>
     <AssemblyName>DotNetAnalysisAndRefactoringMcp</AssemblyName>
+    <!--
+      The host's bytes are its identity: a tools build is served only by the host it was built against
+      (dev_docs/swappable-tools.md). The SDK writes the git commit into the informational version, which gave the
+      host new bytes at every commit, and made every deploy a host change that waits for a Rider restart.
+    -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Deterministic>true</Deterministic>
   </PropertyGroup>
 
   <ItemGroup>
