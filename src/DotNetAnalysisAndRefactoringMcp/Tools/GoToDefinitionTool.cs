@@ -1,0 +1,118 @@
+using System.Text;
+using JetBrains.ProjectModel;
+using JetBrains.ReSharper.Psi;
+using JetBrains.ReSharper.Psi.Tree;
+using Newtonsoft.Json.Linq;
+
+namespace DotNetAnalysisAndRefactoringMcp.Tools
+{
+    public class GoToDefinitionTool : IMcpTool
+    {
+        private readonly ISolution _solution;
+
+        public GoToDefinitionTool(ISolution solution) => _solution = solution;
+
+        public string Name => "go_to_definition";
+
+        public string Description =>
+            "Navigate to the definition/declaration of a symbol. " +
+            "Given a usage site (file+line+column) or a symbol name, returns the file path and position " +
+            "where the symbol is declared, along with the declaration source text. " +
+            "For a symbol compiled into a referenced DLL, returns its assembly and decompiled source instead. " +
+            "Pass multiple symbols via the 'symbols' array to navigate to several in one call.";
+
+        public object InputSchema => new
+        {
+            type = "object",
+            properties = new
+            {
+                symbolName = new { type = "string", description = "Symbol name to find the definition of (e.g. 'MyClass', 'Namespace.MyClass'). Alternative to filePath+line+column." },
+                kind = new { type = "string", description = "Filter by symbol kind when using symbolName: 'type', 'method', 'property', 'field', 'event'. Helps disambiguate when multiple symbols share a name." },
+                maxTextLength = new { type = "integer", description = "Maximum length of the returned source text. Default: 200. Set higher (e.g. 2000) to get full declaration bodies." },
+                filePath = new { type = "string", description = "Absolute path to the file containing a usage of the symbol" },
+                line = new { type = "integer", description = "1-based line number of the symbol usage" },
+                column = new { type = "integer", description = "1-based column number of the symbol usage" },
+                symbols = new
+                {
+                    type = "array",
+                    description = "Array of symbols to navigate to in batch. Each item is an object with symbolName/kind or filePath/line/column. Results are concatenated with separators.",
+                    items = new
+                    {
+                        type = "object",
+                        properties = new
+                        {
+                            symbolName = new { type = "string", description = "Symbol name" },
+                            kind = new { type = "string", description = "Symbol kind filter" },
+                            filePath = new { type = "string", description = "File path" },
+                            line = new { type = "integer", description = "1-based line" },
+                            column = new { type = "integer", description = "1-based column" }
+                        }
+                    }
+                }
+            },
+            required = new string[0]
+        };
+
+        public object Execute(JObject arguments) =>
+            ToolBatch.Of(arguments, "symbols", item: "symbolName")?.Run(ExecuteSingle) ?? ExecuteSingle(arguments);
+
+        private object ExecuteSingle(JObject arguments)
+        {
+            var (declaredElement, error) = PsiHelpers.ResolveFromArgs(
+                _solution,
+                arguments["symbolName"]?.ToString(),
+                arguments["kind"]?.ToString(),
+                arguments["filePath"]?.ToString(),
+                arguments["line"]?.Value<int>() ?? 0,
+                arguments["column"]?.Value<int>() ?? 0);
+
+            if (error != null) return error;
+            using var context = CompilationContexts.For(declaredElement);
+
+            var maxTextLength = arguments["maxTextLength"]?.Value<int>() ?? PsiHelpers.MaxSnippetLength;
+            if (maxTextLength <= 0) maxTextLength = PsiHelpers.MaxSnippetLength;
+            if (maxTextLength > 50000) maxTextLength = 50000;
+
+            var declarations = declaredElement.GetDeclarations();
+            if (declarations.Count == 0)
+            {
+                var signature = PsiHelpers.FormatSignature(declaredElement);
+                var assembly = PsiHelpers.AssemblyLabel(declaredElement);
+                if (assembly == null)
+                    return new { error = $"{signature}: no source declarations (may be source-generated)" };
+
+                // Compiled: the decompiled type stands in for the declaration; get_symbol_source returns all of it.
+                var decompiled = DecompiledSource.Of(_solution, declaredElement);
+                var body = decompiled == null
+                    ? ""
+                    : $"\n{decompiled.Label}\n{PsiHelpers.TruncateSnippet(decompiled.Text, maxTextLength)}";
+
+                return $"{signature} — {assembly}{body}";
+            }
+
+            var decl = declarations[0];
+            var range = TreeNodeExtensions.GetDocumentRange(decl);
+            if (!range.IsValid())
+                return new { error = "Could not resolve declaration location" };
+
+            var declSourceFile = decl.GetSourceFile();
+            if (declSourceFile == null)
+                return new { error = "Declaration source file not available" };
+
+            var declFilePath = declSourceFile.GetLocation().FullPath;
+            if (string.IsNullOrEmpty(declFilePath))
+                declFilePath = "[no source]";
+
+            var (declLine, declCol) = PsiHelpers.GetLineColumn(range.StartOffset);
+
+            var sb = new StringBuilder();
+            sb.Append(PsiHelpers.FormatSignature(declaredElement));
+            sb.Append(" — ").Append(declFilePath);
+            sb.Append(':').Append(declLine).Append(':').AppendLine(declCol.ToString());
+            sb.Append(PsiHelpers.TruncateSnippet(decl.GetText(), maxTextLength));
+
+            return sb.ToString().TrimEnd();
+        }
+
+    }
+}

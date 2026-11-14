@@ -9,7 +9,7 @@ import urllib.request
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--url', default='http://127.0.0.1:23741/')
+    parser.add_argument('--url', default='http://127.0.0.1:23751/')
     parser.add_argument('--solution', required=True)
     parser.add_argument('--file', required=True, help='Path to an indexed disposable C# test file')
     parser.add_argument('--query', required=True, help='A type name present in the fixture')

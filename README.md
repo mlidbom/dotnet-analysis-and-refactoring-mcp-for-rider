@@ -1,4 +1,6 @@
-# ReSharper MCP Server
+# .NET Analysis&Refactoring MCP
+
+A fork of Joshua Light's [MCP Server for Code Intelligence](https://github.com/joshua-light/resharper-mcp), renamed so that it can be developed and released on its own and installed beside the original.
 
 An MCP (Model Context Protocol) server that runs inside the ReSharper/Rider backend process, exposing code intelligence features to AI assistants via HTTP.
 
@@ -72,7 +74,7 @@ Results are concatenated with `=== [N/total] label ===` separators. Shared optio
 
 ### Health check
 
-`GET http://127.0.0.1:23741/health` answers plain JSON without an MCP session, e.g. for a session-start hook:
+`GET http://127.0.0.1:23751/health` answers plain JSON without an MCP session, e.g. for a session-start hook:
 
 ```json
 {"solutions":[{"name":"TPS.All","path":"/…/TPS.All.sln","indexing":false,"pendingDiskChanges":0}],"indexing":false,"pendingDiskChanges":0}
@@ -102,9 +104,9 @@ Add to your MCP client config (e.g. Claude Code `settings.json`):
 ```json
 {
   "mcpServers": {
-    "resharper": {
+    "dotnet-analysis-and-refactoring": {
       "type": "http",
-      "url": "http://127.0.0.1:23741/"
+      "url": "http://127.0.0.1:23751/"
     }
   }
 }
@@ -112,7 +114,7 @@ Add to your MCP client config (e.g. Claude Code `settings.json`):
 
 The server starts automatically when you open a solution in Rider.
 
-Set `RESHARPER_MCP_PORT` environment variable to override the default port.
+Set `DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT` environment variable to override the default port.
 
 With several solutions open, pass `solutionName`, or a `filePath` that picks one: an absolute path picks the solution whose git work tree contains it; a relative path picks the one solution where it exists (in several, the call asks for `solutionName`).
 
@@ -120,7 +122,7 @@ With several solutions open, pass `solutionName`, or a `filePath` that picks one
 
 ```bash
 # Build the .NET backend
-dotnet build src/ReSharperMcp/ReSharperMcp.csproj -c Release
+dotnet build src/DotNetAnalysisAndRefactoringMcp/DotNetAnalysisAndRefactoringMcp.csproj -c Release
 
 # Build a distributable plugin ZIP
 ./build-plugin.sh
@@ -129,7 +131,7 @@ dotnet build src/ReSharperMcp/ReSharperMcp.csproj -c Release
 ## Architecture
 
 - Runs as a ReSharper `SolutionComponent` (activated when a solution opens, stopped when it closes)
-- Hosts an HTTP server on `127.0.0.1:23741` implementing MCP over JSON-RPC 2.0
+- Hosts an HTTP server on `127.0.0.1:23751` implementing MCP over JSON-RPC 2.0
 - Uses ReSharper's PSI (Program Structure Interface) APIs for code analysis
 - Two-part Rider plugin: minimal JVM JAR (plugin descriptor) + .NET backend DLL
 - Targets `net472` (required by the ReSharper host process)

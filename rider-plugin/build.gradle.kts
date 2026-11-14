@@ -27,7 +27,7 @@ tasks {
     patchPluginXml { enabled = false }
     verifyPluginProjectConfiguration { enabled = false }
     jar {
-        archiveBaseName.set("ReSharperMcp")
+        archiveBaseName.set("DotNetAnalysisAndRefactoringMcp")
         archiveClassifier.set("")
     }
 }

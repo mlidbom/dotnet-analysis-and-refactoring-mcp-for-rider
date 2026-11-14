@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-PLUGIN_NAME="ReSharperMcp"
+PLUGIN_NAME="DotNetAnalysisAndRefactoringMcp"
 RIDER_VERSION="${1:-}"
 
 # Auto-detect Rider version if not specified
@@ -37,7 +37,7 @@ if [ -z "${JAVA_HOME:-}" ]; then
 fi
 
 echo "Building backend..."
-dotnet build "$SCRIPT_DIR/src/ReSharperMcp/ReSharperMcp.csproj" -c Release -v quiet
+dotnet build "$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp/DotNetAnalysisAndRefactoringMcp.csproj" -c Release -v quiet
 
 echo "Building frontend..."
 (cd "$SCRIPT_DIR/rider-plugin" && ./gradlew jar --quiet)
@@ -50,8 +50,8 @@ mkdir -p "$PLUGIN_DIR/lib"
 # the mapped bytes, and the next method it compiles reads garbage ("Bad IL range" crashed the backend).
 # Removing first gives the new file its own inode; Rider keeps the old one until it restarts.
 rm -f "$PLUGIN_DIR/dotnet/$PLUGIN_NAME.dll" "$PLUGIN_DIR/dotnet/$PLUGIN_NAME.pdb" "$PLUGIN_DIR/lib/$PLUGIN_NAME.jar"
-cp "$SCRIPT_DIR/src/ReSharperMcp/bin/Release/net472/$PLUGIN_NAME.dll" "$PLUGIN_DIR/dotnet/"
-cp "$SCRIPT_DIR/src/ReSharperMcp/bin/Release/net472/$PLUGIN_NAME.pdb" "$PLUGIN_DIR/dotnet/" 2>/dev/null || true
+cp "$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp/bin/Release/net472/$PLUGIN_NAME.dll" "$PLUGIN_DIR/dotnet/"
+cp "$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp/bin/Release/net472/$PLUGIN_NAME.pdb" "$PLUGIN_DIR/dotnet/" 2>/dev/null || true
 cp "$SCRIPT_DIR/rider-plugin/build/libs/$PLUGIN_NAME.jar" "$PLUGIN_DIR/lib/"
 
 echo ""
@@ -60,5 +60,5 @@ echo "  lib/  -> $PLUGIN_NAME.jar (frontend: Kotlin classes + plugin descriptor)
 echo "  dotnet/ -> $PLUGIN_NAME.dll (backend component)"
 echo ""
 echo "Restart Rider for the plugin to take effect."
-echo "The MCP server will start on http://127.0.0.1:23741/ when you open a solution."
-echo "Set RESHARPER_MCP_PORT env var to use a different port."
+echo "The MCP server will start on http://127.0.0.1:23751/ when you open a solution."
+echo "Set DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT env var to use a different port."

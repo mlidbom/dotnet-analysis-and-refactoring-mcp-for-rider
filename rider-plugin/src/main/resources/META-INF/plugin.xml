@@ -1,13 +1,15 @@
 <idea-plugin require-restart="true">
-  <id>com.j-light.resharper-mcp</id>
-  <name>MCP Server for Code Intelligence</name>
-  <version>0.12.0</version>
-  <vendor email="j.light.developer@gmail.com" url="https://plugins.jetbrains.com/vendor/j-light">Joshua Light</vendor>
+  <id>dev.magnus.dotnet-analysis-and-refactoring-mcp</id>
+  <name>.NET Analysis&amp;Refactoring MCP</name>
+  <version>0.13.0</version>
+  <vendor url="https://github.com/mlidbom/resharper-mcp">Magnus Lidbom</vendor>
   <idea-version since-build="253" />
   <depends>com.intellij.modules.rider</depends>
   <description><![CDATA[
     <p>An MCP (Model Context Protocol) server that runs inside the ReSharper/Rider backend process,
     exposing code intelligence features to AI assistants via HTTP.</p>
+
+    <p>A fork of Joshua Light's <a href="https://github.com/joshua-light/resharper-mcp">MCP Server for Code Intelligence</a>.</p>
 
     <p>Available tools:</p>
     <ul>
@@ -42,8 +44,8 @@
     through a single MCP endpoint. Use the <b>list_solutions</b> tool to discover open solutions and
     target tools with the <code>solutionName</code> parameter.</p>
 
-    <p>The MCP server starts automatically on <code>http://127.0.0.1:23741/</code> when you open a solution.
-    Set the <code>RESHARPER_MCP_PORT</code> environment variable to use a different port.</p>
+    <p>The MCP server starts automatically on <code>http://127.0.0.1:23751/</code> when you open a solution.
+    Set the <code>DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT</code> environment variable to use a different port.</p>
   ]]></description>
   <resource-bundle/>
   <getting-started><![CDATA[
@@ -51,9 +53,9 @@
     <p>Add to your MCP client config (e.g. Claude Code <code>settings.json</code>, Cursor, Windsurf, etc.):</p>
     <pre><code>{
   "mcpServers": {
-    "resharper": {
+    "dotnet-analysis-and-refactoring": {
       "type": "http",
-      "url": "http://127.0.0.1:23741/"
+      "url": "http://127.0.0.1:23751/"
     }
   }
 }</code></pre>
@@ -67,13 +69,18 @@
 
     <h3>Multiple solutions</h3>
     <p>When multiple Rider instances are open, all solutions are accessible through the same
-    <code>http://127.0.0.1:23741/</code> endpoint. Use <code>list_solutions</code> to see what's available,
+    <code>http://127.0.0.1:23751/</code> endpoint. Use <code>list_solutions</code> to see what's available,
     and pass <code>solutionName</code> to target a specific solution.</p>
 
     <h3>Custom port</h3>
-    <p>Set the <code>RESHARPER_MCP_PORT</code> environment variable before launching Rider to use a different port.</p>
+    <p>Set the <code>DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT</code> environment variable before launching Rider to use a different port.</p>
   ]]></getting-started>
   <change-notes><![CDATA[
+    <p><b>0.13.0</b> — forked and renamed</p>
+    <ul>
+      <li>Forked from Joshua Light's MCP Server for Code Intelligence 0.12.0 as .NET Analysis&amp;Refactoring MCP, with an id, a default port (23751) and a port variable (<code>DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT</code>) of its own, so it can be installed beside the original</li>
+      <li>Works on Rider 2026.3: every tool call failed there with a <code>MethodAccessException</code>, because <code>AllDocumentsAreCommittedReadConstraint</code> became internal</li>
+    </ul>
     <p><b>0.12.0</b> — trustworthy after disk edits</p>
     <ul>
       <li>Files edited on disk (by scripts, <code>sed</code>, heredocs) are synced before every call: the server watches the work tree, reconciles stale documents with disk the way Rider's file watcher does, and asks Rider to rescan new files so they join their project. Documents with unsaved edits in Rider are never touched</li>
@@ -215,7 +222,7 @@
   ]]></change-notes>
   <extensions defaultExtensionNs="com.intellij">
     <statusBarWidgetFactory
-        id="ReSharperMcp.StatusBar"
-        implementation="com.jlight.resharpermcp.McpStatusBarWidgetFactory"/>
+        id="DotNetAnalysisAndRefactoringMcp.StatusBar"
+        implementation="dev.magnus.dotnetanalysisandrefactoringmcp.McpStatusBarWidgetFactory"/>
   </extensions>
 </idea-plugin>

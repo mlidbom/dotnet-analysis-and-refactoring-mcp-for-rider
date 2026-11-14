@@ -1,7 +1,8 @@
-# ReSharper MCP — Project Guide
+# .NET Analysis&Refactoring MCP — Project Guide
 
 ## What This Is
 
+A fork of Joshua Light's `resharper-mcp`, renamed on 2026-11-14 (see `dev_docs/swappable-tools.md`).
 An MCP (Model Context Protocol) server that runs **inside** the ReSharper/Rider backend process,
 exposing code intelligence features to AI assistants via HTTP.
 
@@ -12,13 +13,13 @@ exposing code intelligence features to AI assistants via HTTP.
 Rider plugins require both a JVM frontend and a .NET backend:
 
 - `rider-plugin/META-INF/plugin.xml` — minimal IntelliJ plugin descriptor (no Java/Kotlin code needed for backend-only plugins). Without this JAR, Rider silently ignores the `dotnet/` folder.
-- `src/ReSharperMcp/` — the .NET backend that runs inside the ReSharper host process.
+- `src/DotNetAnalysisAndRefactoringMcp/` — the .NET backend that runs inside the ReSharper host process.
 
-### Installed plugin layout (in `~/.local/share/JetBrains/Rider2025.3/ReSharperMcp/`)
+### Installed plugin layout (in `~/.local/share/JetBrains/Rider2025.3/DotNetAnalysisAndRefactoringMcp/`)
 
 ```
-lib/ReSharperMcp.jar       # plugin.xml descriptor (tells Rider this plugin exists)
-dotnet/ReSharperMcp.dll    # backend component (loaded into ReSharper host)
+lib/DotNetAnalysisAndRefactoringMcp.jar       # plugin.xml descriptor (tells Rider this plugin exists)
+dotnet/DotNetAnalysisAndRefactoringMcp.dll    # backend component (loaded into ReSharper host)
 ```
 
 ### MCP transport
@@ -26,7 +27,7 @@ dotnet/ReSharperMcp.dll    # backend component (loaded into ReSharper host)
 The official C# MCP SDK (`ModelContextProtocol` NuGet) requires .NET 8+ for HTTP transport,
 but ReSharper plugins target **net472**. So we implement a lightweight MCP server manually:
 
-- `McpHttpServer.cs` — `HttpListener`-based HTTP server on `127.0.0.1:23741`
+- `McpHttpServer.cs` — `HttpListener`-based HTTP server on `127.0.0.1:23751`
 - Implements JSON-RPC 2.0 directly (handles `initialize`, `tools/list`, `tools/call`)
 - Protocol types in `Protocol/JsonRpc.cs` and `Protocol/McpTypes.cs`
 - Uses `Newtonsoft.Json` (bundled with Rider's ReSharper host, no need to ship it)
@@ -36,8 +37,8 @@ but ReSharper plugins target **net472**. So we implement a lightweight MCP serve
 Rider opens each solution in a separate OS process, so multiple instances compete for ports.
 The plugin uses a **primary/peer** model:
 
-- **Primary** — the first Rider instance binds the base port (23741). It acts as the single MCP endpoint for all clients.
-- **Peer** — subsequent instances bind the next available port (23742, 23743, ...) and register themselves with the primary via `internal/register` / `internal/deregister` JSON-RPC methods.
+- **Primary** — the first Rider instance binds the base port (23751). It acts as the single MCP endpoint for all clients.
+- **Peer** — subsequent instances bind the next available port (23752, 23753, ...) and register themselves with the primary via `internal/register` / `internal/deregister` JSON-RPC methods.
 - The primary proxies `tools/call` requests for peer solutions by forwarding HTTP requests to the peer's port. If a proxy fails (peer crashed), the stale registration is automatically removed.
 
 Component breakdown:
@@ -291,8 +292,8 @@ README.md                              # user-facing docs
 install-rider.sh                       # build + install script (auto-detects Rider version)
 ReSharperMcp.sln                       # solution file
 rider-plugin/META-INF/plugin.xml       # IntelliJ plugin descriptor
-src/ReSharperMcp/
-  ReSharperMcp.csproj                  # targets net472, refs JetBrains.ReSharper.SDK 2025.3.3
+src/DotNetAnalysisAndRefactoringMcp/
+  DotNetAnalysisAndRefactoringMcp.csproj                  # targets net472, refs JetBrains.ReSharper.SDK 2025.3.3
   McpShellComponent.cs                 # ShellComponent — owns HTTP server (process-level singleton)
   McpServerComponent.cs                # SolutionComponent — registers tools per solution
   McpHttpServer.cs                     # HttpListener-based MCP server with multi-solution routing
@@ -357,7 +358,7 @@ Safe while Rider runs: the script deletes the old DLL before copying, so the run
 Copying over it in place corrupted the mapped image and crashed the backend ("Bad IL range" on a watcher thread).
 Rider asks to confirm exit; `kill -TERM` on the frontend process quits it gracefully without the dialog.
 
-Override port: `RESHARPER_MCP_PORT=9999`
+Override port: `DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT=9999`
 
 ## Publishing
 
@@ -373,51 +374,51 @@ Version is defined in `rider-plugin/src/main/resources/META-INF/plugin.xml` — 
 
 ```bash
 # Initialize handshake
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}'
 
 # List tools
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 
 # Find usages
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"find_usages","arguments":{"filePath":"/path/to/File.cs","line":10,"column":18}}}'
 
 # Get symbol info
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_symbol_info","arguments":{"filePath":"/path/to/File.cs","line":10,"column":18}}}'
 
 # Find implementations
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"find_implementations","arguments":{"filePath":"/path/to/IFoo.cs","line":5,"column":18}}}'
 
 # Get file errors
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"get_file_errors","arguments":{"filePath":"/path/to/File.cs"}}}'
 
 # Search symbols by name
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"search_symbol","arguments":{"query":"Player","maxResults":10}}}'
 
 # Go to definition (by name)
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"go_to_definition","arguments":{"symbolName":"MyClass"}}}'
 
 # Find usages by symbol name (no need for file:line:col)
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"find_usages","arguments":{"symbolName":"IConnection"}}}'
 
 # Find implementations by symbol name
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"find_implementations","arguments":{"symbolName":"IConnection"}}}'
 
 # List open solutions (multi-solution support)
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"list_solutions","arguments":{}}}'
 
 # Target a specific solution (when multiple are open)
-curl -s http://127.0.0.1:23741/ -X POST -H "Content-Type: application/json" \
+curl -s http://127.0.0.1:23751/ -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"search_symbol","arguments":{"query":"Player","maxResults":10,"solutionName":"MyProject"}}}'
 ```
 

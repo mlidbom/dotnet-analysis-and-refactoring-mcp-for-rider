@@ -13,7 +13,7 @@ import urllib.request
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--url', default='http://127.0.0.1:23741/')
+    parser.add_argument('--url', default='http://127.0.0.1:23751/')
     parser.add_argument('--solution', required=True)
     parser.add_argument('--file', required=True, help='Absolute path to a disposable, error-free C# file')
     parser.add_argument('--autosave-wait', type=int, default=20, help='Seconds to watch for Rider writing the file back')

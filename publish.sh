@@ -16,7 +16,7 @@ if [ -z "${JB_MARKETPLACE_PAT:-}" ]; then
     exit 1
 fi
 
-ZIP_FILE="$SCRIPT_DIR/ReSharperMcp.zip"
+ZIP_FILE="$SCRIPT_DIR/DotNetAnalysisAndRefactoringMcp.zip"
 
 # Build the plugin ZIP
 "$SCRIPT_DIR/build-plugin.sh"
@@ -24,7 +24,7 @@ ZIP_FILE="$SCRIPT_DIR/ReSharperMcp.zip"
 echo "Uploading to JetBrains Marketplace..."
 RESPONSE=$(curl -s -w "\n%{http_code}" \
     --header "Authorization: Bearer $JB_MARKETPLACE_PAT" \
-    -F xmlId=com.j-light.resharper-mcp \
+    -F xmlId=dev.magnus.dotnet-analysis-and-refactoring-mcp \
     -F file=@"$ZIP_FILE" \
     https://plugins.jetbrains.com/api/updates/upload)
 

@@ -3,7 +3,7 @@
 This repository is Magnus's fork of Joshua Light's plugin, and a development tool you own: see the user-level rule
 "resharper-joshua is a development tool you own". What it should do better is in `dev_docs/backlog.md`.
 
-The development tools: `dotnet run --project tools/ReSharperMcp.DevelopmentTools -- <command>`; with no command they
+The development tools: `dotnet run --project tools/DotNetAnalysisAndRefactoringMcp.DevelopmentTools -- <command>`; with no command they
 list the commands.
 
 ## Test every build in the sandbox Rider before it goes anywhere else
@@ -12,14 +12,14 @@ The everyday Rider, Magnus's, runs the build that every session on the machine u
 there takes away the code intelligence you would fix it with, and can hang the IDE he works in. So a build is tested in
 the sandbox Rider first: a second Rider, with folders of its own and the MCP server on port 23841.
 
-- `dotnet test tests/ReSharperMcp.Specifications` is the test: it installs the working tree's build in the sandbox,
+- `dotnet test tests/DotNetAnalysisAndRefactoringMcp.Specifications` is the test: it installs the working tree's build in the sandbox,
   opens a fresh copy of `tests/FixtureSolution` there, and checks the tools' answers over HTTP. A run takes minutes,
   since it restarts the sandbox; NCrunch is told to ignore the project. A known bug gets a skipped specification that
   names it, so that fixing it means removing the `Skip`.
 - `sandbox install` builds the working tree and installs it in the sandbox, restarting the sandbox if it runs.
 - `sandbox start <solution>` opens a solution in it and returns once the MCP server has it indexed. Call the tools on
   `http://127.0.0.1:23841/`.
-- The sandbox's window goes, by itself, to the virtual desktop of the Rider that has `ReSharperMcp` open, on the other
+- The sandbox's window goes, by itself, to the virtual desktop of the Rider that has this repository's solution open, on the other
   monitor, small. `sandbox status` says where it is.
 
 ## Deploying to the everyday Rider: it takes effect when Magnus restarts it

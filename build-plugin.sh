@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-PLUGIN_NAME="ReSharperMcp"
+PLUGIN_NAME="DotNetAnalysisAndRefactoringMcp"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STAGING_DIR="$SCRIPT_DIR/.build-staging"
 
@@ -13,7 +13,7 @@ if [ -z "${JAVA_HOME:-}" ]; then
 fi
 
 echo "Building backend..."
-dotnet build "$SCRIPT_DIR/src/ReSharperMcp/ReSharperMcp.csproj" -c Release -v quiet
+dotnet build "$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp/DotNetAnalysisAndRefactoringMcp.csproj" -c Release -v quiet
 
 echo "Building frontend..."
 (cd "$SCRIPT_DIR/rider-plugin" && ./gradlew jar --quiet)
@@ -23,7 +23,7 @@ rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR/$PLUGIN_NAME/lib"
 mkdir -p "$STAGING_DIR/$PLUGIN_NAME/dotnet"
 cp "$SCRIPT_DIR/rider-plugin/build/libs/$PLUGIN_NAME.jar" "$STAGING_DIR/$PLUGIN_NAME/lib/"
-cp "$SCRIPT_DIR/src/ReSharperMcp/bin/Release/net472/$PLUGIN_NAME.dll" "$STAGING_DIR/$PLUGIN_NAME/dotnet/"
+cp "$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp/bin/Release/net472/$PLUGIN_NAME.dll" "$STAGING_DIR/$PLUGIN_NAME/dotnet/"
 
 cd "$STAGING_DIR"
 rm -f "$SCRIPT_DIR/$PLUGIN_NAME.zip"
