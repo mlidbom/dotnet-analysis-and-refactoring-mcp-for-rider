@@ -106,6 +106,7 @@ it reverted a file the agent had just restored. `tests/live_disk_sync.py` checks
 | `get_call_hierarchy` | Build a call hierarchy tree for a method: `incoming` (callers via `IFinder.FindReferences`) or `outgoing` (callees) |
 | `get_type_hierarchy` | Get the inheritance hierarchy of a type: `supertypes` (base/interfaces) or `subtypes` (`FindInheritors`) |
 | `get_diagnostics` | Run the daemon (`DaemonHighlightingCollector`) on a file: severity, inspection id, message, location, quick-fix availability |
+| `inspect_code` | Inspect Code's engine (`CollectInspectionResults`) over files, folders, projects or the solution; solution-wide inspections when SWEA is complete |
 | `list_quick_fixes` | List ReSharper quick-fixes (bulb actions) available at a position |
 | `complete_at` | Get code completion suggestions at a caret position (runs on the R# main thread) |
 | `reload_projects` | Rider's Reload Project for the projects of the given files, waited for until loaded and indexed |
@@ -337,6 +338,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
   SkippedElements.cs                   # Per-element guard for walks + the "skipped N elements" line
   McpInstructions.cs                   # Usage guide sent in the initialize response (from the tools, so no restart)
+  Severities.cs                        # "error"/"warning"/... to and from ReSharper's Severity, and their order
   SuperMembers.cs                      # The members a member overrides/implements: what find_usages and call hierarchy follow
   DeclarationSite.cs                   # Where a declaration is: the file, line and column of its name (not its doc comment)
   DecompiledSource.cs                  # ReSharper decompiler / metadata view for compiled types
@@ -360,6 +362,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     GetCallHierarchyTool.cs            # get_call_hierarchy — incoming/outgoing call tree
     GetTypeHierarchyTool.cs            # get_type_hierarchy — supertype/subtype tree
     GetDiagnosticsTool.cs              # get_diagnostics — daemon inspections with quick-fix availability
+    InspectCodeTool.cs                 # inspect_code — Inspect Code's engine over a scope, local or with SWEA's results
     ListQuickFixesTool.cs              # list_quick_fixes — bulb actions at a position
     CompleteAtTool.cs                  # complete_at — code completion suggestions (main-thread dispatch)
     RenameSymbolTool.cs                # rename_symbol — semantic solution-wide rename (self-transacting write)

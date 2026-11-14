@@ -69,7 +69,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             if (string.IsNullOrEmpty(filePath))
                 return new { error = "filePath is required" };
 
-            var minSeverity = ParseSeverity(arguments["minSeverity"]?.ToString()) ?? Severity.WARNING;
+            var minSeverity = Severities.Parse(arguments["minSeverity"]?.ToString()) ?? Severity.WARNING;
 
             // Optional position (explain-error mode)
             int posLine = 0, posColumn = 0;
@@ -134,7 +134,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                     continue;
                 }
 
-                if (!MeetsMinSeverity(severity, minSeverity)) continue;
+                if (!Severities.AtLeast(severity, minSeverity)) continue;
 
                 var range = info.Range;
                 if (!range.IsValid()) continue;
@@ -180,7 +180,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                 diagnostics.Add(new Dictionary<string, object>
                 {
                     ["inspectionId"] = inspectionId ?? highlighting.GetType().Name,
-                    ["severity"] = SeverityToString(severity),
+                    ["severity"] = Severities.Name(severity),
                     ["message"] = message,
                     ["line"] = startLine,
                     ["column"] = startCol,
@@ -212,47 +212,10 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             else if (ordered.Count == 0)
                 result["note"] =
                     $"{collected.Count} highlighting(s) were produced but none met the minimum severity " +
-                    $"'{SeverityToString(minSeverity)}'" +
+                    $"'{Severities.Name(minSeverity)}'" +
                     (positionOffset.HasValue ? " (or covered the requested position)." : ".");
 
             return result;
-        }
-
-        private static Severity? ParseSeverity(string value)
-        {
-            if (string.IsNullOrEmpty(value)) return null;
-            switch (value.Trim().ToLowerInvariant())
-            {
-                case "error": return Severity.ERROR;
-                case "warning": return Severity.WARNING;
-                case "suggestion": return Severity.SUGGESTION;
-                case "hint": return Severity.HINT;
-                case "info": return Severity.INFO;
-                default: return null;
-            }
-        }
-
-        private static string SeverityToString(Severity severity)
-        {
-            switch (severity)
-            {
-                case Severity.ERROR: return "error";
-                case Severity.WARNING: return "warning";
-                case Severity.SUGGESTION: return "suggestion";
-                case Severity.HINT: return "hint";
-                case Severity.INFO: return "info";
-                case Severity.DO_NOT_SHOW: return "none";
-                default: return "unknown";
-            }
-        }
-
-        /// <summary>
-        /// The Severity enum is ordered ascending by importance (DO_NOT_SHOW &lt; INFO &lt; HINT &lt;
-        /// SUGGESTION &lt; WARNING &lt; ERROR), so a numeric comparison suffices.
-        /// </summary>
-        private static bool MeetsMinSeverity(Severity severity, Severity minSeverity)
-        {
-            return (int)severity >= (int)minSeverity;
         }
     }
 }

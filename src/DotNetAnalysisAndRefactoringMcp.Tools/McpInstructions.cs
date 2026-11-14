@@ -13,6 +13,8 @@ namespace DotNetAnalysisAndRefactoringMcp
             + "- 'solutionName' is only needed when several solutions are open and no filePath picks one.\n"
             + "- Symbols may be named 'Type', 'Type.Member' or fully qualified; an ambiguous name returns its candidates. "
             + "Types compiled into referenced DLLs resolve too, and get_symbol_source decompiles them.\n"
+            + "- inspect_code runs the inspections over files, folders, projects or the whole solution, with solution-wide "
+            + "ones such as UnusedMember.Global when Rider's solution-wide analysis is complete: no jb inspectcode needed.\n"
             + "- get_file_errors is the fast compile check. Pass changedSince: '<git ref>' (or changed: true) to check "
             + "every changed file in one call.\n"
             + "- find_usages prints rg-style 'path:line: code' lines; mode 'files' lists only the files.\n"

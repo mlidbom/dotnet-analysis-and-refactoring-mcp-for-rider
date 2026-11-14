@@ -5,14 +5,11 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
 
 ## Tools
 
-1. **Inspections over a solution, project or folder, from the live engine.** No MCP tool gives solution-wide
-   warnings today, so whole-solution sweeps go through the headless `jb inspectcode`, which is slow. Rider has the
-   results; nothing hands them over.
-2. **Moving a type to another namespace, completely, in one call:** the namespace declaration, the file and its
+1. **Moving a type to another namespace, completely, in one call:** the namespace declaration, the file and its
    folder, the `using` directives, and extension-method call sites. The rider MCP's `move_type_to_namespace` sometimes
    reports success and leaves the declaration on the old namespace, adds no `using` for extension-method callers, and
    doesn't move the file (the user-level rule on automated C# refactoring lists the routine that works around it).
-3. **Fix-all for one inspection over a scope.** `apply_suggestions` works one file at a time; cleanup sweeps, such as
+2. **Fix-all for one inspection over a scope.** `apply_suggestions` works one file at a time; cleanup sweeps, such as
    removing redundant `using` directives after a move, need a project or the solution.
 
 ## Swapping the tools without a restart
@@ -24,6 +21,9 @@ See `dev_docs/swappable-tools.md`.
 
 ## Known bugs
 
+- `search_symbol` with `includeLibraries` finds a compiled type by part of its name, but not by its qualified name
+  (`JetBrains.Application.Progress.ProgressIndicator` gives none), and a compiled member only as `Type.Member`, not
+  by its name alone (`GetProjectMark` gives none). `get_symbol_info` resolves the qualified name (seen 2026-11-15).
 - `rename_symbol` of a parameter missed a `<paramref>` to it (seen 2026-11-10). Didn't reproduce on 2026-11-14: renaming
   a parameter by the position of its declaration renamed its `<paramref>` too. Unknown what differed; note how it was
   called if it happens again.
