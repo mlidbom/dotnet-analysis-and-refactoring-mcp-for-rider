@@ -6,10 +6,12 @@
     <AssemblyName>DotNetAnalysisAndRefactoringMcp</AssemblyName>
     <!--
       The host's bytes are its identity: a tools build is served only by the host it was built against
-      (dev_docs/swappable-tools.md). The SDK writes the git commit into the informational version, which gave the
-      host new bytes at every commit, and made every deploy a host change that waits for a Rider restart.
+      (dev_docs/swappable-tools.md). The SDK writes the git commit into the informational version, and Source Link
+      writes it into the symbols, whose id is stamped into the assembly: that gave the host new bytes at every commit,
+      and made every deploy a host change that waits for a Rider restart. With no git queries, the bytes change only
+      with the code.
     -->
-    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
 
