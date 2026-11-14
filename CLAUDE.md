@@ -118,7 +118,7 @@ Mutation-capable tools (main-thread execution, with dispatch controlled by the m
 | `rename_symbol` | `IMcpSelfTransactingWriteTool` | Semantic solution-wide rename via `RenameRefactoring`; manages its own transaction to support `dryRun` rollback |
 | `generate_members` | `IMcpWriteTool` | Generate members via `GeneratorWorkflowFactory`; relies on the framework's auto-commit transaction |
 | `apply_quick_fix` | `IMcpAsyncTool` | Apply a bulb action via `BulbActionExecutor` (which self-transacts) |
-| `apply_suggestions` | `IMcpAsyncTool` | Apply scoped quick-fixes file-wide by inspection id via `IModernManualScopedAction.ExecuteAction` (ReSharper's "Fix all in file" engine); complements position-based `apply_quick_fix` |
+| `apply_suggestions` | `IMcpAsyncTool` | Apply scoped quick-fixes by inspection id via `IModernManualScopedAction.ExecuteAction` (ReSharper's "Fix all in file/folder/project/solution" engine, `scope`); complements position-based `apply_quick_fix` |
 
 > `complete_at` is logically read-only but implements `IMcpSelfTransactingWriteTool` solely to obtain main-thread dispatch (the completion engine asserts the R# main thread); it performs no writes.
 

@@ -88,6 +88,13 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                 {
                     type = "boolean",
                     description = "Report what would be applied without modifying the file. Default: false."
+                },
+                scope = new
+                {
+                    type = "string",
+                    description = "How far each fix is applied: 'file' (default), or the file's 'folder', 'project' or the " +
+                                  "whole 'solution', as Rider's Fix in folder/project/solution. The file must have an " +
+                                  "occurrence: it's where the fix is found. inspect_code finds such files."
                 }
             },
             required = new string[0]
@@ -109,6 +116,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                     CopyIfPresent(arguments, itemArgs, "inspectionIds");
                     CopyIfPresent(arguments, itemArgs, "all");
                     CopyIfPresent(arguments, itemArgs, "dryRun");
+                    CopyIfPresent(arguments, itemArgs, "scope");
 
                     sb.Append("=== [").Append(i + 1).Append('/').Append(filePathsToken.Count)
                       .Append("] ").Append(filePathsToken[i]).Append(" ===").AppendLine();
@@ -129,6 +137,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             var idFilter = ParseCsv(arguments["inspectionIds"]?.ToString());
             var applyAll = arguments["all"]?.Value<bool>() ?? false;
             var dryRun = arguments["dryRun"]?.Value<bool>() ?? false;
+            var scopeName = arguments["scope"]?.ToString()?.Trim().ToLowerInvariant() ?? "file";
+            if (scopeName is not ("file" or "folder" or "project" or "solution"))
+                return new { error = $"scope is 'file', 'folder', 'project' or 'solution', not '{scopeName}'" };
 
             if (idFilter == null && !applyAll)
                 return await execution.Read(() => ListApplicable(filePath)).ConfigureAwait(false);
@@ -164,7 +175,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                     applied.Add(pass.Applied);
             }
 
-            return FormatResult(filePath, applied, skipped, errors);
+            return FormatResult(filePath, scopeName, applied, skipped, errors);
 
             ReadAndWriteScope.ReadResult<Pass> Prepare(ReadAndWriteScope scope)
             {
@@ -202,7 +213,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                             pass.TypeName = typeName;
                             try
                             {
-                                scoped.ExecuteAction(_solution, new SourceFileScope(sourceFile), info.Highlighting,
+                                scoped.ExecuteAction(_solution, ScopeOf(sourceFile, scopeName), info.Highlighting,
                                     NullProgressIndicator.Create());
                                 pass.Applied = $"{inspectionId ?? "(no id)"} — \"{text}\"";
                                 _solution.GetPsiServices().Caches.Update();
@@ -345,10 +356,28 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             return instance.QuickFix.GetType().Name;
         }
 
-        private static object FormatResult(string filePath, List<string> applied, HashSet<string> skipped, List<string> errors)
+        /// <summary>
+        /// Where a fix found in <paramref name="sourceFile"/> is applied: the file, its folder, its project or the
+        /// solution, as Rider's Fix in file/folder/project/solution. A file outside the project model can only be fixed
+        /// in itself.
+        /// </summary>
+        private Scope ScopeOf(IPsiSourceFile sourceFile, string scopeName)
+        {
+            var projectFile = sourceFile.ToProjectFile();
+            return scopeName switch
+            {
+                "folder" when projectFile?.ParentFolder is { } folder => new ProjectFolderScope(folder, _ => true),
+                "project" when projectFile?.GetProject() is { } project => new ProjectFolderScope(project, _ => true),
+                "solution" when projectFile != null => new SolutionScope(_solution, projectFile, _ => true),
+                _ => new SourceFileScope(sourceFile)
+            };
+        }
+
+        private static object FormatResult(string filePath, string scopeName, List<string> applied, HashSet<string> skipped, List<string> errors)
         {
             var sb = new StringBuilder();
-            sb.Append(filePath).Append(" — applied ").Append(applied.Count).AppendLine(" fix type(s)");
+            sb.Append(filePath).Append(" — applied ").Append(applied.Count).Append(" fix type(s)");
+            sb.AppendLine(scopeName == "file" ? "" : $", each in the file's {scopeName}");
 
             if (applied.Count > 0)
             {

@@ -9,8 +9,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
    folder, the `using` directives, and extension-method call sites. The rider MCP's `move_type_to_namespace` sometimes
    reports success and leaves the declaration on the old namespace, adds no `using` for extension-method callers, and
    doesn't move the file (the user-level rule on automated C# refactoring lists the routine that works around it).
-2. **Fix-all for one inspection over a scope.** `apply_suggestions` works one file at a time; cleanup sweeps, such as
-   removing redundant `using` directives after a move, need a project or the solution.
 
 ## Swapping the tools without a restart
 

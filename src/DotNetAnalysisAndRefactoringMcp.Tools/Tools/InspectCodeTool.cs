@@ -37,6 +37,11 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 ///     task executor runs on the caller's thread, and with the analysis complete it only reads its results. Otherwise
 ///     <see cref="CollectInspectionResults.RunLocalInspections"/> runs the file daemon on every file.
 ///   </para>
+///   <para>
+///     Measured on Deskmancer, 1,749 files, in the sandbox (2026-11-15): 5.5 s with solution-wide analysis complete,
+///     1,111 issues at warning; the main thread's watchdog reported nothing. Right after the solution opened, with that
+///     analysis still running, the file daemon got through 1,140 files in the 100 s.
+///   </para>
 /// </remarks>
 public sealed class InspectCodeTool : IMcpAsyncTool
 {
@@ -215,7 +220,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool
         Line = line,
         Column = column,
         Severity = issue.GetSeverity(),
-        InspectionId = issue.IssueType.ConfigurableSeverityId ?? issue.IssueType.GetType().Name,
+        InspectionId = issue.IssueType.ConfigurableSeverityId ?? issue.IssueType.GroupId,
         Message = issue.Message
       };
     }
