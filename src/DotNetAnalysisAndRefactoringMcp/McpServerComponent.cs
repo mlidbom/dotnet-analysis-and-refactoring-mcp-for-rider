@@ -8,15 +8,14 @@ using JetBrains.Application.Parts;
 using JetBrains.Application.Threading;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
-using JetBrains.ReSharper.Feature.Services.CodeCleanup;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Caches;
 using JetBrains.ReSharper.Psi.Transactions;
 using JetBrains.Util;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using DotNetAnalysisAndRefactoringMcp.Disk;
 using DotNetAnalysisAndRefactoringMcp.Protocol;
+using DotNetAnalysisAndRefactoringMcp.Swapping;
 using DotNetAnalysisAndRefactoringMcp.Tools;
 
 namespace DotNetAnalysisAndRefactoringMcp
@@ -33,20 +32,32 @@ namespace DotNetAnalysisAndRefactoringMcp
         private readonly Lazy<IPsiCachesState> _caches;
         private readonly DiskChanges _diskChanges;
         private readonly DiskSync _diskSync;
+        private readonly ISolution _solution;
+        private readonly IShellLocks _shellLocks;
+        private readonly SwappableTools _swappableTools;
 
         public McpServerComponent(
             Lifetime lifetime,
             ISolution solution,
             IShellLocks shellLocks,
             McpShellComponent shellComponent,
-            CodeCleanupSettingsComponent cleanupSettings,
+            SwappableTools swappableTools,
             ILogger logger)
         {
             _lifetime = lifetime;
+            _solution = solution;
+            _shellLocks = shellLocks;
+            _swappableTools = swappableTools;
             _shellComponent = shellComponent;
             _logger = logger;
             _caches = new Lazy<IPsiCachesState>(() => solution.TryGetComponent<IPsiCachesState>());
             _solutionPath = solution.SolutionFilePath?.FullPath ?? "";
+
+            // Rider 2026.3's lightweight backend loads the plugin too, with a solution that has no file. Registered, it
+            // made "Multiple solutions are open" of every call that names no file, and no call can name it.
+            if (_solutionPath.Length == 0)
+                return;
+
             _root = SolutionRoot.Of(solution);
             _diskChanges = new DiskChanges();
             _diskSync = new DiskSync(solution, shellLocks, _diskChanges);
@@ -56,42 +67,9 @@ namespace DotNetAnalysisAndRefactoringMcp
             if (_root.Workspace != null)
                 ThreadPool.QueueUserWorkItem(_ => _diskChanges.Watch(_root.Workspace));
 
-            var solutionName = string.IsNullOrEmpty(_solutionPath)
-                ? "Unknown"
-                : Path.GetFileNameWithoutExtension(_solutionPath);
+            var solutionName = Path.GetFileNameWithoutExtension(_solutionPath);
 
-            var tools = new List<ToolDefinition>();
-            var handlers = new Dictionary<string, Func<JObject, object>>();
-
-            // Register all tools
-            RegisterTool(new FindUsagesTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new GetSymbolInfoTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new FindImplementationsTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new GetFileErrorsTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new SearchSymbolTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new GoToDefinitionTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new GetSolutionStructureTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new BrowseNamespaceTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new ListSymbolsInFileTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new FixUsingsTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new FormatFileTool(solution, cleanupSettings), shellLocks, solution, tools, handlers);
-            RegisterTool(new FlowTool(solution), shellLocks, solution, tools, handlers);
-
-            // New agentic tools (v0.9.0)
-            RegisterTool(new GetSymbolSourceTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new GetCallHierarchyTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new GetTypeHierarchyTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new GetDiagnosticsTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new ListQuickFixesTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new ApplyQuickFixTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new RenameSymbolTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new GenerateMembersTool(solution), shellLocks, solution, tools, handlers);
-            RegisterTool(new CompleteAtTool(solution), shellLocks, solution, tools, handlers);
-
-            // File-wide scoped quick-fix application (v0.10.0)
-            RegisterTool(new ApplySuggestionsTool(solution), shellLocks, solution, tools, handlers);
-
-            _shellComponent.RegisterSolution(solutionName, _solutionPath, tools, handlers, Health);
+            _shellComponent.RegisterSolution(solutionName, _solutionPath, ListTools, CallTool, Health);
 
             lifetime.OnTermination(this);
         }
@@ -102,37 +80,48 @@ namespace DotNetAnalysisAndRefactoringMcp
         {
             ["indexing"] = IsIndexing,
             ["pendingDiskChanges"] = _diskSync.Pending,
+            ["tools"] = _swappableTools.Status()
         };
 
-        private void RegisterTool(IMcpTool tool, IShellLocks shellLocks, ISolution solution,
-            List<ToolDefinition> tools, Dictionary<string, Func<JObject, object>> handlers)
+        /// <summary>The current tools build's tools, described in JSON of the host's own: none of the build's objects.</summary>
+        private List<ToolDefinition> ListTools()
         {
-            tools.Add(new ToolDefinition
-            {
-                Name = tool.Name,
-                Description = tool.Description,
-                InputSchema = tool.InputSchema
-            });
-            handlers[tool.Name] = args => ExecuteOnPsiThread(tool, args, shellLocks, solution);
+            using var lease = _swappableTools.Lease();
+            return lease.CreateTools(_solution)
+                .Select(tool => new ToolDefinition
+                {
+                    Name = tool.Name,
+                    Description = tool.Description,
+                    InputSchema = JsonOf.Value(tool.InputSchema)
+                })
+                .ToList();
         }
 
-        private object ExecuteOnPsiThread(IMcpTool tool, JObject args, IShellLocks shellLocks, ISolution solution)
+        /// <summary>The answer of the current tools build's tool <paramref name="name"/>, or null if it has none by that name.</summary>
+        private string CallTool(string name, JObject args)
         {
-            return ExecuteAsync(tool, args, shellLocks, solution).GetAwaiter().GetResult();
+            using var lease = _swappableTools.Lease();
+            var tool = lease.CreateTools(_solution).FirstOrDefault(it => it.Name == name);
+
+            return tool == null ? null : ExecuteAsync(tool, args, lease).GetAwaiter().GetResult();
         }
 
-        private async Task<object> ExecuteAsync(IMcpTool tool, JObject args, IShellLocks shellLocks, ISolution solution)
+        private async Task<string> ExecuteAsync(IMcpTool tool, JObject args, ToolsLease lease)
         {
             using var request = Lifetime.Define(_lifetime, $"DotNetAnalysisAndRefactoringMcp.{tool.Name}");
             using var timer = new CancellationTokenSource();
-            var execution = new McpToolExecution(request.Lifetime, shellLocks, solution);
+            var execution = new McpToolExecution(request.Lifetime, _shellLocks, _solution);
             var task = RunAsync();
+            // A call that times out goes on until it notices its lifetime ended, on the build it started on.
+            var running = lease.Extend();
+            _ = task.ContinueWith(_ => running.Dispose(), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
             var timeout = Task.Delay(TimeSpan.FromSeconds(ToolTimeoutSeconds), timer.Token);
 
             if (await Task.WhenAny(task, timeout).ConfigureAwait(false) != task)
             {
                 request.Terminate();
-                _ = task.ContinueWith(completed => _logger.LogException(completed.Exception),
+                // As text: an exception kept keeps loaded every build its stack trace runs through.
+                _ = task.ContinueWith(completed => _logger.Warn($"DotNetAnalysisAndRefactoringMcp: '{tool.Name}' failed after timing out: {completed.Exception}"),
                     CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
                 throw new TimeoutException(
                     $"Timed out after {ToolTimeoutSeconds}s processing '{tool.Name}'. "
@@ -141,7 +130,7 @@ namespace DotNetAnalysisAndRefactoringMcp
 
             timer.Cancel();
 
-            return await task.ConfigureAwait(false);
+            return JsonOf.Text(await task.ConfigureAwait(false));
 
             async Task<object> RunAsync()
             {
@@ -168,15 +157,15 @@ namespace DotNetAnalysisAndRefactoringMcp
             }
 
             Task<object> ExecuteWriteAsync() =>
-                shellLocks.ExecuteOrQueueReadLockAsync(request.Lifetime, $"DotNetAnalysisAndRefactoringMcp.{tool.Name}", () =>
+                _shellLocks.ExecuteOrQueueReadLockAsync(request.Lifetime, $"DotNetAnalysisAndRefactoringMcp.{tool.Name}", () =>
                 {
                     object result = null;
-                    shellLocks.ExecuteWithWriteLock(() =>
+                    _shellLocks.ExecuteWithWriteLock(() =>
                     {
                         if (!request.Lifetime.IsAlive)
                             throw new OperationCanceledException();
 
-                        solution.GetPsiServices().Files.CommitAllDocuments();
+                        _solution.GetPsiServices().Files.CommitAllDocuments();
                         if (tool is IMcpSelfTransactingWriteTool)
                         {
                             result = tool.Execute(args);
@@ -184,7 +173,7 @@ namespace DotNetAnalysisAndRefactoringMcp
                         else
                         {
                             using var transaction = PsiTransactionCookie.CreateAutoCommitCookieWithCachesUpdate(
-                                solution.GetPsiServices(), $"DotNetAnalysisAndRefactoringMcp.{tool.Name}");
+                                _solution.GetPsiServices(), $"DotNetAnalysisAndRefactoringMcp.{tool.Name}");
                             result = tool.Execute(args);
                         }
                     });
@@ -222,6 +211,8 @@ namespace DotNetAnalysisAndRefactoringMcp
             if (IsIndexing)
                 notes.Add("(index still building — results may be incomplete)");
 
+            notes.AddRange(_swappableTools.Notes());
+
             return notes;
         }
 
@@ -238,9 +229,7 @@ namespace DotNetAnalysisAndRefactoringMcp
             if (notes.Count == 0)
                 return result;
 
-            var text = result as string ?? JsonConvert.SerializeObject(result, Formatting.Indented);
-
-            return $"{text}\n\n{string.Join("\n", notes)}";
+            return $"{JsonOf.Text(result)}\n\n{string.Join("\n", notes)}";
         }
 
         public void Dispose()

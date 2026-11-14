@@ -28,6 +28,16 @@ fi
 PLUGIN_DIR="$RIDER_DIR/plugins/$PLUGIN_NAME"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Puts the tools build in <plugin>/tools/<build>, which the host serves when no newer build for it is published
+# elsewhere: the tools assembly, its symbols, and host.sha256, the SHA-256 of the host assembly it goes with.
+copy_tools_build() {
+    local tools_dir="$1/tools/$(date -u +%Y-%m-%d_%H-%M-%S-0000000)"
+    local out="$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp.Tools/bin/Release/net472"
+    mkdir -p "$tools_dir"
+    cp "$out/DotNetAnalysisAndRefactoringMcp.Tools.dll" "$out/DotNetAnalysisAndRefactoringMcp.Tools.pdb" "$tools_dir/"
+    sha256sum "$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp/bin/Release/net472/$PLUGIN_NAME.dll" | cut -d' ' -f1 > "$tools_dir/host.sha256"
+}
+
 # Ensure JAVA_HOME is set for Gradle. If not already set, try to find Rider's bundled JBR.
 if [ -z "${JAVA_HOME:-}" ]; then
     # macOS: Rider.app bundles a JBR
@@ -37,7 +47,8 @@ if [ -z "${JAVA_HOME:-}" ]; then
 fi
 
 echo "Building backend..."
-dotnet build "$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp/DotNetAnalysisAndRefactoringMcp.csproj" -c Release -v quiet
+# The tools project references the host's, so this builds both.
+dotnet build "$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp.Tools/DotNetAnalysisAndRefactoringMcp.Tools.csproj" -c Release -v quiet
 
 echo "Building frontend..."
 (cd "$SCRIPT_DIR/rider-plugin" && ./gradlew jar --quiet)
@@ -53,11 +64,15 @@ rm -f "$PLUGIN_DIR/dotnet/$PLUGIN_NAME.dll" "$PLUGIN_DIR/dotnet/$PLUGIN_NAME.pdb
 cp "$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp/bin/Release/net472/$PLUGIN_NAME.dll" "$PLUGIN_DIR/dotnet/"
 cp "$SCRIPT_DIR/src/DotNetAnalysisAndRefactoringMcp/bin/Release/net472/$PLUGIN_NAME.pdb" "$PLUGIN_DIR/dotnet/" 2>/dev/null || true
 cp "$SCRIPT_DIR/rider-plugin/build/libs/$PLUGIN_NAME.jar" "$PLUGIN_DIR/lib/"
+# The host loads tools builds from their bytes, so they are never locked: the old ones can go.
+rm -rf "$PLUGIN_DIR/tools"
+copy_tools_build "$PLUGIN_DIR"
 
 echo ""
 echo "Done! Plugin installed to $PLUGIN_DIR"
 echo "  lib/  -> $PLUGIN_NAME.jar (frontend: Kotlin classes + plugin descriptor)"
-echo "  dotnet/ -> $PLUGIN_NAME.dll (backend component)"
+echo "  dotnet/ -> $PLUGIN_NAME.dll (the host: backend components)"
+echo "  tools/ -> the tools build the host serves"
 echo ""
 echo "Restart Rider for the plugin to take effect."
 echo "The MCP server will start on http://127.0.0.1:23751/ when you open a solution."

@@ -5,7 +5,7 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentTools;
 
 /// <summary>
 ///   The command line of the plugin's development tools: the <see cref="SandboxRider"/> that builds are tested in, and
-///   deploying a build to the <see cref="EverydayRider"/>.
+///   deploying a build to the <see cref="EverydayRider"/>s.
 /// </summary>
 static class Program
 {
@@ -17,17 +17,23 @@ static class Program
                          sandbox stop                Closes the sandbox Rider
                          sandbox place               Puts the sandbox's windows in their place again
                          sandbox status              Whether it runs, where its windows are, what its MCP server answers
-                         sandbox install             Builds the working tree and installs it in the sandbox, restarting it
-                                                     if it runs
-                         everyday deploy             Builds the working tree and installs it in the everyday Rider; it takes
-                                                     effect when that Rider restarts
-                         everyday rollback           Puts back the build the last deploy replaced
+                         sandbox install             Builds the working tree and puts it in the sandbox: only the tools,
+                                                     served from the next call, unless the host changed; then the plugin,
+                                                     restarting the sandbox if it runs
+                         everyday deploy             Builds the working tree and deploys it to the everyday Riders: the
+                                                     tools, which every one of them serves from its next call, and the
+                                                     plugin if the host changed, which takes effect when they restart
+                         everyday rollback           Removes the newest tools build, so the everyday Riders go back to the
+                                                     one before it at their next call
+                         everyday rollback-plugin    Puts back the plugin build the last deploy that changed the host
+                                                     replaced; it takes effect when the everyday Riders restart
                        """;
 
   static int Main(string[] arguments)
   {
     var rider = RiderInstallation.OfThisUser();
     var sandbox = new SandboxRider(rider);
+    var everyday = new EverydayRider(rider);
 
     switch (arguments)
     {
@@ -47,15 +53,19 @@ static class Program
         foreach (var line in sandbox.Status()) Console.WriteLine(line);
         break;
       case ["sandbox", "install"]:
-        InstallInTheSandbox(sandbox, rider);
+        Console.WriteLine(sandbox.Install(PluginBuild.FromTheWorkingTree(rider))
+                            ? "Installed the plugin in the sandbox: the host changed."
+                            : "Published the tools to the sandbox: it serves them from its next call.");
         break;
       case ["everyday", "deploy"]:
-        new EverydayRider(rider).Plugin.Install(PluginBuild.FromTheWorkingTree(rider));
-        Console.WriteLine("Installed in the everyday Rider. It takes effect when that Rider restarts.");
+        Deploy(everyday, PluginBuild.FromTheWorkingTree(rider));
         break;
       case ["everyday", "rollback"]:
-        new EverydayRider(rider).Plugin.PutBackTheBuildItReplaced();
-        Console.WriteLine("Put back the replaced build in the everyday Rider. It takes effect when that Rider restarts.");
+        Console.WriteLine($"Removed the tools build {everyday.Tools.RemoveTheNewest()}: the everyday Riders serve the one before it from their next call.");
+        break;
+      case ["everyday", "rollback-plugin"]:
+        everyday.Plugin.PutBackTheBuildItReplaced();
+        Console.WriteLine("Put back the replaced plugin build in the everyday Riders. It takes effect when they restart.");
         break;
       default:
         Console.Error.WriteLine(Usage);
@@ -64,12 +74,17 @@ static class Program
     return 0;
   }
 
-  static void InstallInTheSandbox(SandboxRider sandbox, RiderInstallation rider)
+  /// <remarks>
+  ///   The tools are published even when the host changed: running Riders keep serving the newest build for the host
+  ///   they run, and after the restart they serve this one.
+  /// </remarks>
+  static void Deploy(EverydayRider everyday, PluginBuild build)
   {
-    var build = PluginBuild.FromTheWorkingTree(rider);
-    var wasRunning = sandbox.IsRunning;
-    sandbox.Stop();
-    sandbox.Plugin.Install(build);
-    if (wasRunning) sandbox.Start();
+    var hostChanged = !everyday.Plugin.HasTheHostOf(build);
+    if (hostChanged) everyday.Plugin.Install(build);
+    var name = everyday.Tools.Publish(build);
+    Console.WriteLine(hostChanged
+                        ? $"The host changed: installed the plugin, and published the tools build {name}. Both take effect when the everyday Riders restart."
+                        : $"Published the tools build {name}: every everyday Rider serves it from its next call, with no restart.");
   }
 }

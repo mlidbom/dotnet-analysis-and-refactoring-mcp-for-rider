@@ -66,7 +66,8 @@ namespace DotNetAnalysisAndRefactoringMcp
     {
       var name = SafeLabel(label);
       _labels.Add($"{name}: {exception.GetType().Name}");
-      Log.Warn(exception, ExceptionOrigin.Algorithmic, $"DotNetAnalysisAndRefactoringMcp skipped '{name}'");
+      // As text: an exception kept keeps loaded every tools build its stack trace runs through.
+      Log.Warn($"DotNetAnalysisAndRefactoringMcp skipped '{name}': {exception}");
     }
 
     /// <remarks>

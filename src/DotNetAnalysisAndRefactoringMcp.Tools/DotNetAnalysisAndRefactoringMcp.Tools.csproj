@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The tools: everything that answers a tool call. The host loads a build of this assembly into a collectible load
+    context of its own and swaps it for a newer build between calls, without a Rider restart. See
+    dev_docs/swappable-tools.md for the rules code here follows so that a swapped-out build can be freed.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>DotNetAnalysisAndRefactoringMcp</RootNamespace>
+    <AssemblyName>DotNetAnalysisAndRefactoringMcp.Tools</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="JetBrains.ReSharper.SDK" Version="2025.3.3" PrivateAssets="all" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The host is in Rider's default load context already; the tools use that copy. -->
+    <ProjectReference Include="..\DotNetAnalysisAndRefactoringMcp\DotNetAnalysisAndRefactoringMcp.csproj" Private="false" />
+  </ItemGroup>
+</Project>

@@ -13,13 +13,18 @@ exposing code intelligence features to AI assistants via HTTP.
 Rider plugins require both a JVM frontend and a .NET backend:
 
 - `rider-plugin/META-INF/plugin.xml` — minimal IntelliJ plugin descriptor (no Java/Kotlin code needed for backend-only plugins). Without this JAR, Rider silently ignores the `dotnet/` folder.
-- `src/DotNetAnalysisAndRefactoringMcp/` — the .NET backend that runs inside the ReSharper host process.
+- `src/DotNetAnalysisAndRefactoringMcp/` — the .NET backend that runs inside the ReSharper host process: **the host**.
+- `src/DotNetAnalysisAndRefactoringMcp.Tools/` — **the tools**, which the host loads into a collectible load context
+  and swaps for a newer build between calls, so tool changes need no Rider restart. Read `dev_docs/swappable-tools.md`
+  before changing either: code in the tools follows rules so that a swapped-out build can be freed, and the
+  specifications check that it was.
 
 ### Installed plugin layout (in `~/.local/share/JetBrains/Rider2025.3/DotNetAnalysisAndRefactoringMcp/`)
 
 ```
 lib/DotNetAnalysisAndRefactoringMcp.jar       # plugin.xml descriptor (tells Rider this plugin exists)
-dotnet/DotNetAnalysisAndRefactoringMcp.dll    # backend component (loaded into ReSharper host)
+dotnet/DotNetAnalysisAndRefactoringMcp.dll    # the host (loaded into ReSharper host)
+tools/<build>/                                # the tools build it was installed with, and host.sha256
 ```
 
 ### MCP transport
@@ -44,7 +49,7 @@ The plugin uses a **primary/peer** model:
 Component breakdown:
 
 - `McpShellComponent.cs` — `[ShellComponent]` (process-level singleton). Tries to bind the base port; on failure, increments and becomes a peer. Owns the `McpHttpServer`. Handles peer registration notifications.
-- `McpServerComponent.cs` — `[SolutionComponent]` (per-solution). Registers/unregisters tools with the shell component on solution open/close. Handles PSI thread dispatch.
+- `McpServerComponent.cs` — `[SolutionComponent]` (per-solution). Registers/unregisters the solution with the shell component on solution open/close, serves its calls from the current tools build (`Swapping/SwappableTools`), and handles PSI thread dispatch. Skips solutions without a file (Rider 2026.3's lightweight backend has one).
 - When only one solution is open (across all Rider instances), all tool calls route to it automatically (backwards-compatible).
 - When multiple solutions are open, callers must specify `solutionName` in tool arguments.
 - The `list_solutions` meta-tool returns all currently open solutions (local + peers).
@@ -290,39 +295,51 @@ Never show the notice from a tool (it is a modal `MessageBox`).
 CLAUDE.md                              # this file
 README.md                              # user-facing docs
 install-rider.sh                       # build + install script (auto-detects Rider version)
-ReSharperMcp.sln                       # solution file
+build-plugin.sh / publish.sh           # plugin ZIP / Marketplace upload
+ReSharperMcp.sln                       # solution file (renamed with the clone's folder, later)
 rider-plugin/META-INF/plugin.xml       # IntelliJ plugin descriptor
-src/DotNetAnalysisAndRefactoringMcp/
-  DotNetAnalysisAndRefactoringMcp.csproj                  # targets net472, refs JetBrains.ReSharper.SDK 2025.3.3
+dev_docs/swappable-tools.md            # the host/tools split: how swapping works, the rules for tools code
+src/DotNetAnalysisAndRefactoringMcp/   # THE HOST: what Rider loads; a change here needs a Rider restart
+  DotNetAnalysisAndRefactoringMcp.csproj  # targets net472, refs JetBrains.ReSharper.SDK 2025.3.3
   McpShellComponent.cs                 # ShellComponent — owns HTTP server (process-level singleton)
-  McpServerComponent.cs                # SolutionComponent — registers tools per solution
+  McpServerComponent.cs                # SolutionComponent — serves a solution's calls from the current tools build
   McpHttpServer.cs                     # HttpListener-based MCP server with multi-solution routing
-  PsiHelpers.cs                        # Shared: file lookup, name/position resolution, suggestions, snippets
-  SymbolName.cs                        # Parses "Ns.Type.Member<T>(...)" as agents write it
   SolutionRoot.cs                      # Where relative paths start: solution directory and the work tree above it
-  CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
-  SkippedElements.cs                   # Per-element guard for walks + the "skipped N elements" line
-  DecompiledSource.cs                  # ReSharper decompiler / metadata view for compiled types
   McpInstructions.cs                   # Usage guide sent in the initialize response
   McpToolExecution.cs                  # Interruptible PSI reads and read-then-main-thread continuations
+  JsonOf.cs                            # JSON of the tools' anonymous objects without Newtonsoft's type caches
+  DaemonHighlightingCollector.cs       # Runs the daemon on a file; in the host because ReSharper keeps its type
+  Swapping/
+    SwappableTools.cs                  # ShellComponent — which tools build is served; swaps; checks freed
+    LoadedToolsBuild.cs                # One build in its own load context; counts calls; ToolsLease
+    ToolsBuildFolder.cs                # A folder of builds: the newest one for this host
+    CollectibleLoadContext.cs          # AssemblyLoadContext through reflection (net472 has none)
   Disk/
     DiskChanges.cs                     # FileSystemWatcher: source files changed since last taken
     DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk; stale tracking
     RiderInternals.cs                  # Rider API missing from the SDK, found by reflection (RdPath)
     RefreshRequests.cs                 # RdFsRefreshRequest across Rider versions (reflection)
-    GitChanges.cs                      # Files changed since a git ref (for get_file_errors changedSince)
-  DaemonHighlightingCollector.cs       # Runs the daemon on a file and collects highlightings (used by diagnostics/quick-fix tools)
   Protocol/
     JsonRpc.cs                         # JSON-RPC request/response/error types
     McpTypes.cs                        # MCP types: InitializeResult, ToolDefinition, etc.
-  Tools/
+  Tools/                               # what the tools implement, and the host's helpers for calls
     IMcpTool.cs                        # Tool interface: Name, Description, InputSchema, Execute
+    IMcpToolsEntryPoint.cs             # The way into a tools build: creates the tools for a call
     IMcpWriteTool.cs                   # Marker interface for write tools (write lock + PsiTransaction)
     IMcpEditTool.cs                    # Markers: edits source files (stale guard); expands arguments
     IMcpAsyncTool.cs                   # Read phase, then mutation phase, no lock held in between
-    ToolBatch.cs                       # Batch runner with per-item isolation; ToolText
     ToolFailure.cs                     # One-line crash text
     FileArguments.cs                   # filePath / filePaths / symbols[].filePath of a call
+src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between calls; same namespaces as before the split
+  PsiHelpers.cs                        # Shared: file lookup, name/position resolution, suggestions, snippets
+  SymbolName.cs                        # Parses "Ns.Type.Member<T>(...)" as agents write it
+  CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
+  SkippedElements.cs                   # Per-element guard for walks + the "skipped N elements" line
+  DecompiledSource.cs                  # ReSharper decompiler / metadata view for compiled types
+  Disk/GitChanges.cs                   # Files changed since a git ref (for get_file_errors changedSince)
+  Tools/
+    ToolsEntryPoint.cs                 # Creates every tool; the host knows it by name
+    ToolBatch.cs                       # Batch runner with per-item isolation; ToolText
     FindUsagesTool.cs                  # find_usages — IFinder.FindReferences()
     GetSymbolInfoTool.cs               # get_symbol_info — detailed symbol metadata
     FindImplementationsTool.cs         # find_implementations — FindInheritors/FindImplementingMembers
@@ -345,12 +362,18 @@ src/DotNetAnalysisAndRefactoringMcp/
     GenerateMembersTool.cs             # generate_members — generate type members (write)
     ApplyQuickFixTool.cs               # apply_quick_fix — apply a bulb action (self-transacting write)
     ApplySuggestionsTool.cs            # apply_suggestions — file-wide scoped quick-fixes by inspection id
+tools/                                 # development tools: the sandbox Rider, deploying (see .claude/rules)
+tests/DotNetAnalysisAndRefactoringMcp.Specifications/  # the tools checked in the sandbox Rider
+tests/FixtureSolution/                 # the solution the specifications open there
 ```
 
 ## Building & Installing
 
+On Magnus's machine, use the development tools instead (see `.claude/rules/developing-the-plugin.md`): they test
+in the sandbox Rider and deploy tools builds that take effect without a restart.
+
 ```bash
-./install-rider.sh              # builds Release, creates JAR, copies to Rider plugin dir
+./install-rider.sh              # builds Release, creates JAR, copies host, jar and tools build to Rider plugin dir
 # then restart Rider
 ```
 

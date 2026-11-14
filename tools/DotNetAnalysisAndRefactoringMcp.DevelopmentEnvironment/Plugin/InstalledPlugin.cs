@@ -3,8 +3,10 @@ using System.Globalization;
 namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
 
 /// <summary>
-///   The plugin as installed in one Rider's plugins folder: <c>DotNetAnalysisAndRefactoringMcp\dotnet</c> for the backend,
-///   <c>DotNetAnalysisAndRefactoringMcp\lib</c> for the frontend jar. Rider loads it when it starts.
+///   The plugin as installed in one Rider's plugins folder: <c>DotNetAnalysisAndRefactoringMcp\dotnet</c> for the host,
+///   <c>DotNetAnalysisAndRefactoringMcp\lib</c> for the frontend jar, and <c>DotNetAnalysisAndRefactoringMcp\tools</c> for
+///   the tools build it was installed with, which its host serves unless a newer one is published elsewhere. Rider loads
+///   the host when it starts.
 /// </summary>
 /// <remarks>
 ///   A running Rider has the backend assembly open, so its files can't be overwritten or deleted. They can be moved
@@ -36,12 +38,23 @@ public sealed class InstalledPlugin
   public void Install(PluginBuild build)
   {
     MoveTheInstalledBuildInto(Path.Combine(_replacedBuildsFolder, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture)));
-    foreach (var (subfolder, file) in build.Files)
+    foreach (var (subfolder, file) in build.HostFiles)
     {
       Directory.CreateDirectory(Path.Combine(_pluginFolder, subfolder));
       File.Copy(file, Path.Combine(_pluginFolder, subfolder, Path.GetFileName(file)));
     }
+    new ToolsBuilds(Path.Combine(_pluginFolder, "tools")).Publish(build);
     DeleteAllButTheNewestReplacedBuilds();
+  }
+
+  /// <summary>
+  ///   Whether the installed host is the host of <paramref name="build"/>. If it is, the build's tools can be published
+  ///   to a running Rider without installing anything, and without a restart.
+  /// </summary>
+  public bool HasTheHostOf(PluginBuild build)
+  {
+    var installed = Path.Combine(_pluginFolder, "dotnet", "DotNetAnalysisAndRefactoringMcp.dll");
+    return File.Exists(installed) && PluginBuild.IdentityOf(installed) == build.HostIdentity;
   }
 
   void DeleteAllButTheNewestReplacedBuilds()

@@ -394,7 +394,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
         private static string ResultToString(object result)
         {
             if (result is string s) return s;
-            var jo = JObject.FromObject(result);
+            var jo = (JObject)JsonOf.Value(result);
             return "error: " + (jo["error"]?.ToString() ?? result.ToString());
         }
     }

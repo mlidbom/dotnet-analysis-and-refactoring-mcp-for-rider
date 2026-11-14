@@ -36,8 +36,10 @@ namespace DotNetAnalysisAndRefactoringMcp
             _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
         }
 
+        /// <param name="listTools">The tools of the tools build currently served.</param>
+        /// <param name="callTool">The answer of a tool of the build currently served, as text, or null if it has none by that name.</param>
         public void RegisterSolution(string solutionName, string solutionPath,
-            List<ToolDefinition> tools, Dictionary<string, Func<JObject, object>> handlers, Func<JObject> health)
+            Func<List<ToolDefinition>> listTools, Func<string, JObject, string> callTool, Func<JObject> health)
         {
             lock (_lock)
             {
@@ -45,8 +47,8 @@ namespace DotNetAnalysisAndRefactoringMcp
                 {
                     Name = solutionName,
                     Path = solutionPath,
-                    Tools = tools,
-                    ToolHandlers = handlers,
+                    ListTools = listTools,
+                    CallTool = callTool,
                     Health = health
                 };
             }
@@ -71,7 +73,7 @@ namespace DotNetAnalysisAndRefactoringMcp
                 foreach (var kvp in _solutions)
                 {
                     var s = kvp.Value;
-                    target.RegisterSolution(s.Name, s.Path, s.Tools, s.ToolHandlers, s.Health);
+                    target.RegisterSolution(s.Name, s.Path, s.ListTools, s.CallTool, s.Health);
                 }
             }
         }
@@ -434,30 +436,36 @@ namespace DotNetAnalysisAndRefactoringMcp
         private JsonRpcResponse HandleToolsList(JsonRpcRequest request)
         {
             var tools = new List<ToolDefinition>();
+            List<SolutionRegistration> local;
+            List<PeerRegistration> peers;
 
             lock (_lock)
             {
-                // Collect unique tools across all local solutions (they register the same set)
-                var seen = new HashSet<string>();
-                foreach (var solution in _solutions.Values)
+                local = _solutions.Values.ToList();
+                peers = _peers.Values.ToList();
+            }
+
+            // Outside the lock: listing may load a new tools build first.
+            // Collect unique tools across all local solutions (they serve the same build)
+            var seen = new HashSet<string>();
+            foreach (var solution in local)
+            {
+                foreach (var tool in solution.ListTools())
                 {
-                    foreach (var tool in solution.Tools)
+                    if (seen.Add(tool.Name))
+                        tools.Add(tool);
+                }
+            }
+
+            // If no local solutions but we have peers, use peer tool info
+            if (tools.Count == 0 && peers.Count > 0)
+            {
+                foreach (var peer in peers)
+                {
+                    foreach (var tool in peer.Tools)
                     {
                         if (seen.Add(tool.Name))
                             tools.Add(tool);
-                    }
-                }
-
-                // If no local solutions but we have peers, use peer tool info
-                if (tools.Count == 0 && _peers.Count > 0)
-                {
-                    foreach (var peer in _peers.Values)
-                    {
-                        foreach (var tool in peer.Tools)
-                        {
-                            if (seen.Add(tool.Name))
-                                tools.Add(tool);
-                        }
                     }
                 }
             }
@@ -489,7 +497,7 @@ namespace DotNetAnalysisAndRefactoringMcp
 
         private static ToolDefinition AddSolutionNameParam(ToolDefinition original)
         {
-            var schema = JObject.FromObject(original.InputSchema);
+            var schema = (JObject)JsonOf.Value(original.InputSchema);
             var props = schema["properties"] as JObject ?? new JObject();
             props["solutionName"] = JObject.FromObject(new
             {
@@ -522,7 +530,7 @@ namespace DotNetAnalysisAndRefactoringMcp
             arguments.Remove("solutionName");
 
             // Resolve the target solution under lock, then execute outside lock
-            Func<JObject, object> localHandler = null;
+            Func<string, JObject, string> localCall = null;
             int peerPort = 0;
 
             lock (_lock)
@@ -633,9 +641,7 @@ namespace DotNetAnalysisAndRefactoringMcp
 
                 if (target.IsLocal)
                 {
-                    var localSolution = _solutions[target.Path];
-                    if (!localSolution.ToolHandlers.TryGetValue(toolName, out localHandler))
-                        return ToolError(request, $"Unknown tool: {toolName}");
+                    localCall = _solutions[target.Path].CallTool;
                 }
                 else
                 {
@@ -649,8 +655,10 @@ namespace DotNetAnalysisAndRefactoringMcp
 
             try
             {
-                var result = localHandler(arguments);
-                var text = result is string s ? s : JsonConvert.SerializeObject(result, Formatting.Indented);
+                var text = localCall(toolName, arguments);
+                if (text == null)
+                    return ToolError(request, $"Unknown tool: {toolName}");
+
                 return new JsonRpcResponse
                 {
                     Id = request.Id,
@@ -663,7 +671,8 @@ namespace DotNetAnalysisAndRefactoringMcp
             catch (Exception ex)
             {
                 // Warn, not Error: errors surface as IDE exception balloons, and a failing tool call is the caller's news.
-                _logger.Warn(ex, ExceptionOrigin.Algorithmic, $"DotNetAnalysisAndRefactoringMcp tool '{toolName}' failed");
+                // As text: an exception kept keeps loaded every tools build its stack trace runs through.
+                _logger.Warn($"DotNetAnalysisAndRefactoringMcp tool '{toolName}' failed: {ex}");
                 return ToolError(request, ToolFailure.Line(ex, toolName));
             }
         }
@@ -746,7 +755,7 @@ namespace DotNetAnalysisAndRefactoringMcp
                     {
                         ["name"] = s.Name,
                         ["path"] = s.Path,
-                        ["toolCount"] = s.Tools.Count
+                        ["toolCount"] = s.ListTools().Count
                     };
                     if (disambiguators.TryGetValue(s.Path, out var hint))
                         obj["uniquePathSegment"] = hint;
@@ -1068,8 +1077,8 @@ namespace DotNetAnalysisAndRefactoringMcp
     {
         public string Name { get; set; }
         public string Path { get; set; }
-        public List<ToolDefinition> Tools { get; set; }
-        public Dictionary<string, Func<JObject, object>> ToolHandlers { get; set; }
+        public Func<List<ToolDefinition>> ListTools { get; set; }
+        public Func<string, JObject, string> CallTool { get; set; }
         public Func<JObject> Health { get; set; }
     }
 

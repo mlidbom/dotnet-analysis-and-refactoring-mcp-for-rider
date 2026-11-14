@@ -18,6 +18,18 @@ they run into here (see the user-level rule on resharper-joshua). An item that i
 4. **Fix-all for one inspection over a scope.** `apply_suggestions` works one file at a time; cleanup sweeps, such as
    removing redundant `using` directives after a move, need a project or the solution.
 
+## Swapping the tools without a restart
+
+See `dev_docs/swappable-tools.md`.
+
+1. **`notifications/tools/list_changed`:** a tool that a new build adds appears only when the MCP client lists the tools
+   again, such as at a reconnect.
+2. **The usage guide (`McpInstructions`) into the tools build,** so that changing it needs no restart.
+3. **A peer re-registers its tools with the primary after a swap.** Matters only for a primary with no solution of its
+   own.
+4. **Faster specification runs when only the tools changed:** swap the build into the running sandbox instead of
+   restarting it with a fresh copy of the fixture solution.
+
 ## Known bugs
 
 - `rename_symbol` given the position of a `using var` line took the implicit `Dispose` call and renamed the type's
@@ -33,8 +45,8 @@ they run into here (see the user-level rule on resharper-joshua). An item that i
 - **Build against the SDK of the Rider version Magnus runs, and drop older ones,** once the fork is renamed: no more
   reflection to bridge versions, and an API change becomes a compile error instead of a run-time failure such as
   issue #8's `MethodAccessException`.
-- **An agent Rider:** a second Rider, separate from Magnus's, serving every session's code intelligence. Deploying a
-  build would need no restart of his IDE, and a broken build couldn't hang it. Costs memory and a second index of each
+- **An agent Rider:** a second Rider, separate from Magnus's, serving every session's code intelligence. A change to
+  the host would need no restart of his IDE (tools builds need none already), and a broken build couldn't hang it. Costs memory and a second index of each
   solution.
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence
   with Rider closed, in cloud sessions and in CI. Uncertain: the plugin makes some calls only Rider's frontend

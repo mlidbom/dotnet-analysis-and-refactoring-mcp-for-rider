@@ -70,17 +70,17 @@ namespace DotNetAnalysisAndRefactoringMcp
         }
 
         public void RegisterSolution(string solutionName, string solutionPath,
-            List<ToolDefinition> tools, Dictionary<string, Func<JObject, object>> handlers, Func<JObject> health)
+            Func<List<ToolDefinition>> listTools, Func<string, JObject, string> callTool, Func<JObject> health)
         {
             if (_server == null) return;
 
             // Always register locally
-            _server.RegisterSolution(solutionName, solutionPath, tools, handlers, health);
+            _server.RegisterSolution(solutionName, solutionPath, listTools, callTool, health);
             _logger.Info($"Registered solution '{solutionName}' locally on port {_server.Port}");
 
             // If we're a peer, also notify the primary server
             if (!_isPrimary)
-                NotifyPrimary("internal/register", solutionName, solutionPath, tools);
+                NotifyPrimary("internal/register", solutionName, solutionPath, listTools());
         }
 
         public void UnregisterSolution(string solutionPath)
@@ -111,7 +111,7 @@ namespace DotNetAnalysisAndRefactoringMcp
                     {
                         ["name"] = tool.Name,
                         ["description"] = tool.Description,
-                        ["inputSchema"] = JToken.FromObject(tool.InputSchema)
+                        ["inputSchema"] = JsonOf.Value(tool.InputSchema)
                     });
                 }
 

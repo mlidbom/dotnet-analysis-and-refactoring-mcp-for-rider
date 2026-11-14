@@ -99,7 +99,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
       if (result is string text)
         return text;
 
-      var json = JObject.FromObject(result);
+      var json = (JObject)JsonOf.Value(result);
       var error = json["error"]?.ToString();
       if (error == null)
         return json.ToString(Formatting.Indented);

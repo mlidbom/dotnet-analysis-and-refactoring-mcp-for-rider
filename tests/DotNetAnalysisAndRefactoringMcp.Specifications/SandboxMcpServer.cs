@@ -14,6 +14,18 @@ public sealed class SandboxMcpServer
 
   public SandboxMcpServer(int port) => _address = new Uri($"http://127.0.0.1:{port}/");
 
+  /// <summary>
+  ///   What the <c>/health</c> endpoint says about the tools build that serves <paramref name="solution"/>: its name as
+  ///   <c>build</c>, and the names of the builds swapped out that are <c>beingFreed</c> or <c>notFreed</c>.
+  /// </summary>
+  public JsonElement ToolsOf(string solution)
+  {
+    using var health = JsonDocument.Parse(Client.GetStringAsync(new Uri(_address, "health")).GetAwaiter().GetResult());
+    return health.RootElement.GetProperty("solutions").EnumerateArray()
+                 .Single(it => string.Equals(it.GetProperty("path").GetString(), solution, StringComparison.OrdinalIgnoreCase))
+                 .GetProperty("tools").Clone();
+  }
+
   /// <summary>Calls <paramref name="tool"/> and returns the text it answers.</summary>
   /// <remarks>
   ///   A tool that can't answer, such as for a symbol that doesn't exist, still answers in text, as

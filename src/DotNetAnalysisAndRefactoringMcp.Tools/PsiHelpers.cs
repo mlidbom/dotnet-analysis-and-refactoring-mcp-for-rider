@@ -632,7 +632,8 @@ namespace DotNetAnalysisAndRefactoringMcp
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 Interruption.Current.CheckAndThrow();
-                Log.Warn(exception, ExceptionOrigin.Algorithmic, $"DotNetAnalysisAndRefactoringMcp failed to resolve {sourceFile.GetLocation()}:{line}:{column}");
+                // As text: an exception kept keeps loaded every tools build its stack trace runs through.
+                Log.Warn($"DotNetAnalysisAndRefactoringMcp failed to resolve {sourceFile.GetLocation()}:{line}:{column}: {exception}");
 
                 var identifier = IdentifierAt(sourceFile, line, column);
                 var failure = $"ReSharper failed to resolve the reference at {line}:{column} ({exception.GetType().Name})";
@@ -769,7 +770,8 @@ namespace DotNetAnalysisAndRefactoringMcp
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 Interruption.Current.CheckAndThrow();
-                Log.Warn(exception, ExceptionOrigin.Algorithmic, "DotNetAnalysisAndRefactoringMcp stepped over a node whose references failed to resolve");
+                // As text: an exception kept keeps loaded every tools build its stack trace runs through.
+                Log.Warn($"DotNetAnalysisAndRefactoringMcp stepped over a node whose references failed to resolve: {exception}");
             }
 
             return null;

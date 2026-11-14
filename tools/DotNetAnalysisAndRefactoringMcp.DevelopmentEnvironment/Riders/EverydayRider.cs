@@ -3,8 +3,9 @@ using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
 namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Riders;
 
 /// <summary>
-///   The Rider Magnus works in, whose resharper-joshua MCP server every Claude session on the machine uses. A build
-///   reaches it only after passing in the <see cref="SandboxRider"/>, and takes effect when Magnus restarts it.
+///   The Riders Magnus works in, whose MCP server every Claude session on the machine uses. A build reaches them only
+///   after passing in the <see cref="SandboxRider"/>. Its tools take effect at every one of them from its next call on;
+///   a change to the host takes effect when Magnus restarts them.
 /// </summary>
 public sealed class EverydayRider
 {
@@ -16,4 +17,10 @@ public sealed class EverydayRider
   public InstalledPlugin Plugin =>
     new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "JetBrains", _rider.SettingsFolderName, "plugins"),
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DotNetAnalysisAndRefactoringMcpEverydayRider", "replaced-builds"));
+
+  /// <summary>
+  ///   The tools builds the everyday Riders' hosts serve, the newest built against each: the host's
+  ///   <c>SwappableTools.DevelopmentFolder</c>.
+  /// </summary>
+  public ToolsBuilds Tools => new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DotNetAnalysisAndRefactoringMcp", "tools"));
 }

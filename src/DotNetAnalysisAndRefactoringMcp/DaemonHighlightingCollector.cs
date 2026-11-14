@@ -16,7 +16,12 @@ namespace DotNetAnalysisAndRefactoringMcp
     ///   Collects daemon highlightings under an interruptible background read action.
     /// </summary>
     /// <remarks>
-    ///   Callers must have committed documents and read access, and must not hold a write lock.
+    ///   <para>Callers must have committed documents and read access, and must not hold a write lock.</para>
+    ///   <para>
+    ///     In the host, not the tools: <see cref="DaemonProcessBase"/> measures its runs under the type of the process,
+    ///     and ReSharper's <c>StartupMeasurer</c> keeps what it measures while it records, which it does at startup.
+    ///     A daemon process type of a tools build kept that build loaded after it was swapped out (2026-11-14).
+    ///   </para>
     /// </remarks>
     public static class DaemonHighlightingCollector
     {

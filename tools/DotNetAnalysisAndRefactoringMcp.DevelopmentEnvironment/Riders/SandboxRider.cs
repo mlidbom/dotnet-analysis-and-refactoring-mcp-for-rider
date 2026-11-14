@@ -33,6 +33,35 @@ public sealed class SandboxRider
   /// <summary>The plugin as installed in the sandbox. A build installed while it runs takes effect when it restarts.</summary>
   public InstalledPlugin Plugin => new(PluginsFolder, Path.Combine(_root, "replaced-builds"));
 
+  /// <summary>
+  ///   The tools builds the sandbox's host serves, the newest built against it, instead of the everyday Riders' ones: the
+  ///   sandbox starts with the host's <c>DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS</c> naming this folder.
+  /// </summary>
+  public ToolsBuilds Tools => new(Path.Combine(_root, "tools"));
+
+  /// <summary>
+  ///   Puts <paramref name="build"/> in the sandbox. Only its tools if the sandbox has its host already, which it serves
+  ///   from the next call on; otherwise the whole plugin, restarting the sandbox if it runs. Returns whether it
+  ///   installed the plugin.
+  /// </summary>
+  public bool Install(PluginBuild build)
+  {
+    var installsThePlugin = !Plugin.HasTheHostOf(build);
+    if (installsThePlugin)
+    {
+      var wasRunning = IsRunning;
+      Stop();
+      Plugin.Install(build);
+      Tools.Publish(build);
+      if (wasRunning) Start();
+    }
+    else
+    {
+      Tools.Publish(build);
+    }
+    return installsThePlugin;
+  }
+
   /// <summary>Where solutions to open in the sandbox go. The sandbox trusts everything under it.</summary>
   public string SolutionsFolder => Path.Combine(_root, "solutions");
 
@@ -118,6 +147,7 @@ public sealed class SandboxRider
   {
     Environment.SetEnvironmentVariable("RIDER_PROPERTIES", Path.Combine(_root, "idea.properties"));
     Environment.SetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT", McpPort.ToString());
+    Environment.SetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS", Tools.Folder);
     var startInformation = new ProcessStartInfo(_rider.Launcher) { UseShellExecute = true };
     if (solution is not null) startInformation.ArgumentList.Add(solution);
     return Process.Start(startInformation) ?? throw new InvalidOperationException($"Could not start {_rider.Launcher}.");

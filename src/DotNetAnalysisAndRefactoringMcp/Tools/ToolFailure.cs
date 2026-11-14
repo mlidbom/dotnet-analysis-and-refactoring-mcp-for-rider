@@ -17,7 +17,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
     /// </summary>
     public static string Logged(Exception exception, string subject)
     {
-      Log.Warn(exception, ExceptionOrigin.Algorithmic, $"DotNetAnalysisAndRefactoringMcp failed on {subject}");
+      // As text: an exception kept keeps loaded every tools build its stack trace runs through.
+      Log.Warn($"DotNetAnalysisAndRefactoringMcp failed on {subject}: {exception}");
 
       return Line(exception, subject);
     }
