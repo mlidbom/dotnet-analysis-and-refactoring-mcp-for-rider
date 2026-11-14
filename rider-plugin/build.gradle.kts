@@ -3,6 +3,8 @@ import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import org.jetbrains.changelog.Changelog
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
+import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 
 // Built, signed and published the way the .NET Terminal Symbol Linker is (github.com/mlidbom/RiderTerminalSymbolLinker):
 // the same Gradle plugins, the version from gradle.properties or the release tag, the change notes from CHANGELOG.md.
@@ -70,6 +72,23 @@ intellijPlatform {
     }
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
+    }
+
+    // The Marketplace runs the Plugin Verifier on every upload, and the symbol linker's updates have been approved at
+    // once since its reports had no findings (Magnus, 2026-11-14). So verifyPlugin fails on any finding: locally
+    // against the installed Rider, in CI against the oldest Rider the plugin supports and the latest release. Not the
+    // recommended() set, which may be a Rider for every version since sinceBuild: more than a runner's disk holds.
+    pluginVerification {
+        ides {
+            val localIdePath = providers.gradleProperty("localIdePath").orNull
+            if (!localIdePath.isNullOrBlank()) {
+                local(file(localIdePath))
+            } else {
+                create(IntelliJPlatformType.Rider, providers.gradleProperty("platformVersion").get())
+                latest()
+            }
+        }
+        failureLevel = VerifyPluginTask.FailureLevel.ALL
     }
 
     buildSearchableOptions = false

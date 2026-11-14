@@ -48,7 +48,8 @@ linker depended on this one. Every project's `.mcp.json` names this one, `dotnet
 The build is Gradle's (`rider-plugin/build.gradle.kts`), which also builds the .NET part, and the release is the
 .NET Terminal Symbol Linker's: `pluginVersion` in `rider-plugin/gradle.properties`, the version's section in
 `CHANGELOG.md`, and a `v<version>` tag, from which `.github/workflows/release.yml` builds, signs, creates the GitHub
-Release and publishes to the Marketplace. Pushing a release tag publishes, so it needs Magnus's word. Keep the two
+Release and publishes to the Marketplace. Pushing a release tag publishes, so it needs Magnus's word. `verifyPlugin` runs the Marketplace's Plugin Verifier and fails on
+any finding, in CI and before a release: updates with none have been approved at once (Magnus, 2026-11-14). Keep the two
 plugins' release setups alike (Magnus, 2026-11-14): change one, and say whether the other should follow.
 
 ## Branches: `main` is ours, a pull request's branch is upstream's
