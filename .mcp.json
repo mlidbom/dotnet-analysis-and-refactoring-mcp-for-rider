@@ -7,9 +7,9 @@
         "IJ_MCP_LAUNCH_ORIGIN": "${IJ_MCP_LAUNCH_ORIGIN:-}"
       }
     },
-    "resharper-joshua": {
+    "dotnet-analysis-and-refactoring": {
       "type": "http",
-      "url": "http://127.0.0.1:23741/"
+      "url": "http://127.0.0.1:23751/"
     },
     "sherlock": {
       "type": "stdio",
