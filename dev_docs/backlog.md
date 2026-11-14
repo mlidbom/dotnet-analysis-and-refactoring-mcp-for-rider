@@ -37,8 +37,8 @@ See `dev_docs/swappable-tools.md`.
 - `rename_symbol` of a parameter missed a `<paramref>` to it (seen 2026-11-10).
 - `get_call_hierarchy` on a concrete method returns nothing when every caller calls it through an interface; asked
   about the interface member it finds them.
-- `get_symbol_info` and `go_to_definition` put a spurious `static` in a type's header: a sealed class shows as
-  "static class", an interface as "static abstract interface" (seen again 2026-11-14 on JAStudio's `LocalNoteUpdater`).
+- `get_symbol_info` and `go_to_definition` give a type's doc comment's first line as where it's declared, not the line
+  of its `class` or `interface` keyword.
 
 ## Bigger ideas
 

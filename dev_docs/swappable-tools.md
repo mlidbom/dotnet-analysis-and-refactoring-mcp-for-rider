@@ -83,6 +83,11 @@ context of its own, calls it, and unloads the previous one. In the sandbox, Ride
 
 ## Found along the way
 
+- **The host's bytes changed at every commit,** so every deploy looked like a host change and waited for a restart:
+  the SDK wrote the git commit into the informational version, and Source Link into the symbols, whose id is stamped
+  into the assembly. The host's project turns the SDK's git queries off (`EnableSourceControlManagerQueries`); a
+  rebuild after an empty commit gives the same bytes. Found at the first deploy to the everyday Riders.
+
 - **Rider 2026.3 runs a lightweight backend** (`lightweight-backend.*.log`) beside the solution's, and it loads the
   plugin too, with a solution that has no file. Registered, it made "Multiple solutions are open" of every call that
   names no file, whenever it got the primary port first. The host now skips solutions without a file.
