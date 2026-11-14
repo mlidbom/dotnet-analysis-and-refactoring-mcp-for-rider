@@ -155,12 +155,27 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                     if (IsCompilerGeneratedMember(member, membersType))
                         continue;
 
-                    sb.Append("  ").AppendLine(PsiHelpers.FormatSignature(member));
+                    sb.Append("  ").Append(AccessOf(member)).AppendLine(PsiHelpers.FormatSignature(member));
                 }
             }
 
             return sb.ToString().TrimEnd();
         }
+
+        /// <summary>
+        /// "private " and the like, as C# writes it, before a member in the listing: a compiled type's listing holds its
+        /// private members too, and nothing else tells them from the public ones.
+        /// </summary>
+        private static string AccessOf(ITypeMember member) => member.GetAccessRights() switch
+        {
+            AccessRights.PUBLIC => "public ",
+            AccessRights.PRIVATE => "private ",
+            AccessRights.INTERNAL => "internal ",
+            AccessRights.PROTECTED => "protected ",
+            AccessRights.PROTECTED_OR_INTERNAL => "protected internal ",
+            AccessRights.PROTECTED_AND_INTERNAL => "private protected ",
+            _ => ""
+        };
 
         private static void AppendXmlDocumentation(StringBuilder sb, IDeclaredElement declaredElement)
         {

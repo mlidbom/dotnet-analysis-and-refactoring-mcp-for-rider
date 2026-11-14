@@ -108,6 +108,7 @@ it reverted a file the agent had just restored. `tests/live_disk_sync.py` checks
 | `get_diagnostics` | Run the daemon (`DaemonHighlightingCollector`) on a file: severity, inspection id, message, location, quick-fix availability |
 | `list_quick_fixes` | List ReSharper quick-fixes (bulb actions) available at a position |
 | `complete_at` | Get code completion suggestions at a caret position (runs on the R# main thread) |
+| `reload_projects` | Rider's Reload Project for the projects of the given files, waited for until loaded and indexed |
 
 Mutation-capable tools (main-thread execution, with dispatch controlled by the marker):
 
@@ -365,6 +366,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     GenerateMembersTool.cs             # generate_members — generate type members (write)
     ApplyQuickFixTool.cs               # apply_quick_fix — apply a bulb action (self-transacting write)
     ApplySuggestionsTool.cs            # apply_suggestions — file-wide scoped quick-fixes by inspection id
+    ReloadProjectsTool.cs              # reload_projects — ISolutionHost.ReloadProjectsAsync, waited for via LoadEvents
 tools/                                 # development tools: the sandbox Rider, deploying (see .claude/rules)
 tests/DotNetAnalysisAndRefactoringMcp.Specifications/  # the tools checked in the sandbox Rider
 tests/FixtureSolution/                 # the solution the specifications open there

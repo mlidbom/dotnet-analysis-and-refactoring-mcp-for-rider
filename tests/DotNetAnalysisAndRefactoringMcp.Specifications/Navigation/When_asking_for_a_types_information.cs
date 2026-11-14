@@ -25,3 +25,13 @@ public class When_asking_for_a_types_information(TheSandboxWithTheFixtureSolutio
 
   [XF] public void it_gives_an_interface_no_base_type() => _interface.Must().NotContain("baseTypes");
 }
+
+public class When_asking_for_a_types_members(TheSandboxWithTheFixtureSolution sandbox)
+{
+  readonly string _answer = sandbox.McpServer.CallTool("get_symbol_info", new { symbolName = "Drawing", includeMembers = true });
+
+  /// <summary>Until 2026-11-15 nothing told a private member from a public one.</summary>
+  [XF] public void it_says_which_are_private() => _answer.Must().Contain("private field _shapes");
+
+  [XF] public void and_which_are_public() => _answer.Must().Contain("public method AreaOfTheFirst");
+}

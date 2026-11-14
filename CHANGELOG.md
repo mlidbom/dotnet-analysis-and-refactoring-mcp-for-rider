@@ -15,10 +15,12 @@ plugin is a fork of.
 
 ### Added
 
+- `reload_projects`: Rider's Reload Project for the projects of the given files, project files or folders, and a wait until Rider has loaded them and ReSharper has indexed the result. For a project whose model in Rider is stale, such as a new view's code-behind that reports `InitializeComponent` unresolved
 - The server tells connected clients when its tools change, with `notifications/tools/list_changed` on the event stream they hold open, so a new tool appears without a reconnect
 
 ### Fixed
 
+- `get_symbol_info`'s member listing says each member's access, `private`, `public` and so on: a compiled type's listing holds its private members too, and nothing told them apart
 - `get_call_hierarchy` on an implementation finds the callers that call it through its interface or base member, and says which member each was found through; it found none before
 - `get_call_hierarchy` finds callers that are properties, fields or constructors, such as an expression-bodied property; only method callers were found before
 - `find_usages` follows the source members a member implements or overrides, through ReSharper's own super-member search instead of a match by name and parameter count, and no longer follows compiled ones: following `IDisposable.Dispose` listed every `using` in the solution. It names the compiled ones it didn't follow

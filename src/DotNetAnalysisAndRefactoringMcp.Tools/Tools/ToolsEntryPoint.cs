@@ -30,6 +30,7 @@ public sealed class ToolsEntryPoint : IMcpToolsEntryPoint
       new GetCallHierarchyTool(solution),
       new GetTypeHierarchyTool(solution),
       new GetDiagnosticsTool(solution),
+      new ReloadProjectsTool(solution),
       new ListQuickFixesTool(solution),
       new ApplyQuickFixTool(solution),
       new RenameSymbolTool(solution),

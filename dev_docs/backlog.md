@@ -12,10 +12,7 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
    folder, the `using` directives, and extension-method call sites. The rider MCP's `move_type_to_namespace` sometimes
    reports success and leaves the declaration on the old namespace, adds no `using` for extension-method callers, and
    doesn't move the file (the user-level rule on automated C# refactoring lists the routine that works around it).
-3. **`reload_projects`:** reload a project whose Rider model is stale, such as a new view's code-behind that reports
-   `InitializeComponent` unresolved. Replaces `~/.claude/tools/rider_reload_projects.py`, which edits a gitignored
-   `nuget.g.props` and has the rider MCP lint it to make Rider reload.
-4. **Fix-all for one inspection over a scope.** `apply_suggestions` works one file at a time; cleanup sweeps, such as
+3. **Fix-all for one inspection over a scope.** `apply_suggestions` works one file at a time; cleanup sweeps, such as
    removing redundant `using` directives after a move, need a project or the solution.
 
 ## Swapping the tools without a restart

@@ -16,6 +16,8 @@ namespace DotNetAnalysisAndRefactoringMcp
             + "- get_file_errors is the fast compile check. Pass changedSince: '<git ref>' (or changed: true) to check "
             + "every changed file in one call.\n"
             + "- find_usages prints rg-style 'path:line: code' lines; mode 'files' lists only the files.\n"
+            + "- Errors the build doesn't have, such as an unresolved InitializeComponent in a new view, mean Rider's model "
+            + "of the project is stale: reload_projects with the file fixes it.\n"
             + "- Files edited on disk are reloaded before each call. Edit tools (fix_usings, format_file, rename_symbol, "
             + "generate_members, apply_quick_fix, apply_suggestions) refuse while Rider's copy of a file differs "
             + "from disk.\n"

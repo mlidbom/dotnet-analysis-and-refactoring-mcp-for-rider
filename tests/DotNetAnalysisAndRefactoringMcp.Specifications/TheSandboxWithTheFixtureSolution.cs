@@ -96,7 +96,8 @@ public sealed class TheSandboxWithTheFixtureSolution
       ("get_diagnostics", new { filePath = exporting, minSeverity = "hint" }),
       ("list_quick_fixes", new { filePath = exporting, line = 9, column = 9 }),
       ("apply_suggestions", new { filePath = exporting, all = true, dryRun = true }),
-      ("rename_symbol", new { symbolName = "Circle", newName = "Disk", dryRun = true })
+      ("rename_symbol", new { symbolName = "Circle", newName = "Disk", dryRun = true }),
+      ("reload_projects", new { filePath = circle })
     ];
     foreach (var (tool, arguments) in calls)
     {
