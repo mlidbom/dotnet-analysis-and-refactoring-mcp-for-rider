@@ -84,6 +84,12 @@ changelog {
 
 kotlin {
     jvmToolchain(21)
+    compilerOptions {
+        // No forwarding methods for the platform interfaces' default methods: one was generated for
+        // StatusBarWidget.getPresentation(PlatformType), which is deprecated, and the Marketplace's verifier reported
+        // it as two usages of deprecated API. The platform's interfaces have real default methods to fall back on.
+        jvmDefault = org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY
+    }
 }
 
 // ---- The .NET part ------------------------------------------------------------------------------------------------

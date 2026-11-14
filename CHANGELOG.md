@@ -9,6 +9,10 @@ plugin is a fork of.
 
 ## [Unreleased]
 
+### Changed
+
+- No use of deprecated platform API: the Kotlin compiler no longer generates a forwarding method for the deprecated `StatusBarWidget.getPresentation(PlatformType)` into the status-bar widget, which the Marketplace's verifier reported as two usages of deprecated API
+
 ## [0.13.0]
 
 Forked and renamed.
