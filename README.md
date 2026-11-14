@@ -86,16 +86,13 @@ While indexing is in progress, tool results end with `(index still building — 
 
 ### From JetBrains Marketplace
 
-Install the plugin from Rider: **Settings → Plugins → Marketplace** → search for "MCP Server for Code Intelligence".
+Install the plugin from Rider: **Settings → Plugins → Marketplace** → search for ".NET Analysis&Refactoring MCP".
 
-### From source
+### From a release
 
-```bash
-./install-rider.sh
-# Restart Rider
-```
-
-The script builds the plugin and copies it to your local Rider plugin directory.
+Download the signed zip from the repository's
+[Releases](https://github.com/mlidbom/dotnet-analysis-and-refactoring-mcp-for-rider/releases), then in Rider:
+**Settings → Plugins → ⚙ → Install Plugin from Disk…**, and restart Rider.
 
 ## MCP client configuration
 
@@ -121,12 +118,23 @@ With several solutions open, pass `solutionName`, or a `filePath` that picks one
 ## Building
 
 ```bash
-# Build the .NET backend
-dotnet build src/DotNetAnalysisAndRefactoringMcp/DotNetAnalysisAndRefactoringMcp.csproj -c Release
-
-# Build a distributable plugin ZIP
-./build-plugin.sh
+cd rider-plugin
+./gradlew buildPlugin   # builds the .NET part (host and tools) and the jar; the zip lands in build/distributions/
 ```
+
+Gradle needs a JDK 21 (it provisions one through the toolchain resolver) and the .NET SDK.
+
+## Releasing
+
+As the [.NET Terminal Symbol Linker](https://github.com/mlidbom/RiderTerminalSymbolLinker) is released: update
+`pluginVersion` in `rider-plugin/gradle.properties` and the version's section in `CHANGELOG.md`, then push a tag:
+
+```bash
+git tag v0.13.1 && git push origin v0.13.1
+```
+
+`.github/workflows/release.yml` builds and signs the plugin, creates the GitHub Release with the change notes, and
+publishes the version to the JetBrains Marketplace.
 
 ## Architecture
 

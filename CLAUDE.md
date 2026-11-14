@@ -294,8 +294,9 @@ Never show the notice from a tool (it is a modal `MessageBox`).
 ```
 CLAUDE.md                              # this file
 README.md                              # user-facing docs
-install-rider.sh                       # build + install script (auto-detects Rider version)
-build-plugin.sh / publish.sh           # plugin ZIP / Marketplace upload
+CHANGELOG.md                           # change notes, Keep a Changelog: the Marketplace's and the GitHub Release's
+.github/workflows/                     # build.yml on every push; release.yml on a v* tag: sign, release, publish
+rider-plugin/build.gradle.kts          # the build: compileDotNet + prepareSandbox put the .NET part beside the jar
 ReSharperMcp.sln                       # solution file (renamed with the clone's folder, later)
 rider-plugin/META-INF/plugin.xml       # IntelliJ plugin descriptor
 dev_docs/swappable-tools.md            # the host/tools split: how swapping works, the rules for tools code
@@ -369,29 +370,23 @@ tests/FixtureSolution/                 # the solution the specifications open th
 
 ## Building & Installing
 
-On Magnus's machine, use the development tools instead (see `.claude/rules/developing-the-plugin.md`): they test
-in the sandbox Rider and deploy tools builds that take effect without a restart.
+`cd rider-plugin && ./gradlew buildPlugin` builds the plugin zip, .NET part included. On Magnus's machine, use the
+development tools to install and deploy (see `.claude/rules/developing-the-plugin.md`): they test in the sandbox Rider
+and deploy tools builds that take effect without a restart.
 
-```bash
-./install-rider.sh              # builds Release, creates JAR, copies host, jar and tools build to Rider plugin dir
-# then restart Rider
-```
-
-Safe while Rider runs: the script deletes the old DLL before copying, so the running backend keeps its mapped copy.
-Copying over it in place corrupted the mapped image and crashed the backend ("Bad IL range" on a watcher thread).
-Rider asks to confirm exit; `kill -TERM` on the frontend process quits it gracefully without the dialog.
+Installing into a running Rider: move the old files aside or delete them first, never copy over them in place. A
+running backend has the DLL mapped, and copying over it corrupted the mapped image and crashed the backend ("Bad IL
+range" on a watcher thread).
 
 Override port: `DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT=9999`
 
 ## Publishing
 
-```bash
-./publish.sh                    # builds plugin ZIP, uploads to JetBrains Marketplace
-```
-
-Requires `JB_MARKETPLACE_PAT` env var (or in `.env` file). Get a token at https://plugins.jetbrains.com/author/me/tokens.
-
-Version is defined in `rider-plugin/src/main/resources/META-INF/plugin.xml` — update `<version>` and `<change-notes>` before publishing.
+Released as the .NET Terminal Symbol Linker is: `pluginVersion` in `rider-plugin/gradle.properties`, the version's
+section in `CHANGELOG.md`, then a `v<version>` tag, which `.github/workflows/release.yml` builds, signs, releases on
+GitHub and publishes to the Marketplace. Publishing needs Magnus's word. The repository's secrets hold the signing
+certificate and the Marketplace token; `MARKETPLACE_ID` in `release.yml` is the plugin's Marketplace id, which its
+first upload, by hand, gave it.
 
 ## Testing
 

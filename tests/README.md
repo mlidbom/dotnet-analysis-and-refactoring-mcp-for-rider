@@ -4,7 +4,7 @@ For plugin maintainers with the candidate plugin loaded in Rider. Use a disposab
 NUnit solution, with a `Calculator.Add` method called by one test. Keep the test
 file open in the editor and allow indexing to finish.
 
-1. Build the backend and plugin: `./build-plugin.sh`. If the bundled JBR is too
+1. Build the backend and plugin: `cd rider-plugin && ./gradlew buildPlugin`. If the bundled JBR is too
    new for Gradle, set `JAVA_HOME` to a JDK 21 installation for this command.
 2. Run concurrent MCP reads for about 30 seconds:
 

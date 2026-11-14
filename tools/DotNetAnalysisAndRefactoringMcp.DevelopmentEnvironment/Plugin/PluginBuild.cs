@@ -32,7 +32,7 @@ public sealed class PluginBuild
   [
     ("dotnet", HostAssembly),
     ("dotnet", Path.ChangeExtension(HostAssembly, ".pdb")),
-    ("lib", Path.Combine(_repositoryRoot, "rider-plugin", "build", "libs", Host + ".jar"))
+    ("lib", FrontendJar)
   ];
 
   /// <summary>The tools assembly and its symbols.</summary>
@@ -44,6 +44,17 @@ public sealed class PluginBuild
   /// <summary>The SHA-256 of a host assembly, in lowercase hexadecimal: <c>ToolsBuildFolder.HostIdentity</c> in the host.</summary>
   public static string IdentityOf(string hostAssembly) => Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(hostAssembly)));
 
+  /// <summary>
+  ///   The jar <c>composedJar</c> builds, whose descriptor Gradle stamps with the version, the compatibility range and
+  ///   the change notes. Its name carries the version; the <c>-base</c> and <c>-instrumented</c> jars beside it are steps
+  ///   on the way.
+  /// </summary>
+  string FrontendJar =>
+    Directory.GetFiles(Path.Combine(_repositoryRoot, "rider-plugin", "build", "libs"), Host + "-*.jar")
+             .Where(it => !it.EndsWith("-base.jar", StringComparison.Ordinal) && !it.EndsWith("-instrumented.jar", StringComparison.Ordinal))
+             .OrderByDescending(File.GetLastWriteTimeUtc)
+             .First();
+
   string HostAssembly => Path.Combine(_repositoryRoot, "src", Host, "bin", "Release", "net472", Host + ".dll");
   string ToolsAssembly => Path.Combine(_repositoryRoot, "src", Tools, "bin", "Release", "net472", Tools + ".dll");
 
@@ -52,6 +63,6 @@ public sealed class PluginBuild
     ExternalCommand.Run("dotnet", ["build", Path.Combine("src", Tools, Tools + ".csproj"), "-c", "Release", "-v", "quiet", "-nologo"], _repositoryRoot);
 
   void BuildTheFrontendJar(RiderInstallation rider) =>
-    ExternalCommand.Run(Path.Combine(_repositoryRoot, "rider-plugin", "gradlew.bat"), ["jar", "--quiet"], Path.Combine(_repositoryRoot, "rider-plugin"),
+    ExternalCommand.Run(Path.Combine(_repositoryRoot, "rider-plugin", "gradlew.bat"), ["composedJar", "--quiet"], Path.Combine(_repositoryRoot, "rider-plugin"),
                         new Dictionary<string, string> { ["JAVA_HOME"] = rider.BundledJavaRuntime });
 }

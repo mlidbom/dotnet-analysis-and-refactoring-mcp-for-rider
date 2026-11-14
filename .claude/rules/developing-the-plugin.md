@@ -40,8 +40,16 @@ deploy in batches, and end the report with the heading `### RESTART RIDER ###` a
 brings. `everyday rollback` removes the newest tools build, so the Riders go back to the one before it at their next
 call; `everyday rollback-plugin` puts back the plugin build that the last host change replaced.
 
-The original plugin (`resharper-joshua`, port 23741) stays installed beside this one in Magnus's Riders: his symbol
-linker depends on it. Projects switch their `.mcp.json` over as the user-level rule says.
+The original plugin (`resharper-joshua`, port 23741) was removed from Magnus's Riders on 2026-11-14, once his symbol
+linker depended on this one. Projects switch their `.mcp.json` over as the user-level rule says.
+
+## Releasing: as the symbol linker is released
+
+The build is Gradle's (`rider-plugin/build.gradle.kts`), which also builds the .NET part, and the release is the
+.NET Terminal Symbol Linker's: `pluginVersion` in `rider-plugin/gradle.properties`, the version's section in
+`CHANGELOG.md`, and a `v<version>` tag, from which `.github/workflows/release.yml` builds, signs, creates the GitHub
+Release and publishes to the Marketplace. Pushing a release tag publishes, so it needs Magnus's word. Keep the two
+plugins' release setups alike (Magnus, 2026-11-14): change one, and say whether the other should follow.
 
 ## Branches: `main` is ours, a pull request's branch is upstream's
 
