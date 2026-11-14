@@ -98,7 +98,7 @@ The restructuring is the kind of change upstream wouldn't take, so the fork was 
 | Where | Name |
 |---|---|
 | Marketplace display name (at most 30 characters) | `.NET Analysis&Refactoring MCP` |
-| GitHub repository | `dotnet-analysis-and-refactoring-mcp` (renaming it on GitHub waits for Magnus's word) |
+| GitHub repository | `dotnet-analysis-and-refactoring-mcp-for-rider`: on GitHub nothing else says it's a Rider plugin, and only the Marketplace name has the naming rules (renaming it on GitHub waits for Magnus's word) |
 | Root namespace and assemblies | `DotNetAnalysisAndRefactoringMcp`, `DotNetAnalysisAndRefactoringMcp.Tools` |
 | Plugin id | `dev.magnus.dotnet-analysis-and-refactoring-mcp` |
 | MCP server name in the projects' `.mcp.json` | `dotnet-analysis-and-refactoring`, replacing `resharper-joshua`, and in the rules that name it |
