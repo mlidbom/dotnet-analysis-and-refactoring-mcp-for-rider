@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The experiment of 2026-11-14: a tool the plugin loads into a collectible AssemblyLoadContext, swaps and unloads.
+       Build it with -p:Version=1.0.0, then 2.0.0, and have experiment_swap_tool load each build. -->
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>SwappableTool</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="JetBrains.ReSharper.SDK" Version="2025.3.3" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\ReSharperMcp\ReSharperMcp.csproj" Private="false" />
+  </ItemGroup>
+
+</Project>
