@@ -41,7 +41,7 @@ brings. `everyday rollback` removes the newest tools build, so the Riders go bac
 call; `everyday rollback-plugin` puts back the plugin build that the last host change replaced.
 
 The original plugin (`resharper-joshua`, port 23741) was removed from Magnus's Riders on 2026-11-14, once his symbol
-linker depended on this one. Projects switch their `.mcp.json` over as the user-level rule says.
+linker depended on this one. Every project's `.mcp.json` names this one, `dotnet-analysis-and-refactoring`, since then.
 
 ## Releasing: as the symbol linker is released
 
