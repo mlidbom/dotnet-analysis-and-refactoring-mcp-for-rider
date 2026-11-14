@@ -22,6 +22,7 @@ plugin is a fork of.
 
 ### Fixed
 
+- `search_symbol` finds a type by its qualified name, `Shapes.Circle` or `System.IO.MemoryStream`, and a member through a qualified type, `Shapes.IShape.Area`; a qualified name was taken for `Type.Member` and found nothing
 - `get_symbol_info`'s member listing says each member's access, `private`, `public` and so on: a compiled type's listing holds its private members too, and nothing told them apart
 - `get_call_hierarchy` on an implementation finds the callers that call it through its interface or base member, and says which member each was found through; it found none before
 - `get_call_hierarchy` finds callers that are properties, fields or constructors, such as an expression-bodied property; only method callers were found before

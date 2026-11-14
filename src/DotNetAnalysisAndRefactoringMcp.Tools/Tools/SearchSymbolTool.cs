@@ -145,13 +145,26 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
 
             public void Run(ISymbolScope scope, string query, bool scanMembers)
             {
-                // Support dot-qualified queries like "IProfile.Fake" → containingType="IProfile", memberName="Fake"
+                // Dot-qualified queries: a type's qualified name ("JetBrains.Application.Progress.ProgressIndicator"),
+                // or "Type.Member" ("IProfile.Fake"), whose type may be qualified too ("Ns.IProfile.Fake"). Until
+                // 2026-11-15 a qualified type name was taken for Type.Member and found nothing.
                 var dotIndex = query.LastIndexOf('.');
                 if (dotIndex > 0 && dotIndex < query.Length - 1)
                 {
+                    foreach (var type in scope.GetTypeElementsByCLRName(query))
+                    {
+                        if (IsFull) break;
+                        if (_kinds == null || MatchesKindFilter(type, _kinds))
+                            Skipped.Guard(type, () => Add(type));
+                    }
+
                     var containingType = query.Substring(0, dotIndex).ToLowerInvariant();
                     var memberName = query.Substring(dotIndex + 1).ToLowerInvariant();
-                    SearchMembers(scope, typeName => typeName.Contains(containingType), memberName);
+                    var containingShortName = containingType.Substring(containingType.LastIndexOf('.') + 1);
+                    SearchMembers(scope, typeName => typeName.Contains(containingShortName), memberName,
+                        containingType.Contains('.')
+                            ? type => type.GetClrName().FullName.ToLowerInvariant().EndsWith(containingType)
+                            : null);
                     return;
                 }
 
@@ -194,7 +207,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                 }
             }
 
-            private void SearchMembers(ISymbolScope scope, System.Func<string, bool> typeNameMatches, string memberLower)
+            /// <param name="typeMatches">For a qualified type name, whether a type found by its short name is the one.</param>
+            private void SearchMembers(ISymbolScope scope, System.Func<string, bool> typeNameMatches, string memberLower,
+                System.Func<ITypeElement, bool> typeMatches = null)
             {
                 foreach (var shortName in scope.GetAllShortNames())
                 {
@@ -207,7 +222,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                         foreach (var element in scope.GetElementsByShortName(shortName))
                         {
                             if (IsFull) break;
-                            if (element is ITypeElement typeElement)
+                            if (element is ITypeElement typeElement && (typeMatches == null || typeMatches(typeElement)))
                                 Skipped.Guard(typeElement, () => AddMembers(typeElement, memberLower));
                         }
                     });

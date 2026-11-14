@@ -19,9 +19,9 @@ See `dev_docs/swappable-tools.md`.
 
 ## Known bugs
 
-- `search_symbol` with `includeLibraries` finds a compiled type by part of its name, but not by its qualified name
-  (`JetBrains.Application.Progress.ProgressIndicator` gives none), and a compiled member only as `Type.Member`, not
-  by its name alone (`GetProjectMark` gives none). `get_symbol_info` resolves the qualified name (seen 2026-11-15).
+- `search_symbol` with `includeLibraries` finds a compiled member only as `Type.Member`, not by its name alone
+  (`GetProjectMark` gives none): scanning every compiled type's members takes seconds. An index of member names
+  would do it.
 - `rename_symbol` of a parameter missed a `<paramref>` to it (seen 2026-11-10). Didn't reproduce on 2026-11-14: renaming
   a parameter by the position of its declaration renamed its `<paramref>` too. Unknown what differed; note how it was
   called if it happens again.
