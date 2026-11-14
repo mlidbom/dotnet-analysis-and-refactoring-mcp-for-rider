@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net.Http;
 using System.Text.Json;
 using ReSharperMcp.DevelopmentTools.Plugin;
 using ReSharperMcp.DevelopmentTools.Screen;
@@ -23,6 +22,8 @@ sealed class SandboxRider
 
   static readonly TimeSpan HowLongStartingMayTake = TimeSpan.FromMinutes(5);
   static readonly TimeSpan HowLongStoppingMayTake = TimeSpan.FromMinutes(2);
+
+  static readonly HttpClient HealthClient = new() { Timeout = TimeSpan.FromSeconds(5) };
 
   readonly RiderInstallation _rider;
   readonly string _root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ReSharperMcpSandbox");
@@ -147,7 +148,7 @@ sealed class SandboxRider
 
   /// <summary>The sandbox's windows apart from its splash screen.</summary>
   static IReadOnlyList<TopLevelWindow> FramesOf(Process process) =>
-    TopLevelWindow.AllVisible().Where(it => it.ProcessId == process.Id && it.Title.Length > 0 && it.Title != "splash").ToList();
+    [.. TopLevelWindow.AllVisible().Where(it => it.ProcessId == process.Id && it.Title.Length > 0 && it.Title != "splash")];
 
   static bool TheMcpServerHasIndexed(string solution)
   {
@@ -162,10 +163,9 @@ sealed class SandboxRider
   /// <remarks>The plugin listens only while a solution is open.</remarks>
   static string? TheMcpServersHealth()
   {
-    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
     try
     {
-      return client.GetStringAsync($"http://127.0.0.1:{McpPort}/health").GetAwaiter().GetResult();
+      return HealthClient.GetStringAsync($"http://127.0.0.1:{McpPort}/health").GetAwaiter().GetResult();
     }
     catch (HttpRequestException exception) when (exception.HttpRequestError == HttpRequestError.ConnectionError)
     {

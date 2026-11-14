@@ -19,7 +19,7 @@ sealed class Monitor
       monitors.Add(new Monitor(handle));
       return true;
     }, IntPtr.Zero);
-    return monitors.OrderBy(it => it.WorkArea.left).ToList();
+    return [.. monitors.OrderBy(it => it.WorkArea.left)];
   }
 
   /// <summary>The monitor that holds most of <paramref name="window"/>.</summary>

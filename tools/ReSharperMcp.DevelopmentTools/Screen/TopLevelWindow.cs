@@ -9,41 +9,34 @@ sealed class TopLevelWindow
 {
   readonly HWND _handle;
 
-  TopLevelWindow(HWND handle) => _handle = handle;
+  TopLevelWindow(HWND handle, string title, int processId)
+  {
+    _handle = handle;
+    Title = title;
+    ProcessId = processId;
+  }
 
-  /// <summary>Every visible top-level window, in the desktop's z-order, topmost first.</summary>
+  /// <summary>Every visible top-level window, on every virtual desktop, in the desktop's z-order, topmost first.</summary>
+  /// <remarks>
+  ///   The title and process are read as the windows are listed. A window that closes meanwhile, as Rider's splash
+  ///   screen does, is left out instead of failing a later read.
+  /// </remarks>
   public static IReadOnlyList<TopLevelWindow> AllVisible()
   {
     var windows = new List<TopLevelWindow>();
     EnumWindows((handle, _) =>
     {
-      if (IsWindowVisible(handle)) windows.Add(new TopLevelWindow(handle));
+      if (IsWindowVisible(handle) && GetWindowThreadProcessId(handle, out var processId) != 0)
+        windows.Add(new TopLevelWindow(handle, TitleOf(handle), (int)processId));
       return true;
     }, IntPtr.Zero);
     return windows;
   }
 
-  public string Title
-  {
-    get
-    {
-      var title = new System.Text.StringBuilder(GetWindowTextLength(_handle) + 1);
-      GetWindowText(_handle, title, title.Capacity);
-      return title.ToString();
-    }
-  }
+  /// <summary>The title the window had when it was listed.</summary>
+  public string Title { get; }
 
-  public int ProcessId
-  {
-    get
-    {
-      GetWindowThreadProcessId(_handle, out var processId);
-      return (int)processId;
-    }
-  }
-
-  /// <summary>The window's handle, as the virtual desktop API takes it.</summary>
-  public IntPtr Handle => (IntPtr)_handle;
+  public int ProcessId { get; }
 
   /// <summary>The monitor that holds most of this window.</summary>
   public Monitor Monitor => Monitor.Holding(_handle);
@@ -87,4 +80,11 @@ sealed class TopLevelWindow
 
   /// <summary>Asks the window to close, as its close button does. The application decides what that means.</summary>
   public void AskToClose() => PostMessage(_handle, (uint)WindowMessage.WM_CLOSE);
+
+  static string TitleOf(HWND handle)
+  {
+    var title = new System.Text.StringBuilder(GetWindowTextLength(handle) + 1);
+    var length = GetWindowText(handle, title, title.Capacity);
+    return title.ToString(0, length);
+  }
 }

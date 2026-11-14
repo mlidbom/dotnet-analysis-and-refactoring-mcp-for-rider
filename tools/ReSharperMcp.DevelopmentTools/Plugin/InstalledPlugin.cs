@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace ReSharperMcp.DevelopmentTools.Plugin;
 
 /// <summary>
@@ -26,7 +28,7 @@ sealed class InstalledPlugin
   /// <summary>Replaces the installed build, if any, by <paramref name="build"/>.</summary>
   public void Install(PluginBuild build)
   {
-    MoveTheInstalledBuildInto(Path.Combine(_replacedBuildsFolder, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")));
+    MoveTheInstalledBuildInto(Path.Combine(_replacedBuildsFolder, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture)));
     foreach (var (subfolder, file) in build.Files)
     {
       Directory.CreateDirectory(Path.Combine(_pluginFolder, subfolder));
@@ -40,9 +42,9 @@ sealed class InstalledPlugin
   /// </summary>
   public void PutBackTheBuildItReplaced()
   {
-    var lastReplaced = Directory.GetDirectories(_replacedBuildsFolder).Where(it => !it.EndsWith("_rolled-back")).Max()
+    var lastReplaced = Directory.GetDirectories(_replacedBuildsFolder).Where(it => !it.EndsWith("_rolled-back", StringComparison.Ordinal)).Max()
                        ?? throw new InvalidOperationException($"No replaced build in {_replacedBuildsFolder} to put back.");
-    MoveTheInstalledBuildInto(Path.Combine(_replacedBuildsFolder, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + "_rolled-back"));
+    MoveTheInstalledBuildInto(Path.Combine(_replacedBuildsFolder, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture) + "_rolled-back"));
     MoveEveryFile(from: lastReplaced, to: _pluginFolder);
     Directory.Delete(lastReplaced, recursive: true);
   }

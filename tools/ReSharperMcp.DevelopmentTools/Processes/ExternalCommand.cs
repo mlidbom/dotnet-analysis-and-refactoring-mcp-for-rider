@@ -9,7 +9,7 @@ static class ExternalCommand
   ///   Runs <paramref name="program"/> and waits for it, echoing its output. A nonzero exit code is a failure of the
   ///   tool that ran it, so it throws.
   /// </summary>
-  public static void Run(string program, IEnumerable<string> arguments, string workingFolder, IReadOnlyDictionary<string, string>? environment = null)
+  public static void Run(string program, IReadOnlyList<string> arguments, string workingFolder, IReadOnlyDictionary<string, string>? environment = null)
   {
     var startInformation = new ProcessStartInfo(program) { WorkingDirectory = workingFolder, UseShellExecute = false };
     foreach (var argument in arguments) startInformation.ArgumentList.Add(argument);
