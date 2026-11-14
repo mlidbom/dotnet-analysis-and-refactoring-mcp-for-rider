@@ -26,8 +26,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Protocol
 
     public class ToolsCapability
     {
+        /// <summary>The server sends <c>notifications/tools/list_changed</c> when it swaps in a new tools build.</summary>
         [JsonProperty("listChanged")]
-        public bool ListChanged { get; set; } = false;
+        public bool ListChanged { get; set; } = true;
     }
 
     public class ServerInfo

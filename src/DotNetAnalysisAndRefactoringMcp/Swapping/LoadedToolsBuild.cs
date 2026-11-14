@@ -75,6 +75,9 @@ sealed class LoadedToolsBuild
   /// <summary>The tools for one call, which must be counted in.</summary>
   public IReadOnlyList<IMcpTool> CreateTools(ISolution solution) => _entryPoint.CreateTools(solution);
 
+  /// <summary>The usage guide, for a call that is counted in. A string, which keeps nothing of the build loaded.</summary>
+  public string Instructions => _entryPoint.Instructions;
+
   /// <summary>Counts a call out, and unloads the build if it's retired and that was its last call.</summary>
   public void Exit()
   {
@@ -116,6 +119,8 @@ public sealed class ToolsLease : IDisposable
   internal ToolsLease(LoadedToolsBuild build) => _build = build;
 
   public IReadOnlyList<IMcpTool> CreateTools(ISolution solution) => _build.CreateTools(solution);
+
+  public string Instructions => _build.Instructions;
 
   /// <summary>A second lease on the same build, for work that may outlive this one, such as a call that timed out.</summary>
   public ToolsLease Extend()

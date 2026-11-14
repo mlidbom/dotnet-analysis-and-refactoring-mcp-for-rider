@@ -22,12 +22,7 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
 
 See `dev_docs/swappable-tools.md`.
 
-1. **`notifications/tools/list_changed`:** a tool that a new build adds appears only when the MCP client lists the tools
-   again, such as at a reconnect.
-2. **The usage guide (`McpInstructions`) into the tools build,** so that changing it needs no restart.
-3. **A peer re-registers its tools with the primary after a swap.** Matters only for a primary with no solution of its
-   own.
-4. **Faster specification runs when only the tools changed:** swap the build into the running sandbox instead of
+1. **Faster specification runs when only the tools changed:** swap the build into the running sandbox instead of
    restarting it with a fresh copy of the fixture solution.
 
 ## Known bugs

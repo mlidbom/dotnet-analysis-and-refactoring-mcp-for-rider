@@ -2,7 +2,8 @@ namespace DotNetAnalysisAndRefactoringMcp
 {
     /// <summary>
     /// The usage guide every client receives in the <c>initialize</c> response, so agents know the basics without
-    /// a skill. Every line here is a claim about the code; change both together.
+    /// a skill. Every line here is a claim about the code; change both together. In the tools build, so a change to it
+    /// needs no Rider restart; a client gets it when it connects.
     /// </summary>
     public static class McpInstructions
     {

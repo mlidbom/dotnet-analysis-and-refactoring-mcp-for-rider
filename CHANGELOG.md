@@ -13,6 +13,10 @@ plugin is a fork of.
 
 - No use of deprecated platform API: the Kotlin compiler no longer generates a forwarding method for the deprecated `StatusBarWidget.getPresentation(PlatformType)` into the status-bar widget, which the Marketplace's verifier reported as two usages of deprecated API
 
+### Added
+
+- The server tells connected clients when its tools change, with `notifications/tools/list_changed` on the event stream they hold open, so a new tool appears without a reconnect
+
 ### Fixed
 
 - `get_call_hierarchy` on an implementation finds the callers that call it through its interface or base member, and says which member each was found through; it found none before

@@ -10,6 +10,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 /// </summary>
 public sealed class ToolsEntryPoint : IMcpToolsEntryPoint
 {
+  public string Instructions => McpInstructions.Text;
+
   public IReadOnlyList<IMcpTool> CreateTools(ISolution solution) =>
     [
       new FindUsagesTool(solution),

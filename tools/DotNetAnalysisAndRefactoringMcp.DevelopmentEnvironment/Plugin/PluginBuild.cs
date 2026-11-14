@@ -62,7 +62,11 @@ public sealed class PluginBuild
   void BuildTheBackend() =>
     ExternalCommand.Run("dotnet", ["build", Path.Combine("src", Tools, Tools + ".csproj"), "-c", "Release", "-v", "quiet", "-nologo"], _repositoryRoot);
 
+  /// <remarks>
+  ///   No daemon: one would outlive the build holding the caller's output, and a caller that reads that output to its end,
+  ///   such as <c>dotnet test | grep</c>, waited until the daemon went (2026-11-15). Gradle runs only when the host changed.
+  /// </remarks>
   void BuildTheFrontendJar(RiderInstallation rider) =>
-    ExternalCommand.Run(Path.Combine(_repositoryRoot, "rider-plugin", "gradlew.bat"), ["composedJar", "--quiet"], Path.Combine(_repositoryRoot, "rider-plugin"),
+    ExternalCommand.Run(Path.Combine(_repositoryRoot, "rider-plugin", "gradlew.bat"), ["composedJar", "--quiet", "--no-daemon"], Path.Combine(_repositoryRoot, "rider-plugin"),
                         new Dictionary<string, string> { ["JAVA_HOME"] = rider.BundledJavaRuntime });
 }

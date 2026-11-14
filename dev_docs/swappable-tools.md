@@ -30,8 +30,15 @@ and **publishing** is uploading the plugin to the Marketplace, nothing else.
   `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp\tools` (Magnus's everyday Riders'); then the plugin's own `tools`
   folder, which holds the build it was installed with. A Rider still running an older host keeps serving the newest
   build for that host, until it restarts into the new one.
-- **Noticing a new build:** at every call, the host compares the folder's write time with the one it last listed it at.
-  That is one file-system query per call; a watcher would have been more code for nothing measurable.
+- **Noticing a new build:** at every call, and every 2 seconds between calls, the host compares the folder's write time
+  with the one it last listed it at: one file-system query each time; a watcher would have been more code for nothing
+  measurable. The checks between calls are so that the clients hear of a new build's tools without a call first.
+- **Telling the clients:** after every swap the primary sends `notifications/tools/list_changed` on every event stream a
+  client holds open (a GET), and its `initialize` result says it does (`capabilities.tools.listChanged`). A peer
+  registers its solutions with the primary again, with its new build's tools, and the primary tells the clients then.
+  It tells of every swap, without comparing the tool lists: a swap that changed none costs a client one listing.
+- **The usage guide** sent at `initialize` (`McpInstructions`) is in the tools build too. A client gets it when it
+  connects, so a change to it reaches a session at its next reconnect.
 - **No gate:** a build counts the calls it serves. A newer build is served from the next call on; the build it replaces
   takes no new calls and unloads as soon as its last one is done. A call that timed out holds its build until it
   notices its lifetime ended.
@@ -94,11 +101,8 @@ context of its own, calls it, and unloads the previous one. In the sandbox, Ride
 
 ## Not done yet
 
-- **A new tool appears only when the MCP client lists the tools again,** such as at a reconnect: the server doesn't
-  send `notifications/tools/list_changed`. Changed tools take effect at once.
-- **A peer's tools are listed to the primary once, when it registers.** The primary lists its own build's tools, so
-  this matters only for a primary with no solution of its own.
-- **The usage guide sent at `initialize`** (`McpInstructions`) is in the host, so changing it needs a restart.
+- **Whether every MCP client acts on `notifications/tools/list_changed`** is the client's business. The specifications
+  check that the server sends it.
 
 ## The rename that came with it
 

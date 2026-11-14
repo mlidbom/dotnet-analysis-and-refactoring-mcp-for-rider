@@ -21,16 +21,20 @@ namespace DotNetAnalysisAndRefactoringMcp
         private readonly Dictionary<string, SolutionRegistration> _solutions = new Dictionary<string, SolutionRegistration>();
         private readonly Dictionary<string, PeerRegistration> _peers = new Dictionary<string, PeerRegistration>();
         private readonly string _sessionId;
+        private readonly Func<string> _instructions;
+        private readonly List<ServerEventStream> _eventStreams = new List<ServerEventStream>();
         private Thread _listenerThread;
         private volatile bool _running;
 
         public int Port { get; }
         public bool IsPrimary { get; set; }
 
-        public McpHttpServer(int port, ILogger logger)
+        /// <param name="instructions">The usage guide for the <c>initialize</c> response, from the tools build served.</param>
+        public McpHttpServer(int port, ILogger logger, Func<string> instructions)
         {
             Port = port;
             _logger = logger;
+            _instructions = instructions;
             _sessionId = Guid.NewGuid().ToString("N");
             _listener = new HttpListener();
             _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
@@ -60,6 +64,29 @@ namespace DotNetAnalysisAndRefactoringMcp
             {
                 _solutions.Remove(solutionPath);
             }
+        }
+
+        /// <summary>The solutions of this process.</summary>
+        internal List<SolutionRegistration> LocalSolutions()
+        {
+            lock (_lock)
+                return _solutions.Values.ToList();
+        }
+
+        /// <summary>
+        /// Tells every client with an event stream open (a GET) that the tool list changed, so that it lists the tools
+        /// again: <c>notifications/tools/list_changed</c>. Without it a tool a new tools build adds appears only when
+        /// the client reconnects.
+        /// </summary>
+        public void NotifyToolsChanged()
+        {
+            List<ServerEventStream> streams;
+            lock (_eventStreams)
+                streams = _eventStreams.ToList();
+
+            const string message = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/tools/list_changed\"}\n\n";
+            var told = streams.Count(stream => stream.TrySend(message));
+            _logger.Info($"Told {told} of {streams.Count} MCP clients with an event stream open that the tool list changed");
         }
 
         /// <summary>
@@ -321,9 +348,8 @@ namespace DotNetAnalysisAndRefactoringMcp
         }
 
         /// <summary>
-        /// Streamable HTTP: GET opens an SSE stream for server-to-client notifications.
-        /// We don't currently push server-initiated messages, but keep the stream alive
-        /// so clients that probe with GET see a valid SSE endpoint.
+        /// Streamable HTTP: GET opens an SSE stream for server-to-client notifications, which
+        /// <see cref="NotifyToolsChanged"/> writes to. Kept alive with a comment every 15 seconds.
         /// </summary>
         private void HandleGetSse(HttpListenerContext context)
         {
@@ -331,27 +357,27 @@ namespace DotNetAnalysisAndRefactoringMcp
             context.Response.Headers.Add("Cache-Control", "no-cache");
             context.Response.StatusCode = 200;
 
+            ServerEventStream stream = null;
             try
             {
                 using (var writer = new StreamWriter(context.Response.OutputStream, new UTF8Encoding(false)))
                 {
                     writer.AutoFlush = true;
+                    stream = new ServerEventStream(writer);
 
                     // Initial SSE comment to confirm the connection is established
-                    writer.Write(": connected\n\n");
+                    if (!stream.TrySend(": connected\n\n"))
+                        return;
+
+                    lock (_eventStreams)
+                        _eventStreams.Add(stream);
 
                     // Keep-alive loop until server stops or client disconnects
                     while (_running)
                     {
                         Thread.Sleep(15000);
-                        try
-                        {
-                            writer.Write(": keepalive\n\n");
-                        }
-                        catch
-                        {
+                        if (!stream.TrySend(": keepalive\n\n"))
                             break; // Client disconnected
-                        }
                     }
                 }
             }
@@ -361,6 +387,9 @@ namespace DotNetAnalysisAndRefactoringMcp
             }
             finally
             {
+                if (stream != null)
+                    lock (_eventStreams)
+                        _eventStreams.Remove(stream);
                 try { context.Response.Close(); } catch { /* already closed */ }
             }
         }
@@ -391,7 +420,7 @@ namespace DotNetAnalysisAndRefactoringMcp
                         Result = new InitializeResult
                         {
                             ProtocolVersion = negotiatedVersion,
-                            Instructions = McpInstructions.Text
+                            Instructions = InstructionsOrNone()
                         }
                     };
 
@@ -430,6 +459,20 @@ namespace DotNetAnalysisAndRefactoringMcp
                             Message = $"Method not found: {request.Method}"
                         }
                     };
+            }
+        }
+
+        /// <summary>The usage guide of the tools build served; none when there is no build to serve.</summary>
+        private string InstructionsOrNone()
+        {
+            try
+            {
+                return _instructions();
+            }
+            catch (Exception exception)
+            {
+                _logger.Warn($"No usage guide for the initialize response: {exception.Message}");
+                return null;
             }
         }
 
@@ -829,6 +872,9 @@ namespace DotNetAnalysisAndRefactoringMcp
                 }
 
                 _logger.Info($"Registered peer solution '{name}' on port {port}");
+
+                // A peer registers when it opens a solution, and again when it swaps in a new tools build.
+                NotifyToolsChanged();
             }
 
             return new JsonRpcResponse
@@ -1070,6 +1116,34 @@ namespace DotNetAnalysisAndRefactoringMcp
                     Content = { new ContentBlock { Text = message } }
                 }
             };
+        }
+    }
+
+    /// <summary>
+    /// An open event stream to a client. Writes come from its own keep-alive loop and from notifications, so they take
+    /// turns.
+    /// </summary>
+    internal sealed class ServerEventStream
+    {
+        private readonly StreamWriter _writer;
+
+        public ServerEventStream(StreamWriter writer) => _writer = writer;
+
+        /// <summary>False when the client has gone.</summary>
+        public bool TrySend(string text)
+        {
+            lock (_writer)
+            {
+                try
+                {
+                    _writer.Write(text);
+                    return true;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
         }
     }
 

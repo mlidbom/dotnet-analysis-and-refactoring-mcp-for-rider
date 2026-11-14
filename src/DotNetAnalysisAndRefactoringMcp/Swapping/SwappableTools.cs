@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Application;
 using JetBrains.Application.Parts;
+using JetBrains.Lifetimes;
 using JetBrains.Util;
 using Newtonsoft.Json.Linq;
 
@@ -12,7 +14,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Swapping;
 
 /// <summary>
 ///   The tools build the host serves calls with: the newest one built against this host, which it looks for at every
-///   call, so a new build is served from the next call on, with no Rider restart.
+///   call and every <see cref="LookEvery"/>, so a new build is served from the next call on, with no Rider restart, and
+///   <see cref="Swapped"/> tells the MCP clients about its tools even when no call comes.
 /// </summary>
 /// <remarks>
 ///   <para>
@@ -36,6 +39,9 @@ public sealed class SwappableTools
   /// <summary>How long after unloading a build it's checked whether the garbage collector has freed it.</summary>
   static readonly TimeSpan[] FreedChecks = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(8)];
 
+  /// <summary>How often it looks for a new build between calls: the folders' write times, unless one changed.</summary>
+  static readonly TimeSpan LookEvery = TimeSpan.FromSeconds(2);
+
   readonly ILogger _logger;
   readonly string _host;
   readonly IReadOnlyList<ToolsBuildFolder> _folders;
@@ -46,14 +52,23 @@ public sealed class SwappableTools
   string _failedBuild;
   string _failure;
 
-  public SwappableTools(ILogger logger)
+  public SwappableTools(Lifetime lifetime, ILogger logger)
   {
     _logger = logger;
     var hostAssembly = typeof(SwappableTools).Assembly.Location;
     _host = ToolsBuildFolder.HostIdentity(hostAssembly);
     var firstFolder = Environment.GetEnvironmentVariable(FolderVariable) is { Length: > 0 } named ? named : DevelopmentFolder;
     _folders = [new ToolsBuildFolder(firstFolder), new ToolsBuildFolder(PluginsOwnFolder(hostAssembly))];
+
+    var looking = new Timer(_ => LookForANewBuild(), null, LookEvery, LookEvery);
+    lifetime.OnTermination(() => looking.Dispose());
   }
+
+  /// <summary>
+  ///   Raised on a thread of the pool after a new build is swapped in, or the first one loaded: its tools may differ
+  ///   from the ones the clients were told of.
+  /// </summary>
+  public event Action Swapped;
 
   /// <summary>Where the development tools deploy the builds that Magnus's everyday Riders serve.</summary>
   public static string DevelopmentFolder =>
@@ -102,6 +117,19 @@ public sealed class SwappableTools
     }
   }
 
+  /// <summary>Swaps in a new build if there is one. A failure to load is in <see cref="Status"/> and the notes already.</summary>
+  void LookForANewBuild()
+  {
+    try
+    {
+      CurrentBuild();
+    }
+    catch (Exception exception)
+    {
+      _logger.Verbose($"DotNetAnalysisAndRefactoringMcp: no tools build to serve: {exception.Message}");
+    }
+  }
+
   LoadedToolsBuild CurrentBuild()
   {
     lock (_gate)
@@ -136,11 +164,24 @@ public sealed class SwappableTools
     _failedBuild = null;
     _failure = null;
     _logger.Info($"DotNetAnalysisAndRefactoringMcp: serving the tools build {build.Folder}");
+    Task.Run(RaiseSwapped);
     if (previous is null) return;
 
     var name = previous.Name;
     _beingFreed.Add(name);
     previous.Retire(context => WaitUntilFreed(name, context));
+  }
+
+  void RaiseSwapped()
+  {
+    try
+    {
+      Swapped?.Invoke();
+    }
+    catch (Exception exception)
+    {
+      _logger.Warn($"DotNetAnalysisAndRefactoringMcp: telling of a swapped tools build failed: {exception}");
+    }
   }
 
   /// <summary>

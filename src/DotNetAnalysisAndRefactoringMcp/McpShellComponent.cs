@@ -11,6 +11,7 @@ using JetBrains.Util;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using DotNetAnalysisAndRefactoringMcp.Protocol;
+using DotNetAnalysisAndRefactoringMcp.Swapping;
 
 namespace DotNetAnalysisAndRefactoringMcp
 {
@@ -21,14 +22,16 @@ namespace DotNetAnalysisAndRefactoringMcp
         private const int MaxPortAttempts = 10;
         private McpHttpServer _server;
         private readonly ILogger _logger;
+        private readonly SwappableTools _swappableTools;
         private readonly int _primaryPort;
         private bool _isPrimary;
 
         public int Port => _server?.Port ?? 0;
 
-        public McpShellComponent(Lifetime lifetime, ILogger logger)
+        public McpShellComponent(Lifetime lifetime, ILogger logger, SwappableTools swappableTools)
         {
             _logger = logger;
+            _swappableTools = swappableTools;
             var basePort = GetPort();
             _primaryPort = basePort;
 
@@ -36,7 +39,7 @@ namespace DotNetAnalysisAndRefactoringMcp
             for (var attempt = 0; attempt < MaxPortAttempts; attempt++)
             {
                 var tryPort = basePort + attempt;
-                var tryServer = new McpHttpServer(tryPort, logger);
+                var tryServer = new McpHttpServer(tryPort, logger, Instructions);
                 try
                 {
                     tryServer.Start();
@@ -66,7 +69,35 @@ namespace DotNetAnalysisAndRefactoringMcp
                 }
             }
 
+            swappableTools.Swapped += OnToolsSwapped;
+            lifetime.OnTermination(() => swappableTools.Swapped -= OnToolsSwapped);
             lifetime.OnTermination(this);
+        }
+
+        /// <summary>The usage guide of the tools build served.</summary>
+        private string Instructions()
+        {
+            using var lease = _swappableTools.Lease();
+            return lease.Instructions;
+        }
+
+        /// <summary>
+        /// The clients are told on the primary, which they connect to. A peer registers its solutions with the primary
+        /// again, with the new build's tools, and the primary tells the clients.
+        /// </summary>
+        private void OnToolsSwapped()
+        {
+            var server = _server;
+            if (server == null) return;
+
+            if (_isPrimary)
+            {
+                server.NotifyToolsChanged();
+                return;
+            }
+
+            foreach (var solution in server.LocalSolutions())
+                NotifyPrimary("internal/register", solution.Name, solution.Path, solution.ListTools());
         }
 
         public void RegisterSolution(string solutionName, string solutionPath,
@@ -225,7 +256,7 @@ namespace DotNetAnalysisAndRefactoringMcp
 
                 try
                 {
-                    var newServer = new McpHttpServer(_primaryPort, _logger);
+                    var newServer = new McpHttpServer(_primaryPort, _logger, Instructions);
                     newServer.Start();
                     newServer.IsPrimary = true;
 

@@ -103,6 +103,9 @@ public sealed class TheSandboxWithTheFixtureSolution
       try { McpServer.CallTool(tool, arguments); }
       catch (InvalidOperationException) { }
     }
+
+    // The usage guide comes from the tools build too.
+    McpServer.Initialize();
   }
 
   /// <summary>The copy replaces the last run's, so no run sees what an earlier one changed.</summary>

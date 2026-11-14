@@ -14,6 +14,9 @@ public interface IMcpToolsEntryPoint
   ///   instance kept would keep its build loaded after it was swapped out.
   /// </summary>
   IReadOnlyList<IMcpTool> CreateTools(ISolution solution);
+
+  /// <summary>The usage guide clients get when they connect, in the <c>initialize</c> response.</summary>
+  string Instructions { get; }
 }
 
 public static class McpToolsEntryPoint

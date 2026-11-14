@@ -306,7 +306,6 @@ src/DotNetAnalysisAndRefactoringMcp/   # THE HOST: what Rider loads; a change he
   McpServerComponent.cs                # SolutionComponent — serves a solution's calls from the current tools build
   McpHttpServer.cs                     # HttpListener-based MCP server with multi-solution routing
   SolutionRoot.cs                      # Where relative paths start: solution directory and the work tree above it
-  McpInstructions.cs                   # Usage guide sent in the initialize response
   McpToolExecution.cs                  # Interruptible PSI reads and read-then-main-thread continuations
   JsonOf.cs                            # JSON of the tools' anonymous objects without Newtonsoft's type caches
   DaemonHighlightingCollector.cs       # Runs the daemon on a file; in the host because ReSharper keeps its type
@@ -336,6 +335,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   SymbolName.cs                        # Parses "Ns.Type.Member<T>(...)" as agents write it
   CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
   SkippedElements.cs                   # Per-element guard for walks + the "skipped N elements" line
+  McpInstructions.cs                   # Usage guide sent in the initialize response (from the tools, so no restart)
   SuperMembers.cs                      # The members a member overrides/implements: what find_usages and call hierarchy follow
   DeclarationSite.cs                   # Where a declaration is: the file, line and column of its name (not its doc comment)
   DecompiledSource.cs                  # ReSharper decompiler / metadata view for compiled types
