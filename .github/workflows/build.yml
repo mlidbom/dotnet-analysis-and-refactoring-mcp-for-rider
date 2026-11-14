@@ -1,0 +1,52 @@
+name: Build
+
+# As the .NET Terminal Symbol Linker's build.yml, with the .NET SDK for the plugin's .NET part. The specifications
+# need a Rider on Windows (tests/DotNetAnalysisAndRefactoringMcp.Specifications), so they run on the developer's
+# machine, not here.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rider-plugin
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      # No localIdePath -> the build downloads the pinned Rider (gradle.properties). compileDotNet builds the host
+      # and the tools, and prepareSandbox puts them in the plugin beside the jar.
+      - name: Build plugin
+        run: ./gradlew buildPlugin --console=plain --stacktrace
+
+      - name: Upload plugin zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: DotNetAnalysisAndRefactoringMcp
+          path: rider-plugin/build/distributions/*.zip
+          if-no-files-found: error
