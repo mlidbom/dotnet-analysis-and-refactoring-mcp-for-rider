@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json;
-using ReSharperMcp.DevelopmentTools.Plugin;
-using ReSharperMcp.DevelopmentTools.Screen;
+using ReSharperMcp.DevelopmentEnvironment.Plugin;
+using ReSharperMcp.DevelopmentEnvironment.Screen;
 
-namespace ReSharperMcp.DevelopmentTools.Riders;
+namespace ReSharperMcp.DevelopmentEnvironment.Riders;
 
 /// <summary>
 ///   A second Rider, with settings, caches, plugins and logs of its own and the plugin's MCP server on a port of its
@@ -15,7 +15,7 @@ namespace ReSharperMcp.DevelopmentTools.Riders;
 ///   which has the repository open, doesn't watch its caches change. Rider's launcher reads the folders from the
 ///   properties file that the <c>RIDER_PROPERTIES</c> environment variable names.
 /// </remarks>
-sealed class SandboxRider
+public sealed class SandboxRider
 {
   /// <summary>The port the plugin's MCP server listens on in the sandbox. The everyday Rider's is 23741.</summary>
   public const int McpPort = 23841;
@@ -88,19 +88,17 @@ sealed class SandboxRider
   ///   Whether the sandbox runs, where its windows are next to the development Rider's, and what its MCP server's
   ///   health endpoint answers.
   /// </summary>
-  public IEnumerable<string> Status()
+  public IReadOnlyList<string> Status()
   {
-    var running = RunningProcess();
-    if (running is null)
-    {
-      yield return "The sandbox Rider isn't running.";
-      yield break;
-    }
+    if (RunningProcess() is not { } running) return ["The sandbox Rider isn't running."];
 
-    yield return $"The sandbox Rider runs as process {running.Id}.";
-    foreach (var window in FramesOf(running)) yield return "  sandbox window: " + window.Description;
-    yield return "  development Rider window: " + (SandboxWindowPlacement.TheDevelopmentRiderWindow(running.Id)?.Description ?? "none open");
-    yield return "  MCP health: " + (HasThePluginInstalled ? TheMcpServersHealth() ?? "nothing listens on port " + McpPort : "the plugin isn't installed");
+    return ScreenThread.Run(() => (IReadOnlyList<string>)
+    [
+      $"The sandbox Rider runs as process {running.Id}.",
+      .. FramesOf(running).Select(it => "  sandbox window: " + it.Description),
+      "  development Rider window: " + (SandboxWindowPlacement.TheDevelopmentRiderWindow(running.Id)?.Description ?? "none open"),
+      "  MCP health: " + (HasThePluginInstalled ? TheMcpServersHealth() ?? "nothing listens on port " + McpPort : "the plugin isn't installed")
+    ]);
   }
 
   /// <summary>Puts the sandbox's windows where <see cref="SandboxWindowPlacement"/> says.</summary>

@@ -1,12 +1,12 @@
 using System.Text.Json;
 
-namespace ReSharperMcp.DevelopmentTools.Riders;
+namespace ReSharperMcp.DevelopmentEnvironment.Riders;
 
 /// <summary>
 ///   The Rider installed on this machine, which both the <see cref="SandboxRider"/> and the <see cref="EverydayRider"/>
 ///   run.
 /// </summary>
-sealed class RiderInstallation
+public sealed class RiderInstallation
 {
   readonly string _installationFolder;
 

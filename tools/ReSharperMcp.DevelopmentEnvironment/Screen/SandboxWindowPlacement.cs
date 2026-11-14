@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Vanara.PInvoke;
 
-namespace ReSharperMcp.DevelopmentTools.Screen;
+namespace ReSharperMcp.DevelopmentEnvironment.Screen;
 
 /// <summary>
 ///   Where the <see cref="Riders.SandboxRider"/>'s windows go: with the Rider the plugin is developed in, on its
@@ -17,7 +17,10 @@ static class SandboxWindowPlacement
   const int Width = 1400;
   const int Height = 900;
 
-  public static void Apply(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId)
+  public static void Apply(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId) =>
+    ScreenThread.Run(() => ApplyOnThisThread(sandboxWindows, sandboxProcessId));
+
+  static void ApplyOnThisThread(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId)
   {
     var developmentRider = TheDevelopmentRiderWindow(sandboxProcessId);
     var monitor = Monitor.All().FirstOrDefault(it => developmentRider is null || !it.IsTheSameAs(developmentRider.Monitor))

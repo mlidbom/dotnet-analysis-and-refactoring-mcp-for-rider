@@ -1,6 +1,6 @@
 using System.Xml.Linq;
 
-namespace ReSharperMcp.DevelopmentTools.Riders;
+namespace ReSharperMcp.DevelopmentEnvironment.Riders;
 
 /// <summary>
 ///   The few settings the <see cref="SandboxRider"/> needs so that nothing waits for a human: it exits without asking

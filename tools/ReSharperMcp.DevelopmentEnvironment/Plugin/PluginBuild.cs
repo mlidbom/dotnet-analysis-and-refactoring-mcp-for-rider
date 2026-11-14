@@ -1,13 +1,13 @@
-using ReSharperMcp.DevelopmentTools.Processes;
-using ReSharperMcp.DevelopmentTools.Riders;
+using ReSharperMcp.DevelopmentEnvironment.Processes;
+using ReSharperMcp.DevelopmentEnvironment.Riders;
 
-namespace ReSharperMcp.DevelopmentTools.Plugin;
+namespace ReSharperMcp.DevelopmentEnvironment.Plugin;
 
 /// <summary>
 ///   The plugin as built from this repository's working tree: the backend assembly that runs inside ReSharper's host
 ///   process, and the frontend jar whose descriptor makes Rider load it.
 /// </summary>
-sealed class PluginBuild
+public sealed class PluginBuild
 {
   readonly string _repositoryRoot;
 

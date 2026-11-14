@@ -2,7 +2,7 @@ using Vanara.PInvoke;
 using static Vanara.PInvoke.User32;
 using VirtualDesktop = WindowsDesktop.VirtualDesktop;
 
-namespace ReSharperMcp.DevelopmentTools.Screen;
+namespace ReSharperMcp.DevelopmentEnvironment.Screen;
 
 /// <summary>A window on the desktop that no other window owns, such as a Rider frame or a dialog of its own.</summary>
 sealed class TopLevelWindow

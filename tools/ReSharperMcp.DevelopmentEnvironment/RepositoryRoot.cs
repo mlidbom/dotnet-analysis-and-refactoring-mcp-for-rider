@@ -1,4 +1,4 @@
-namespace ReSharperMcp.DevelopmentTools;
+namespace ReSharperMcp.DevelopmentEnvironment;
 
 /// <summary>The root of the repository these tools were built from: the folder that holds <c>ReSharperMcp.sln</c>.</summary>
 static class RepositoryRoot

@@ -1,6 +1,5 @@
-using ReSharperMcp.DevelopmentTools.Plugin;
-using ReSharperMcp.DevelopmentTools.Riders;
-using static Vanara.PInvoke.User32;
+using ReSharperMcp.DevelopmentEnvironment.Plugin;
+using ReSharperMcp.DevelopmentEnvironment.Riders;
 
 namespace ReSharperMcp.DevelopmentTools;
 
@@ -25,10 +24,8 @@ static class Program
                          everyday rollback           Puts back the build the last deploy replaced
                        """;
 
-  [STAThread] // The virtual desktop API is COM, which wants a single-threaded apartment.
   static int Main(string[] arguments)
   {
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); // Window positions in physical pixels.
     var rider = RiderInstallation.OfThisUser();
     var sandbox = new SandboxRider(rider);
 

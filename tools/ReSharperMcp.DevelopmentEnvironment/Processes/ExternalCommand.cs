@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace ReSharperMcp.DevelopmentTools.Processes;
+namespace ReSharperMcp.DevelopmentEnvironment.Processes;
 
 /// <summary>A command line program the tools run to completion, such as <c>dotnet build</c> or Gradle.</summary>
 static class ExternalCommand

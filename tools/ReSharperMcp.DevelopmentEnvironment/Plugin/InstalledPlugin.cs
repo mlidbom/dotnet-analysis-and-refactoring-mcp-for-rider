@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace ReSharperMcp.DevelopmentTools.Plugin;
+namespace ReSharperMcp.DevelopmentEnvironment.Plugin;
 
 /// <summary>
 ///   The plugin as installed in one Rider's plugins folder: <c>ReSharperMcp\dotnet</c> for the backend,
@@ -12,7 +12,7 @@ namespace ReSharperMcp.DevelopmentTools.Plugin;
 ///   moves the current files to a folder of replaced builds and copies the new ones in, and a restart takes the new
 ///   build. The replaced builds are kept, which is what <see cref="PutBackTheBuildItReplaced"/> restores.
 /// </remarks>
-sealed class InstalledPlugin
+public sealed class InstalledPlugin
 {
   readonly string _pluginFolder;
   readonly string _replacedBuildsFolder;

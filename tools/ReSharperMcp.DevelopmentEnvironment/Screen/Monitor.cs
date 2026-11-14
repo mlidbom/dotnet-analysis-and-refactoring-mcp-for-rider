@@ -1,7 +1,7 @@
 using Vanara.PInvoke;
 using static Vanara.PInvoke.User32;
 
-namespace ReSharperMcp.DevelopmentTools.Screen;
+namespace ReSharperMcp.DevelopmentEnvironment.Screen;
 
 /// <summary>A physical display, with the part of it windows may use: its work area, without the taskbar.</summary>
 sealed class Monitor

@@ -1,12 +1,12 @@
-using ReSharperMcp.DevelopmentTools.Plugin;
+using ReSharperMcp.DevelopmentEnvironment.Plugin;
 
-namespace ReSharperMcp.DevelopmentTools.Riders;
+namespace ReSharperMcp.DevelopmentEnvironment.Riders;
 
 /// <summary>
 ///   The Rider Magnus works in, whose resharper-joshua MCP server every Claude session on the machine uses. A build
 ///   reaches it only after passing in the <see cref="SandboxRider"/>, and takes effect when Magnus restarts it.
 /// </summary>
-sealed class EverydayRider
+public sealed class EverydayRider
 {
   readonly RiderInstallation _rider;
 
