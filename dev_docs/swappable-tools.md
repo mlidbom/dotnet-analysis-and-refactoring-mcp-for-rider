@@ -47,3 +47,19 @@ context of its own, calls it, and unloads the previous one. In the sandbox, Ride
 - How the host notices a new build: a watcher on the tools folder, or a check of a version file at each call.
 - The gate that lets calls in progress finish before a swap: a `SemaphoreSlim`-style gate held across awaits, which
   Compze.Threading deliberately doesn't provide.
+
+## The rename that comes with it
+
+The restructuring is the kind of change upstream wouldn't take, so the fork is renamed with it (Magnus, 2026-11-14):
+
+| Where | Name |
+|---|---|
+| Marketplace display name (at most 30 characters) | `.NET Analysis&Refactoring MCP` |
+| GitHub repository | `dotnet-analysis-and-refactoring-mcp` (renaming it on GitHub waits for Magnus's word) |
+| Root namespace and assembly | `DotNetAnalysisAndRefactoringMcp` |
+| Plugin id | `dev.magnus.dotnet-analysis-and-refactoring-mcp` |
+| MCP server name in the projects' `.mcp.json` | `dotnet-analysis-and-refactoring`, replacing `resharper-joshua`, and in the rules that name it |
+| Default port | 23751; the original's is 23741, the sandbox's stays 23841 |
+
+Switching Magnus's Riders over is one uninstall of the original plugin and one install of the renamed one, with one
+last restart; from then on, tool updates need none.
