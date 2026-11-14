@@ -19,9 +19,9 @@ permissions:
   contents: write   # needed to create the GitHub Release
 
 env:
-  # The plugin's permanent Marketplace id, which its first upload, by hand on the Marketplace's web page, gives it.
-  # Until it's set, the publish step is skipped: Gradle can't create a new plugin on the Marketplace.
-  MARKETPLACE_ID: ''
+  # The plugin's permanent Marketplace id, which its first upload, by hand on the Marketplace's web page, gave it
+  # (2026-11-14, version 0.13.0): https://plugins.jetbrains.com/plugin/36143
+  MARKETPLACE_ID: '36143'
 
 jobs:
   release:
