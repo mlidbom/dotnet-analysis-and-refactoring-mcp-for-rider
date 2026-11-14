@@ -7,7 +7,7 @@ using Compze.xUnitBDD;
 namespace DotNetAnalysisAndRefactoringMcp.Specifications.Swapping;
 
 /// <summary>
-///   A new tools build published while the sandbox runs, twice: each is served from the next call on, with no restart,
+///   A new tools build deployed while the sandbox runs, twice: each is served from the next call on, with no restart,
 ///   and the build it replaced is unloaded and freed.
 /// </summary>
 public class When_the_tools_are_swapped_twice
@@ -20,9 +20,9 @@ public class When_the_tools_are_swapped_twice
 
   public When_the_tools_are_swapped_twice(TheSandboxWithTheFixtureSolution sandbox)
   {
-    sandbox.PublishTheToolsAgain();
+    sandbox.DeployTheToolsAgain();
     sandbox.McpServer.CallTool("search_symbol", new { query = "Circle" });
-    _newest = sandbox.PublishTheToolsAgain();
+    _newest = sandbox.DeployTheToolsAgain();
     _answer = sandbox.McpServer.CallTool("search_symbol", new { query = "Circle" });
     _tools = OnceNoneIsBeingFreed(() => sandbox.McpServer.ToolsOf(sandbox.PathOf("FixtureSolution.slnx")));
   }

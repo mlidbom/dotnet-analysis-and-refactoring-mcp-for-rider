@@ -18,8 +18,12 @@ plugin does it itself.
 
 ## How it works (built 2026-11-14)
 
+Three words, kept apart (Magnus, 2026-11-14): a tools build is **deployed** to a folder that running Riders serve
+from at their next call; the plugin is **installed** in a Rider's plugins folder, which takes effect at its restart;
+and **publishing** is uploading the plugin to the Marketplace, nothing else.
+
 - **A tools build** is a folder: the tools assembly, its symbols, and `host.sha256`, the SHA-256 of the host assembly
-  it was built against. Folders of builds are named by the time they were published, so the newest sorts last. A build
+  it was built against. Folders of builds are named by the time they were deployed, so the newest sorts last. A build
   is written as `<name>.incomplete` and renamed when complete.
 - **Which build a host serves:** the newest built against itself, from the first of two folders that has one. First
   the folder `DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS` names (the sandbox's), or else
@@ -37,7 +41,7 @@ plugin does it itself.
   answer until Rider restarts. `When_the_tools_are_swapped_twice` swaps twice and checks that every build swapped out
   in the run was freed, the first one included: the fixture has it run every tool that changes nothing first.
 - **The tools are created anew at every call** (`IMcpToolsEntryPoint.CreateTools`), and the host keeps none of them.
-- **Deploying:** `sandbox install` and `everyday deploy` publish the tools build, which takes effect at the next call.
+- **Deploying:** `sandbox install` and `everyday deploy` deploy the tools build, which takes effect at the next call.
   Only when the host changed do they install the plugin too, which takes effect at the restart.
 
 ## Rules for code in the tools assembly

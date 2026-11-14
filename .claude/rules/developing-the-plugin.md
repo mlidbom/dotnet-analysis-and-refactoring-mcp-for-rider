@@ -8,6 +8,10 @@ The plugin is two assemblies: the host, which Rider loads at startup, and the to
 build between calls, without a restart. `dev_docs/swappable-tools.md` says how, and the rules code in the tools
 follows so that a swapped-out build can be freed.
 
+Three words, kept apart: a tools build is **deployed** where running Riders serve it from their next call; the plugin
+is **installed** in a Rider's plugins folder, which takes effect at its restart; **publishing** is uploading it to
+the Marketplace, which needs Magnus's word.
+
 The development tools: `dotnet run --project tools/DotNetAnalysisAndRefactoringMcp.DevelopmentTools -- <command>`; with
 no command they list the commands.
 
@@ -30,7 +34,7 @@ the sandbox Rider first: a second Rider, with folders of its own, its own tools 
 
 ## Deploying to the everyday Riders: the tools at once, the host at a restart
 
-`everyday deploy` publishes a build that passed in the sandbox: every everyday Rider serves its tools from its next
+`everyday deploy` deploys a build that passed in the sandbox: every everyday Rider serves its tools from its next
 call. Only if the host changed does it install the plugin too, which waits for Magnus to restart his Riders: then
 deploy in batches, and end the report with the heading `### RESTART RIDER ###` and a line saying what the restart
 brings. `everyday rollback` removes the newest tools build, so the Riders go back to the one before it at their next

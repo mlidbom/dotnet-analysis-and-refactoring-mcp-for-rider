@@ -38,10 +38,10 @@ public sealed class TheSandboxWithTheFixtureSolution
   public SandboxMcpServer McpServer { get; } = new(SandboxRider.McpPort);
 
   /// <summary>
-  ///   Publishes this run's tools build to the sandbox again, as a new build, which the sandbox swaps in at its next
+  ///   Deploys this run's tools build to the sandbox again, as a new build, which the sandbox swaps in at its next
   ///   call. Returns the new build's name.
   /// </summary>
-  public string PublishTheToolsAgain() => _sandbox.Tools.Publish(_build);
+  public string DeployTheToolsAgain() => _sandbox.Tools.Deploy(_build);
 
   /// <summary>The full path of a file of the fixture solution's copy, given its path within the solution.</summary>
   public string PathOf(string pathInTheSolution) => Path.GetFullPath(Path.Combine(_solutionFolder, pathInTheSolution));

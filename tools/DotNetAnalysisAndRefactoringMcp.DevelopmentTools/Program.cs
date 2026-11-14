@@ -55,7 +55,7 @@ static class Program
       case ["sandbox", "install"]:
         Console.WriteLine(sandbox.Install(PluginBuild.FromTheWorkingTree(rider))
                             ? "Installed the plugin in the sandbox: the host changed."
-                            : "Published the tools to the sandbox: it serves them from its next call.");
+                            : "Deployed the tools to the sandbox: it serves them from its next call.");
         break;
       case ["everyday", "deploy"]:
         Deploy(everyday, PluginBuild.FromTheWorkingTree(rider));
@@ -75,16 +75,16 @@ static class Program
   }
 
   /// <remarks>
-  ///   The tools are published even when the host changed: running Riders keep serving the newest build for the host
+  ///   The tools are deployed even when the host changed: running Riders keep serving the newest build for the host
   ///   they run, and after the restart they serve this one.
   /// </remarks>
   static void Deploy(EverydayRider everyday, PluginBuild build)
   {
     var hostChanged = !everyday.Plugin.HasTheHostOf(build);
     if (hostChanged) everyday.Plugin.Install(build);
-    var name = everyday.Tools.Publish(build);
+    var name = everyday.Tools.Deploy(build);
     Console.WriteLine(hostChanged
-                        ? $"The host changed: installed the plugin, and published the tools build {name}. Both take effect when the everyday Riders restart."
-                        : $"Published the tools build {name}: every everyday Rider serves it from its next call, with no restart.");
+                        ? $"The host changed: installed the plugin, and deployed the tools build {name}. Both take effect when the everyday Riders restart."
+                        : $"Deployed the tools build {name}: every everyday Rider serves it from its next call, with no restart.");
   }
 }

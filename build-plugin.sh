@@ -5,7 +5,7 @@ PLUGIN_NAME="DotNetAnalysisAndRefactoringMcp"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STAGING_DIR="$SCRIPT_DIR/.build-staging"
 
-# Puts the tools build in <plugin>/tools/<build>, which the host serves when no newer build for it is published
+# Puts the tools build in <plugin>/tools/<build>, which the host serves when no newer build for it is deployed
 # elsewhere: the tools assembly, its symbols, and host.sha256, the SHA-256 of the host assembly it goes with.
 copy_tools_build() {
     local tools_dir="$1/tools/$(date -u +%Y-%m-%d_%H-%M-%S-0000000)"

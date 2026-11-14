@@ -5,7 +5,7 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
 /// <summary>
 ///   The plugin as installed in one Rider's plugins folder: <c>DotNetAnalysisAndRefactoringMcp\dotnet</c> for the host,
 ///   <c>DotNetAnalysisAndRefactoringMcp\lib</c> for the frontend jar, and <c>DotNetAnalysisAndRefactoringMcp\tools</c> for
-///   the tools build it was installed with, which its host serves unless a newer one is published elsewhere. Rider loads
+///   the tools build it was installed with, which its host serves unless a newer one is deployed elsewhere. Rider loads
 ///   the host when it starts.
 /// </summary>
 /// <remarks>
@@ -43,12 +43,12 @@ public sealed class InstalledPlugin
       Directory.CreateDirectory(Path.Combine(_pluginFolder, subfolder));
       File.Copy(file, Path.Combine(_pluginFolder, subfolder, Path.GetFileName(file)));
     }
-    new ToolsBuilds(Path.Combine(_pluginFolder, "tools")).Publish(build);
+    new ToolsBuilds(Path.Combine(_pluginFolder, "tools")).Deploy(build);
     DeleteAllButTheNewestReplacedBuilds();
   }
 
   /// <summary>
-  ///   Whether the installed host is the host of <paramref name="build"/>. If it is, the build's tools can be published
+  ///   Whether the installed host is the host of <paramref name="build"/>. If it is, the build's tools can be deployed
   ///   to a running Rider without installing anything, and without a restart.
   /// </summary>
   public bool HasTheHostOf(PluginBuild build)

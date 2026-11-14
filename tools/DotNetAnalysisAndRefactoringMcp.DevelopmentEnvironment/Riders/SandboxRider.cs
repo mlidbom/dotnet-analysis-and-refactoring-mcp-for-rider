@@ -52,12 +52,12 @@ public sealed class SandboxRider
       var wasRunning = IsRunning;
       Stop();
       Plugin.Install(build);
-      Tools.Publish(build);
+      Tools.Deploy(build);
       if (wasRunning) Start();
     }
     else
     {
-      Tools.Publish(build);
+      Tools.Deploy(build);
     }
     return installsThePlugin;
   }

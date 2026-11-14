@@ -4,7 +4,7 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
 
 /// <summary>
 ///   A folder of tools builds, as the host's <c>ToolsBuildFolder</c> reads it: a subfolder per build, named by the
-///   time it was published so the newest sorts last, holding the tools assembly, its symbols, and
+///   time it was deployed so the newest sorts last, holding the tools assembly, its symbols, and
 ///   <see cref="HostFileName"/>. A host serves the newest build built against it, from its next call on.
 /// </summary>
 /// <remarks>
@@ -18,15 +18,15 @@ public sealed class ToolsBuilds
   /// <summary>A build being written is named so, and the host skips it: <c>ToolsBuildFolder.IncompleteSuffix</c>.</summary>
   const string IncompleteSuffix = ".incomplete";
 
-  /// <summary>How many builds are kept: every run of the specifications publishes a few.</summary>
+  /// <summary>How many builds are kept: every run of the specifications deploys a few.</summary>
   const int BuildsKept = 10;
 
   public ToolsBuilds(string folder) => Folder = folder;
 
   public string Folder { get; }
 
-  /// <summary>Publishes the tools of <paramref name="build"/> as the newest build, and returns its name.</summary>
-  public string Publish(PluginBuild build)
+  /// <summary>Deploys the tools of <paramref name="build"/> as the newest build, and returns its name.</summary>
+  public string Deploy(PluginBuild build)
   {
     var name = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss-fffffff", CultureInfo.InvariantCulture);
     var incomplete = Path.Combine(Folder, name + IncompleteSuffix);
