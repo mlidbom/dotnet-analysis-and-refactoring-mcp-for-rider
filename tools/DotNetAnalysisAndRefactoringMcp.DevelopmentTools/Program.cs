@@ -58,7 +58,7 @@ static class Program
                             : "Deployed the tools to the sandbox: it serves them from its next call.");
         break;
       case ["everyday", "deploy"]:
-        Deploy(everyday, PluginBuild.FromTheWorkingTree(rider));
+        Deploy(everyday, sandbox, PluginBuild.FromTheWorkingTree(rider));
         break;
       case ["everyday", "rollback"]:
         Console.WriteLine($"Removed the tools build {everyday.Tools.RemoveTheNewest()}: the everyday Riders serve the one before it from their next call.");
@@ -78,13 +78,18 @@ static class Program
   ///   The tools are deployed even when the host changed: running Riders keep serving the newest build for the host
   ///   they run, and after the restart they serve this one.
   /// </remarks>
-  static void Deploy(EverydayRider everyday, PluginBuild build)
+  static void Deploy(EverydayRider everyday, SandboxRider sandbox, PluginBuild build)
   {
     var hostChanged = !everyday.Plugin.HasTheHostOf(build);
     if (hostChanged) everyday.Plugin.Install(build);
     var name = everyday.Tools.Deploy(build);
+    var waiting = everyday.RunningTheHostBeforeTheInstalledOne(sandbox.ProcessId);
     Console.WriteLine(hostChanged
                         ? $"The host changed: installed the plugin, and deployed the tools build {name}. Both take effect when the everyday Riders restart."
-                        : $"Deployed the tools build {name}: every everyday Rider serves it from its next call, with no restart.");
+                        : waiting > 0
+                          ? $"Deployed the tools build {name}, for the host installed at {everyday.Plugin.HostInstalledAt!.Value.ToLocalTime():HH:mm}: " +
+                            (waiting == 1 ? "an everyday Rider started before then still runs the host before it, and serves this build after its restart."
+                                          : $"{waiting} everyday Riders started before then still run the host before it, and serve this build after their restart.")
+                          : $"Deployed the tools build {name}: every everyday Rider serves it from its next call, with no restart.");
   }
 }

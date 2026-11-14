@@ -44,6 +44,7 @@ public sealed class InstalledPlugin
       File.Copy(file, Path.Combine(_pluginFolder, subfolder, Path.GetFileName(file)));
     }
     new ToolsBuilds(Path.Combine(_pluginFolder, "tools")).Deploy(build);
+    RecordTheInstall();
     DeleteAllButTheNewestReplacedBuilds();
   }
 
@@ -55,6 +56,26 @@ public sealed class InstalledPlugin
   {
     var installed = Path.Combine(_pluginFolder, "dotnet", "DotNetAnalysisAndRefactoringMcp.dll");
     return File.Exists(installed) && PluginBuild.IdentityOf(installed) == build.HostIdentity;
+  }
+
+  /// <summary>
+  ///   When the installed host was installed or put back, unless that wasn't recorded. A Rider started before then
+  ///   still runs the host it replaced.
+  /// </summary>
+  /// <remarks>
+  ///   Recorded in a file of its own: the files' times don't tell. The files are moved out of their folders and the new
+  ///   ones copied in, and Windows gives a file created right after one of the same name left the old one's creation
+  ///   time (file-name tunneling).
+  /// </remarks>
+  public DateTime? HostInstalledAt =>
+    File.Exists(InstalledAtFile) ? DateTime.Parse(File.ReadAllText(InstalledAtFile), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : null;
+
+  string InstalledAtFile => Path.Combine(Path.GetDirectoryName(_replacedBuildsFolder)!, "host-installed-at.txt");
+
+  void RecordTheInstall()
+  {
+    Directory.CreateDirectory(Path.GetDirectoryName(InstalledAtFile)!);
+    File.WriteAllText(InstalledAtFile, DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
   }
 
   void DeleteAllButTheNewestReplacedBuilds()
@@ -75,6 +96,7 @@ public sealed class InstalledPlugin
     MoveTheInstalledBuildInto(Path.Combine(_replacedBuildsFolder, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture) + "_rolled-back"));
     MoveEveryFile(from: lastReplaced, to: _pluginFolder);
     Directory.Delete(lastReplaced, recursive: true);
+    RecordTheInstall();
   }
 
   void MoveTheInstalledBuildInto(string folder)

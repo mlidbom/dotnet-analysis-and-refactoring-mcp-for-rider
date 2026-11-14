@@ -71,6 +71,9 @@ public sealed class SandboxRider
 
   public bool IsRunning => RunningProcess() is not null;
 
+  /// <summary>The sandbox's frontend process, unless it isn't running: everyday Riders run the same executable.</summary>
+  public int? ProcessId => RunningProcess()?.Id;
+
   /// <summary>
   ///   Starts the sandbox unless it's running, and places its windows. Given a <paramref name="solution"/>, it opens it,
   ///   and returns once the plugin's MCP server answers with the solution loaded and indexed.
