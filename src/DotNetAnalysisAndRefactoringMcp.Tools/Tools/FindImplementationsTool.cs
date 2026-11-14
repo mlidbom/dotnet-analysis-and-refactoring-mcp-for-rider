@@ -237,18 +237,11 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             var declarations = element.GetDeclarations();
             if (declarations.Count == 0) return null;
 
-            var decl = declarations[0];
-            var range = TreeNodeExtensions.GetDocumentRange(decl);
-            if (!range.IsValid()) return null;
+            var site = DeclarationSite.Of(declarations[0]);
+            if (site == null) return null;
 
-            var sourceFile = decl.GetSourceFile();
-            if (sourceFile == null) return null;
-
-            var implFilePath = sourceFile.GetLocation().FullPath;
-            if (string.IsNullOrEmpty(implFilePath))
-                implFilePath = "[no source]";
-
-            var (implLine, _) = PsiHelpers.GetLineColumn(range.StartOffset);
+            var implFilePath = site.File.Length > 0 ? site.File : "[no source]";
+            var implLine = site.Line;
 
             return new ImplInfo
             {
@@ -256,7 +249,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                 Kind = element.GetElementType().PresentableName,
                 File = implFilePath,
                 Line = implLine,
-                Text = PsiHelpers.TruncateSnippet(decl.GetText(), 200)
+                Text = PsiHelpers.TruncateSnippet(declarations[0].GetText(), 200)
             };
         }
 

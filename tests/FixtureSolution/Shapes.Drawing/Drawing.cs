@@ -11,5 +11,7 @@ public sealed class Drawing
 
   public double AreaOfTheFirst() => _shapes[0].Area();
 
+  public double AreaOfTheLast => _shapes[^1].Area();
+
   public double ScaledAreaOfTheFirst() => ShapeExtensions.Scaled(AreaOfTheFirst(), 2);
 }

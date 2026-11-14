@@ -336,6 +336,8 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   SymbolName.cs                        # Parses "Ns.Type.Member<T>(...)" as agents write it
   CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
   SkippedElements.cs                   # Per-element guard for walks + the "skipped N elements" line
+  SuperMembers.cs                      # The members a member overrides/implements: what find_usages and call hierarchy follow
+  DeclarationSite.cs                   # Where a declaration is: the file, line and column of its name (not its doc comment)
   DecompiledSource.cs                  # ReSharper decompiler / metadata view for compiled types
   Disk/GitChanges.cs                   # Files changed since a git ref (for get_file_errors changedSince)
   Tools/

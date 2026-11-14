@@ -246,18 +246,12 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             };
 
             var declarations = element.GetDeclarations();
-            if (declarations.Count > 0)
+            var site = declarations.Count > 0 ? DeclarationSite.Of(declarations[0]) : null;
+            if (site != null)
             {
-                var decl = declarations[0];
-                var range = TreeNodeExtensions.GetDocumentRange(decl);
-                var sourceFile = decl.GetSourceFile();
-                if (range.IsValid() && sourceFile != null)
-                {
-                    var (line, column) = PsiHelpers.GetLineColumn(range.StartOffset);
-                    node["file"] = sourceFile.GetLocation().FullPath;
-                    node["line"] = line;
-                    node["column"] = column;
-                }
+                node["file"] = site.File;
+                node["line"] = site.Line;
+                node["column"] = site.Column;
             }
 
             return node;

@@ -13,6 +13,9 @@ public class When_asking_for_a_types_information(TheSandboxWithTheFixtureSolutio
 
   [XF] public void it_gives_its_namespace() => _sealedClass.Must().Contain("namespace: Shapes");
 
+  /// <summary>It gave the line of the type's doc comment, line 3, until 2026-11-14.</summary>
+  [XF] public void it_gives_the_line_of_its_name_as_where_it_is_declared() => _sealedClass.Must().Contain("Circle.cs:4:");
+
   /// <summary>Every type's header said "static" until 2026-11-14: ReSharper's IsStatic is true for every type.</summary>
   [XF] public void it_calls_a_sealed_class_sealed() => _sealedClass.Must().StartWith("sealed class Circle");
 

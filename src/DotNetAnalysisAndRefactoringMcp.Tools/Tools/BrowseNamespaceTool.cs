@@ -140,12 +140,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
 
                     sb.Append(" — ").Append(fileName);
 
-                    var range = TreeNodeExtensions.GetDocumentRange(decl);
-                    if (range.IsValid())
-                    {
-                        var (line, _) = PsiHelpers.GetLineColumn(range.StartOffset);
-                        sb.Append(':').Append(line);
-                    }
+                    var site = DeclarationSite.Of(decl);
+                    if (site != null)
+                        sb.Append(':').Append(site.Line);
                 }
             }
 

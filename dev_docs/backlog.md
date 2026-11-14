@@ -32,13 +32,9 @@ See `dev_docs/swappable-tools.md`.
 
 ## Known bugs
 
-- `rename_symbol` given the position of a `using var` line took the implicit `Dispose` call and renamed the type's
-  `Dispose` method (seen 2026-11-10).
-- `rename_symbol` of a parameter missed a `<paramref>` to it (seen 2026-11-10).
-- `get_call_hierarchy` on a concrete method returns nothing when every caller calls it through an interface; asked
-  about the interface member it finds them.
-- `get_symbol_info` and `go_to_definition` give a type's doc comment's first line as where it's declared, not the line
-  of its `class` or `interface` keyword.
+- `rename_symbol` of a parameter missed a `<paramref>` to it (seen 2026-11-10). Didn't reproduce on 2026-11-14: renaming
+  a parameter by the position of its declaration renamed its `<paramref>` too. Unknown what differed; note how it was
+  called if it happens again.
 
 ## Bigger ideas
 

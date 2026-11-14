@@ -116,19 +116,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             }
 
             // Declaration location
-            var declarations = declaredElement.GetDeclarations();
-            if (declarations.Count > 0)
-            {
-                var decl = declarations[0];
-                var range = TreeNodeExtensions.GetDocumentRange(decl);
-                if (range.IsValid())
-                {
-                    var (declLine, declCol) = PsiHelpers.GetLineColumn(range.StartOffset);
-                    var file = decl.GetSourceFile()?.GetLocation().FullPath;
-                    if (file != null)
-                        sb.Append("declared: ").Append(file).Append(':').Append(declLine).Append(':').AppendLine(declCol.ToString());
-                }
-            }
+            var site = DeclarationSite.OfFirstDeclarationOf(declaredElement);
+            if (site != null)
+                sb.Append("declared: ").Append(site.File).Append(':').Append(site.Line).Append(':').AppendLine(site.Column.ToString());
 
             AppendXmlDocumentation(sb, declaredElement);
 
@@ -212,16 +202,13 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             if (declaration == null)
                 return default;
 
-            var sourceFile = declaration.GetSourceFile();
-            var filePath = sourceFile?.GetLocation().FullPath;
+            var site = DeclarationSite.Of(declaration);
+            var filePath = site?.File;
             if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
                 return default;
 
-            var range = TreeNodeExtensions.GetDocumentRange(declaration);
-            if (!range.IsValid())
-                return default;
-
-            var (declLine, _) = PsiHelpers.GetLineColumn(range.StartOffset);
+            // Up from the name's line, over attributes, to the doc comment.
+            var declLine = site.Line;
             if (declLine <= 1)
                 return default;
 
@@ -239,7 +226,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                     continue;
                 }
 
-                if (string.IsNullOrWhiteSpace(trimmed))
+                if (string.IsNullOrWhiteSpace(trimmed) || (docLines.Count == 0 && trimmed.StartsWith("[")))
                     continue;
 
                 break;

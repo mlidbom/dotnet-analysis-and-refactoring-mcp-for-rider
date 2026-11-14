@@ -253,20 +253,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
 
             private static (string file, int line, int column) FirstDeclaration(IDeclaredElement element)
             {
-                foreach (var d in element.GetDeclarations())
-                {
-                    var path = d.GetSourceFile()?.GetLocation().FullPath;
-                    if (string.IsNullOrEmpty(path)) continue;
-
-                    var r = TreeNodeExtensions.GetDocumentRange(d);
-                    if (!r.IsValid()) continue;
-
-                    var (line, column) = PsiHelpers.GetLineColumn(r.StartOffset);
-
-                    return (path, line, column);
-                }
-
-                return (null, 0, 0);
+                var site = DeclarationSite.OfFirstDeclarationOf(element);
+                return site == null ? (null, 0, 0) : (site.File, site.Line, site.Column);
             }
         }
 

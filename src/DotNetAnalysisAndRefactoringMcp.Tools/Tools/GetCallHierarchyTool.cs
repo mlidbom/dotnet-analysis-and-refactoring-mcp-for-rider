@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Application.Progress;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
@@ -86,6 +87,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             if (direction == "incoming")
             {
                 calls = BuildIncoming(function, 0, maxDepth, visited, budget);
+                note = SuperMembers.Of(function).Line("calls");
             }
             else
             {
@@ -131,72 +133,78 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
 
         // ---- Incoming (callers) -------------------------------------------------
 
+        // Callers are found through the element's references and through those of the source members it overrides or
+        // implements (SuperMembers): a call through an interface is a call to every implementation. A caller is the
+        // type member around the reference (method, constructor, property, field), so calls from accessors, local
+        // functions and lambdas count as calls from the member they are in.
         private List<object> BuildIncoming(
-            IFunction function, int depth, int maxDepth, HashSet<string> visited, NodeBudgetCounter budget)
+            IDeclaredElement element, int depth, int maxDepth, HashSet<string> visited, NodeBudgetCounter budget)
         {
             var children = new List<object>();
             if (depth >= maxDepth || budget.Exhausted)
                 return children;
 
-            // Cycle detection: do not expand a function we are already expanding
-            // along the current path / have already expanded as a node.
-            var fqn = PsiHelpers.GetQualifiedName(function);
+            // Cycle detection: do not expand an element we are already expanding along the current path.
+            var fqn = PsiHelpers.GetQualifiedName(element);
             if (!visited.Add(fqn))
                 return children;
 
             var psiServices = _solution.GetPsiServices();
             var searchDomain = SearchDomainFactory.Instance.CreateSearchDomain(_solution, false);
 
-            // Dedup callers by their qualified name so the same calling method only
-            // appears once even if it calls the target multiple times.
+            // Dedup callers by their qualified name so the same calling member only appears once even if it calls
+            // the target several times, or both directly and through an interface.
             var seenCallers = new HashSet<string>();
-            var callerEntries = new List<(IFunction callerFn, Dictionary<string, object> node)>();
+            var callerEntries = new List<(IDeclaredElement caller, Dictionary<string, object> node)>();
 
-            psiServices.Finder.FindReferences(
-                function,
-                searchDomain,
-                new FindResultConsumer(findResult =>
-                {
-                    if (budget.Exhausted)
-                        return FindExecution.Stop;
-
-                    if (!(findResult is FindResultReference reference))
-                        return FindExecution.Continue;
-
-                    var refNode = reference.Reference.GetTreeNode();
-                    if (refNode == null)
-                        return FindExecution.Continue;
-
-                    // Treat the reference as a call only if it is the invoked expression
-                    // of an invocation; otherwise it's a plain reference (e.g. method group).
-                    var asExpr = refNode as ICSharpExpression;
-                    var isCall = asExpr != null && InvocationExpressionNavigator.GetByInvokedExpression(asExpr) != null;
-
-                    var callerFn = refNode.GetContainingNode<ICSharpFunctionDeclaration>()?.DeclaredElement;
-                    if (callerFn == null)
-                        return FindExecution.Continue;
-
-                    var callerFqn = PsiHelpers.GetQualifiedName(callerFn);
-                    if (!seenCallers.Add(callerFqn))
-                        return FindExecution.Continue;
-
-                    var node = BuildNode(callerFn, refNode, isCall, budget);
-                    if (node == null)
-                        return FindExecution.Continue;
-
-                    callerEntries.Add((callerFn, node));
-                    return FindExecution.Continue;
-                }),
-                NullProgressIndicator.Create());
-
-            foreach (var (callerFn, node) in callerEntries)
+            foreach (var target in new[] { element }.Concat(SuperMembers.Of(element).InSource))
             {
                 if (budget.Exhausted) break;
-                node["children"] = BuildIncoming(callerFn, depth + 1, maxDepth, visited, budget);
+                var through = target.Equals(element) ? null : PsiHelpers.GetQualifiedName(target);
+
+                psiServices.Finder.FindReferences(
+                    target,
+                    searchDomain,
+                    new FindResultConsumer(findResult =>
+                    {
+                        if (budget.Exhausted)
+                            return FindExecution.Stop;
+
+                        if (!(findResult is FindResultReference reference))
+                            return FindExecution.Continue;
+
+                        var refNode = reference.Reference.GetTreeNode();
+
+                        // Treat the reference as a call only if it is the invoked expression
+                        // of an invocation; otherwise it's a plain reference (e.g. method group).
+                        var asExpr = refNode as ICSharpExpression;
+                        var isCall = asExpr != null && InvocationExpressionNavigator.GetByInvokedExpression(asExpr) != null;
+
+                        var caller = refNode.GetContainingNode<ITypeMemberDeclaration>()?.DeclaredElement;
+                        if (caller == null)
+                            return FindExecution.Continue;
+
+                        if (!seenCallers.Add(PsiHelpers.GetQualifiedName(caller)))
+                            return FindExecution.Continue;
+
+                        var node = BuildNode(caller, refNode, isCall, budget, through);
+                        if (node == null)
+                            return FindExecution.Continue;
+
+                        callerEntries.Add((caller, node));
+                        return FindExecution.Continue;
+                    }),
+                    NullProgressIndicator.Create());
+            }
+
+            foreach (var (caller, node) in callerEntries)
+            {
+                if (budget.Exhausted) break;
+                node["children"] = BuildIncoming(caller, depth + 1, maxDepth, visited, budget);
                 children.Add(node);
             }
 
-            // Allow this function to be re-expanded along a different branch of the tree.
+            // Allow this element to be re-expanded along a different branch of the tree.
             visited.Remove(fqn);
 
             return children;
@@ -279,10 +287,11 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
         /// <summary>
         /// Builds a call-hierarchy node for <paramref name="element"/>, locating it at
         /// the position of <paramref name="siteNode"/> (the call/reference site). Charges
-        /// one unit against the node budget.
+        /// one unit against the node budget. <paramref name="through"/> is the member the call was found through, when
+        /// it isn't <paramref name="element"/> itself, such as the interface member it implements.
         /// </summary>
         private static Dictionary<string, object> BuildNode(
-            IDeclaredElement element, ITreeNode siteNode, bool isCall, NodeBudgetCounter budget)
+            IDeclaredElement element, ITreeNode siteNode, bool isCall, NodeBudgetCounter budget, string through = null)
         {
             if (element == null) return null;
             if (!budget.TryConsume()) return null;
@@ -306,6 +315,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                     node["column"] = column;
                 }
             }
+
+            if (through != null)
+                node["through"] = through;
 
             node["children"] = new List<object>();
             return node;

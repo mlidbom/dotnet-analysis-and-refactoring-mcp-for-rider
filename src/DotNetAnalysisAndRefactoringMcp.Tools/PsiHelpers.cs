@@ -313,18 +313,8 @@ namespace DotNetAnalysisAndRefactoringMcp
         /// </summary>
         public static (string file, int line) Declaration(IDeclaredElement element)
         {
-            foreach (var declaration in element.GetDeclarations())
-            {
-                var path = declaration.GetSourceFile()?.GetLocation().FullPath;
-                if (string.IsNullOrEmpty(path))
-                    continue;
-
-                var range = TreeNodeExtensions.GetDocumentRange(declaration);
-
-                return (path, range.IsValid() ? GetLineColumn(range.StartOffset).line : 0);
-            }
-
-            return (null, 0);
+            var site = DeclarationSite.OfFirstDeclarationOf(element);
+            return site == null ? (null, 0) : (site.File, site.Line);
         }
 
         /// <summary>
@@ -722,10 +712,14 @@ namespace DotNetAnalysisAndRefactoringMcp
 
             // Phase 1: Walk up looking for resolvable references (what the cursor points AT).
             // This handles usages, type references, member access, etc.
+            // Only a reference whose own text holds the position counts, and the walk stops at a declaration: the
+            // references of a statement or declaration around the cursor include the calls it makes implicitly. A
+            // `using var` line refers to the Dispose it calls, and the position of its variable resolved to that
+            // Dispose (rename_symbol renamed the type's Dispose method, 2026-11-10).
             var current = node;
-            for (var depth = 0; current != null && depth < 5; depth++)
+            for (var depth = 0; current != null && depth < 5 && !(current is IDeclaration); depth++)
             {
-                var resolved = ResolveReferences(current);
+                var resolved = ResolveReferences(current, originalOffset);
                 if (resolved != null)
                     return resolved;
 
@@ -753,7 +747,7 @@ namespace DotNetAnalysisAndRefactoringMcp
         /// caller points at, and asking for them runs ReSharper's injection analysis. A node whose references throw
         /// is stepped over so that its parent still gets a chance.
         /// </remarks>
-        private static IDeclaredElement ResolveReferences(ITreeNode node)
+        private static IDeclaredElement ResolveReferences(ITreeNode node, TreeOffset position)
         {
             if (IsLiteral(node))
                 return null;
@@ -762,6 +756,9 @@ namespace DotNetAnalysisAndRefactoringMcp
             {
                 foreach (var reference in node.GetReferences())
                 {
+                    if (!reference.GetTreeTextRange().Contains(position))
+                        continue;
+
                     var resolved = reference.Resolve();
                     if (resolved.DeclaredElement != null)
                         return resolved.DeclaredElement;
@@ -786,11 +783,13 @@ namespace DotNetAnalysisAndRefactoringMcp
         /// </summary>
         private static string GetNearestReferenceName(ITreeNode node)
         {
+            var position = node.GetTreeStartOffset();
             var current = node;
             for (int i = 0; i < 3 && current != null; i++)
             {
                 foreach (var r in current.GetReferences())
-                    return r.GetName();
+                    if (r.GetTreeTextRange().Contains(position))
+                        return r.GetName();
                 current = current.Parent;
             }
             // Fall back to the token text

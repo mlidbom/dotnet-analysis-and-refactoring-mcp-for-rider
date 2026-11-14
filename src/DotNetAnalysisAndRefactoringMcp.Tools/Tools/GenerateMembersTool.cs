@@ -432,12 +432,11 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                     ["kind"] = declaredEl?.GetElementType()?.PresentableName ?? kindArg
                 };
 
-                var range = TreeNodeExtensions.GetDocumentRange(memberDecl);
-                if (range.IsValid())
+                var site = DeclarationSite.Of(memberDecl);
+                if (site != null)
                 {
-                    var (line, col) = PsiHelpers.GetLineColumn(range.StartOffset);
-                    entry["line"] = line;
-                    entry["column"] = col;
+                    entry["line"] = site.Line;
+                    entry["column"] = site.Column;
                 }
 
                 generated.Add(entry);

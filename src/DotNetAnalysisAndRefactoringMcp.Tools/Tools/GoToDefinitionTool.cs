@@ -91,19 +91,12 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             }
 
             var decl = declarations[0];
-            var range = TreeNodeExtensions.GetDocumentRange(decl);
-            if (!range.IsValid())
+            var site = DeclarationSite.Of(decl);
+            if (site == null)
                 return new { error = "Could not resolve declaration location" };
 
-            var declSourceFile = decl.GetSourceFile();
-            if (declSourceFile == null)
-                return new { error = "Declaration source file not available" };
-
-            var declFilePath = declSourceFile.GetLocation().FullPath;
-            if (string.IsNullOrEmpty(declFilePath))
-                declFilePath = "[no source]";
-
-            var (declLine, declCol) = PsiHelpers.GetLineColumn(range.StartOffset);
+            var declFilePath = site.File.Length > 0 ? site.File : "[no source]";
+            var (declLine, declCol) = (site.Line, site.Column);
 
             var sb = new StringBuilder();
             sb.Append(PsiHelpers.FormatSignature(declaredElement));

@@ -172,9 +172,10 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
                 new FindResultConsumer(HandleResult),
                 NullProgressIndicator.Create());
 
-            // Also search for usages of interface/base methods this element implements
-            var superMembers = FindInterfaceMembers(declaredElement);
-            foreach (var superMember in superMembers)
+            // Also search for usages of the source members it overrides or implements: a call through an interface
+            // is a call to every implementation.
+            var superMembers = SuperMembers.Of(declaredElement);
+            foreach (var superMember in superMembers.InSource)
             {
                 if (hitLimit) break;
                 psiServices.Finder.FindReferences(
@@ -204,21 +205,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             if (hitLimit)
                 sb.AppendLine($"(stopped counting at {SearchCap}; narrow with pathPrefix or excludeTests)");
 
-            if (superMembers.Count > 0)
-            {
-                sb.Append("(includes usages via: ");
-                sb.Append(string.Join(", ", superMembers.Select(m => PsiHelpers.GetQualifiedName(m))));
-                sb.AppendLine(")");
-            }
-
-            // When the element is an implementation/override and we found few or no direct usages,
-            // suggest searching the interface/base member directly for better results
-            if (deduped.Count == 0 && superMembers.Count == 0)
-            {
-                var implNote = GetImplementationNote(declaredElement);
-                if (implNote != null)
-                    sb.AppendLine(implNote);
-            }
+            var superMembersLine = superMembers.Line("usages");
+            if (superMembersLine != null)
+                sb.AppendLine(superMembersLine);
 
             var (declPath, declLine) = PsiHelpers.Declaration(declaredElement);
             sb.Append("declared: ")
@@ -351,81 +340,6 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools
             var end = document.GetLineEndOffsetNoLineBreak(docLine);
 
             return PsiHelpers.TruncateSnippet(document.GetText(new TextRange(start, end)), 300);
-        }
-
-        /// <summary>
-        /// Finds interface methods that the given element implements.
-        /// Walks the full type hierarchy to find all transitive interface members.
-        /// </summary>
-        private static List<IDeclaredElement> FindInterfaceMembers(IDeclaredElement element)
-        {
-            var result = new List<IDeclaredElement>();
-            if (!(element is IClrDeclaredElement clrElem)) return result;
-
-            var containingType = clrElem.GetContainingType();
-            if (containingType == null) return result;
-
-            var memberName = element.ShortName;
-            var paramCount = (element as IParametersOwner)?.Parameters.Count ?? -1;
-            var visited = new HashSet<string>();
-
-            CollectInterfaceMembers(containingType, memberName, paramCount, element, result, visited);
-            return result;
-        }
-
-        private static void CollectInterfaceMembers(ITypeElement type, string memberName, int paramCount,
-            IDeclaredElement originalMember, List<IDeclaredElement> result, HashSet<string> visited)
-        {
-            foreach (var superType in type.GetSuperTypes())
-            {
-                var superElement = superType.GetTypeElement();
-                if (superElement == null) continue;
-
-                var fqn = superElement.GetClrName().FullName;
-                if (!visited.Add(fqn)) continue;
-
-                // Only collect members from interfaces
-                if (superElement is IInterface)
-                {
-                    foreach (var m in superElement.GetMembers())
-                    {
-                        if (m.ShortName != memberName) continue;
-                        if (m.Equals(originalMember)) continue;
-                        if (paramCount >= 0 && m is IParametersOwner po && po.Parameters.Count != paramCount)
-                            continue;
-                        result.Add(m);
-                    }
-                }
-
-                // Recurse into all super types to find transitive interfaces
-                CollectInterfaceMembers(superElement, memberName, paramCount, originalMember, result, visited);
-            }
-        }
-
-        /// <summary>
-        /// If the element is an implementation/override of an interface or base class member,
-        /// returns a note suggesting the user search the base member instead.
-        /// </summary>
-        private static string GetImplementationNote(IDeclaredElement element)
-        {
-            if (!(element is IOverridableMember overridable)) return null;
-
-            var superMembers = overridable.GetImmediateSuperMembers();
-            if (superMembers == null) return null;
-
-            var notes = new List<string>();
-            foreach (var superMemberInstance in superMembers)
-            {
-                var superMember = superMemberInstance.Member;
-                if (superMember == null) continue;
-                notes.Add(PsiHelpers.GetQualifiedName(superMember));
-            }
-
-            if (notes.Count == 0) return null;
-
-            return "Note: This is an implementation/override of " +
-                   string.Join(", ", notes) +
-                   ". Use find_usages on the interface/base member to find call sites.";
         }
 
         private class RawUsage

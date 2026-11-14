@@ -13,6 +13,14 @@ plugin is a fork of.
 
 - No use of deprecated platform API: the Kotlin compiler no longer generates a forwarding method for the deprecated `StatusBarWidget.getPresentation(PlatformType)` into the status-bar widget, which the Marketplace's verifier reported as two usages of deprecated API
 
+### Fixed
+
+- `get_call_hierarchy` on an implementation finds the callers that call it through its interface or base member, and says which member each was found through; it found none before
+- `get_call_hierarchy` finds callers that are properties, fields or constructors, such as an expression-bodied property; only method callers were found before
+- `find_usages` follows the source members a member implements or overrides, through ReSharper's own super-member search instead of a match by name and parameter count, and no longer follows compiled ones: following `IDisposable.Dispose` listed every `using` in the solution. It names the compiled ones it didn't follow
+- A position on the variable of a `using var` line resolves to the variable, not to the `Dispose` the `using` calls: `rename_symbol` there renamed the type's `Dispose` method. Generally, only a reference whose own text holds the position counts
+- Declaration locations (`get_symbol_info`'s `declared:`, `go_to_definition`, `search_symbol`, `find_usages`, `find_implementations`, `get_type_hierarchy`, `browse_namespace`, `generate_members`) are the line and column of the declaration's name, not the first line of its doc comment
+
 ## [0.13.0]
 
 Forked and renamed.
