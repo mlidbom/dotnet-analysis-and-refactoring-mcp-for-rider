@@ -38,14 +38,6 @@ See `dev_docs/swappable-tools.md`.
   solution would do the same. `apply_suggestions` now says how many files a fix changed, and why none may have changed.
   A fix: re-run the analysis, `SolutionAnalysisManager.ReanalyzeAll()`, which takes minutes on a large solution, so
   only when asked, such as a `reanalyze` argument to `inspect_code`.
-- A `rename_symbol` dry run of `IMcpTool.Execute` listed 2 changed files, `IMcpTool.cs` and `ToolCall.cs`, while about
-  25 tools implement it. Unconfirmed: the answer also had the "index still building" note above, so it may be that, the
-  changed-files list under-reporting, or the rename not following the implementations. Found by the shared-rules
-  session, 2026-11-15.
-  - It is the list under-reporting: in JAStudio on 2026-11-15, applied renames of interface methods, such as
-    `ICardOperations.DeleteNote` with implementations in four projects, renamed every implementation, while
-    `changedFiles` listed only the interface's file and the callers'. The list leaves out the files of the
-    implementations.
 - `rename_symbol` can't rename a positional record's property by name: for `StudyNoteFieldDifference.InAnki`, of
   `record StudyNoteFieldDifference(string Field, string? InAnki, string JAStudioWrites)`, with `kind: 'property'`, it
   answered "Symbol 'InAnki' has no source file; only source-defined symbols can be renamed." The property is

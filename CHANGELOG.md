@@ -24,6 +24,7 @@ plugin is a fork of.
 
 ### Fixed
 
+- `rename_symbol`'s `changedFiles` left out the files of the implementations and overrides it renamed with the symbol: it is now the files the rename changed
 - Edit tools' answers ended with `(index still building — results may be incomplete)` though the solution was indexed: the edit's own changes, and a dry run's rolling them back, set ReSharper indexing the files they changed. The note now says that ReSharper was indexing as the call's work began
 - Failures are reported, not hidden. `get_diagnostics`, `list_quick_fixes`, `apply_quick_fix` and `apply_suggestions` answered an empty or partial list when ReSharper failed to read a highlighting or a fix, or a daemon stage failed; they now say what was skipped, and when the list may be incomplete. `apply_quick_fix`, `complete_at` and `generate_members` answered a failure as an ordinary result; it is now an error, logged
 - An edit tool went ahead on a file it couldn't read from disk, such as one another process was writing, as if Rider's copy matched it; such a file now counts as differing, and edits wait for it

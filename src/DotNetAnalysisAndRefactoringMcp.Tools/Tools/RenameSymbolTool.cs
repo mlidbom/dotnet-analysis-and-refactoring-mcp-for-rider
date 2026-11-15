@@ -110,14 +110,6 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
                 };
       }
 
-      // Record declaration locations up front so we can still report them after the
-      // PSI tree has been mutated (declarations become invalid post-rename).
-      var declarationFiles = declaredElement.GetDeclarations()
-                                            .Select(d => d.GetSourceFile()?.GetLocation().FullPath)
-                                            .Where(p => !string.IsNullOrEmpty(p))
-                                            .Distinct()
-                                            .ToList();
-
       var psiServices = _solution.GetPsiServices();
 
       // The plain RefactoringDriver swallows conflicts; the WithConflicts variant records them.
@@ -213,10 +205,10 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
             // (recorded in the driver) and then the actual declaration/usage rewrites.
             bool executed = refactoring.Execute(NullProgressIndicator.Create());
 
-            // What ReSharper fails to read costs only that conflict's value or that rename's files, and the answer says so.
+            // What ReSharper fails to read costs only that conflict's value, and the answer says so.
             var unreadable = new SkippedElements();
             var conflicts = ExtractConflicts(driver, unreadable);
-            var changedFiles = CollectChangedFiles(dataModel, declarationFiles, unreadable);
+            var changedFiles = ChangedFiles(psiServices.Transactions.Current);
 
             if(dryRun)
             {
@@ -269,35 +261,22 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
    }
 
    /// <summary>
-   /// Reports the files affected by the rename. We combine the original declaration files
-   /// with the source files of all references that were searched for the renamed elements.
+   ///   The files the rename changed: the ones its <paramref name="transaction"/> changed, before a dry run's is rolled
+   ///   back. The files of the implementations and overrides it renamed with the symbol are among them.
    /// </summary>
-   static List<object> CollectChangedFiles(RenameDataModel dataModel, List<string> declarationFiles, SkippedElements unreadable)
-   {
-      var files = new HashSet<string>(declarationFiles ?? new List<string>());
-
-      foreach(var atomic in dataModel.AllRenames.Renames)
-      {
-         var primary = atomic.PrimaryDeclaredElement;
-         if(primary == null) continue;
-
-         unreadable.Guard(primary,
-                          () =>
-                          {
-                             foreach(var refsInFile in dataModel.GetGroupedElementReferences(primary))
-                             {
-                                var path = refsInFile.SourceFile?.GetLocation().FullPath;
-                                if(!string.IsNullOrEmpty(path))
-                                   files.Add(path);
-                             }
-                          });
-      }
-
-      return files
-            .OrderBy(f => f, StringComparer.Ordinal)
-            .Select(f => (object)new { file = f, fileName = Path.GetFileName(f) })
-            .ToList();
-   }
+   /// <remarks>
+   ///   Until 2026-11-15 the list was put together from the rename's data model, of the symbol's declarations and the
+   ///   references to each element renamed, and it left out the files of the implementations: a rename of an
+   ///   interface's method with implementations in four projects listed only the interface's file and the callers'.
+   /// </remarks>
+   static List<object> ChangedFiles(IPsiTransaction transaction) =>
+      transaction.AffectedFiles
+                 .Select(it => it.GetLocation().FullPath)
+                 .Where(it => it.Length > 0)
+                 .Distinct()
+                 .OrderBy(it => it, StringComparer.Ordinal)
+                 .Select(it => (object)new { file = it, fileName = Path.GetFileName(it) })
+                 .ToList();
 
    /// <summary>
    /// Headless rename workflow: the base <c>DataModel</c> setter is <c>protected</c> and the
