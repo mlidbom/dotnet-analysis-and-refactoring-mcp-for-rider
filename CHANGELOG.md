@@ -26,6 +26,7 @@ plugin is a fork of.
 
 ### Fixed
 
+- An edit tool's save, sent right after Rider's own, had the file written twice in a row, and in about 1 of 25 moves Rider, reloading it meanwhile, was left with an empty copy of it: the call waited 10 s and said Rider hadn't saved the file. The call now waits for Rider's own save first, and saves only what it leaves. When Rider hasn't saved a file in time, the note says how the file differs from Rider's copy
 - `move_type_to_namespace` makes a file's namespace file-scoped again when the solution's code style has it so: once a file's types had moved to the same namespace one after the other, their namespace stayed block-scoped, as the first move had to make it
 - `rename_symbol` renames a positional record's property, through the record's parameter that declares it, as Rider's Rename does; it answered that the property "has no source file"
 - `rename_symbol`'s `changedFiles` left out the files of the implementations and overrides it renamed with the symbol: it is now the files the rename changed

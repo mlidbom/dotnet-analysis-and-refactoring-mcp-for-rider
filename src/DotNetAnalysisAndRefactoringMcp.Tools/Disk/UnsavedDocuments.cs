@@ -33,6 +33,17 @@ namespace DotNetAnalysisAndRefactoringMcp.Disk;
 sealed class UnsavedDocuments
 {
    static readonly TimeSpan HowLongSavingMayTake = TimeSpan.FromSeconds(10);
+
+   /// <summary>
+   ///   How long Rider's own save of what a refactoring changed may take, which Rider sends right after its transaction,
+   ///   before the call saves what it left. Rider's own landed within 50 ms, in the logs of 2026-11-15.
+   /// </summary>
+   /// <remarks>
+   ///   A second save, sent 2 ms after Rider's own, had the file written twice in a row, and Rider, reloading it from disk
+   ///   meanwhile, was left with an empty copy of it, in 2 of 50 moves (2026-11-15). The empty copy stayed until the next
+   ///   call's disk sync reloaded it, and the call waited <see cref="HowLongSavingMayTake"/> for nothing.
+   /// </remarks>
+   static readonly TimeSpan HowLongRidersOwnSaveMayTake = TimeSpan.FromMilliseconds(500);
    static readonly TimeSpan BetweenChecks = TimeSpan.FromMilliseconds(50);
 
    readonly DocumentOperationsImpl _operations;
@@ -50,7 +61,8 @@ sealed class UnsavedDocuments
 
    /// <summary>
    ///   Saves the documents unsaved now that weren't <paramref name="before"/>, and returns once Rider's frontend has saved
-   ///   them, or after <see cref="HowLongSavingMayTake"/> with those it hadn't, and how their files differed.
+   ///   them, or after <see cref="HowLongSavingMayTake"/> with those it hadn't, and how their files differed. What Rider
+   ///   saves by itself within <see cref="HowLongRidersOwnSaveMayTake"/> isn't saved again.
    /// </summary>
    /// <remarks>
    ///   Not those unsaved before: their unsaved text is someone's work in progress, such as Magnus's typing in Rider,
@@ -59,23 +71,34 @@ sealed class UnsavedDocuments
    public async Task<List<DocumentNotSaved>> SaveThoseUnsavedSince(List<IDocument> before, Lifetime lifetime)
    {
       var changed = (await Now(lifetime).ConfigureAwait(false)).Except(before).Where(HasItsFile).ToList();
-      if(changed.Count == 0)
+      var leftByRider = await UnsavedAfter(changed, HowLongRidersOwnSaveMayTake, lifetime).ConfigureAwait(false);
+      if(leftByRider.Count == 0)
          return [];
 
       await OnTheMainThread(lifetime,
                             () =>
                             {
-                               foreach(var document in changed)
+                               foreach(var (document, _) in leftByRider)
                                   _operations.SaveDocument(document);
-                               return changed;
+                               return leftByRider;
                             }).ConfigureAwait(false);
 
-      var deadline = DateTime.UtcNow + HowLongSavingMayTake;
+      var unsaved = await UnsavedAfter([.. leftByRider.Select(it => it.Document)], HowLongSavingMayTake, lifetime).ConfigureAwait(false);
+      return [.. unsaved.Select(it => new DocumentNotSaved(it.Document.Moniker, DiskText.DifferenceOf(it.Document.Moniker, it.Text)))];
+   }
+
+   /// <summary>
+   ///   Those of <paramref name="documents"/> whose files don't hold their text once they all do, or once
+   ///   <paramref name="howLong"/> has passed.
+   /// </summary>
+   async Task<List<(IDocument Document, string Text)>> UnsavedAfter(List<IDocument> documents, TimeSpan howLong, Lifetime lifetime)
+   {
+      var deadline = DateTime.UtcNow + howLong;
       while(true)
       {
-         var unsaved = await UnsavedOf(() => changed, lifetime).ConfigureAwait(false);
+         var unsaved = await UnsavedOf(() => documents, lifetime).ConfigureAwait(false);
          if(unsaved.Count == 0 || DateTime.UtcNow >= deadline)
-            return [.. unsaved.Select(it => new DocumentNotSaved(it.Document.Moniker, DiskText.DifferenceOf(it.Document.Moniker, it.Text)))];
+            return unsaved;
          await Task.Delay(BetweenChecks, lifetime).ConfigureAwait(false);
       }
    }
