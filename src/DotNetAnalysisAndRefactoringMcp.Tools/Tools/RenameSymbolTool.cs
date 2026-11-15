@@ -45,8 +45,9 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
       "and all of its references across the entire solution. This is a semantic rename: it " +
       "updates real usages, not text matches. Provide either a symbolName (e.g. 'MyClass' or " +
       "'Namespace.MyClass') or a file path with position (line/column), plus the required " +
-      "'newName'. Returns any conflicts the refactoring detected. Set 'dryRun' to true to " +
-      "preview conflicts and affected files WITHOUT modifying any code.";
+      "'newName'. A type's file named after it is renamed with it, as Rider's Rename does. Returns any conflicts the " +
+      "refactoring detected. Set 'dryRun' to true to preview conflicts and affected files WITHOUT modifying any code " +
+      "or renaming any file.";
 
    public object InputSchema => new
                                 {
@@ -155,7 +156,7 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
          var dataModel = new RenameDataModel(
                             [declaredElement],
                             null,
-                            RenameFilesOption.NothingToRename,
+                            dryRun ? RenameFilesOption.NothingToRename : RenameFilesOption.RenameWithoutConfirmation,
                             lifetime,
                             _solution,
                             model,
@@ -164,16 +165,18 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
                             NewName = newName
                          };
 
-         // Force non-interactive, code-only behaviour (overriding the ctor's defaults).
+         // Force non-interactive behaviour (overriding the ctor's defaults).
          // IMPORTANT: QuickRename must stay false. QuickRename=true short-circuits the
          // solution-wide usage search in LoadBaseRenames (it is meant for inline/local
          // rename where usages are trivial), which would leave references un-rewritten.
          // With QuickRename=false the workflow searches the whole solution for usages.
          // HasUI=false keeps it headless (no pages/dialogs are shown).
+         // RenameFile: a real rename renames a type's file named after it (RenameTheFiles); a dry
+         // run none, as its rollback wouldn't undo the project model's change.
          model.HasUI = false;
          model.QuickRename = false;
          model.RenameDerived = false;
-         model.RenameFile = false;
+         model.RenameFile = !dryRun;
          model.ChangeTextOccurrences = false;
 
          workflow.AssignDataModel(dataModel);
@@ -184,36 +187,38 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
          // change cookie, which rolls back on dispose so none of the edits Execute() makes
          // are ever persisted — while the conflict/affected-file analysis we capture from the
          // (now discarded) tree mutation remains valid for reporting.
-         using var transaction = dryRun
-                                 ? PsiTransactionCookie.CreateTemporaryChangeCookie(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol")
-                                 : PsiTransactionCookie.CreateAutoCommitCookieWithCachesUpdate(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol");
-
-         // Build atomic renames AND search the solution for usages (populates the
-         // references store the atomic renames consume). NameHasChanged ensures the load
-         // is not short-circuited.
-         dataModel.NameHasChanged = true;
-         dataModel.LoadBaseRenames(NullProgressIndicator.Create(), workflow, forceReload: true);
-
-         if(dataModel.AllRenames.Renames.Count == 0)
-         {
-            transaction.Rollback();
-            return new { error = $"No applicable renames were produced for '{oldName}'.", oldName, newName };
-         }
-
-         var refactoring = new RenameRefactoring(workflow, _solution, driver);
-
-         // Execute the rename. RenameRefactoring.Execute performs cold conflict search
-         // (recorded in the driver) and then the actual declaration/usage rewrites.
-         bool executed = refactoring.Execute(NullProgressIndicator.Create());
-
-         // What ReSharper fails to read costs only that conflict's value, and the answer says so.
+         bool executed;
          var unreadable = new SkippedElements();
-         var conflicts = ExtractConflicts(driver, unreadable);
-         var changedFiles = ChangedFiles(psiServices.Transactions.Current);
+         List<object> conflicts;
+         List<object> changedFiles;
+         using(var transaction = dryRun
+                                    ? PsiTransactionCookie.CreateTemporaryChangeCookie(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol")
+                                    : PsiTransactionCookie.CreateAutoCommitCookieWithCachesUpdate(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol"))
+         {
+            // Build atomic renames AND search the solution for usages (populates the
+            // references store the atomic renames consume). NameHasChanged ensures the load
+            // is not short-circuited.
+            dataModel.NameHasChanged = true;
+            dataModel.LoadBaseRenames(NullProgressIndicator.Create(), workflow, forceReload: true);
+
+            if(dataModel.AllRenames.Renames.Count == 0)
+            {
+               transaction.Rollback();
+               return new { error = $"No applicable renames were produced for '{oldName}'.", oldName, newName };
+            }
+
+            // Execute the rename. RenameRefactoring.Execute performs cold conflict search
+            // (recorded in the driver) and then the actual declaration/usage rewrites.
+            executed = new RenameRefactoring(workflow, _solution, driver).Execute(NullProgressIndicator.Create());
+
+            // What ReSharper fails to read costs only that conflict's value, and the answer says so.
+            conflicts = ExtractConflicts(driver, unreadable);
+            changedFiles = ChangedFiles(psiServices.Transactions.Current);
+         }
 
          if(dryRun)
          {
-            // The temporary change cookie rolls back on Dispose, discarding all edits.
+            // The temporary change cookie rolled back on Dispose, discarding all edits.
             return new
                    {
                       applied = false,
@@ -226,7 +231,7 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
                    };
          }
 
-         // The auto-commit cookie commits on Dispose, persisting the rename.
+         // The auto-commit cookie committed on Dispose, persisting the rename.
          return new
                 {
                    applied = executed,
@@ -234,6 +239,7 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
                    newName,
                    conflicts,
                    changedFiles,
+                   renamedFiles = executed ? RenameTheFiles(workflow) : [],
                    skipped = unreadable.Line
                 };
       }
@@ -259,6 +265,22 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
    /// </remarks>
    static IDeclaredElement TheElementARenameStartsFrom(IDeclaredElement named) =>
       RenameRefactoringService.Instance.GetPrimevalDeclaredElement(named, null);
+
+   /// <summary>
+   ///   The rest of Rider's Rename, once its PSI transaction is committed (<see cref="RenameWorkflow.PostExecute"/>):
+   ///   renames the files named after a renamed type, through the project model, and the usages Rider's frontend keeps.
+   ///   The files it renamed, from and to.
+   /// </summary>
+   /// <remarks>
+   ///   Until 2026-11-15 the tool stopped after the transaction, and a renamed type's file kept the old name. A dry run
+   ///   renames no file: the project model's changes aren't the PSI transaction's, and its rollback wouldn't undo them.
+   /// </remarks>
+   static List<object> RenameTheFiles(RenameWorkflow workflow)
+   {
+      List<object> renamed = [.. workflow.IterateRenameFiles().Select(it => new { from = it.Rename.SourceLocation.FullPath, to = it.Rename.SourceLocation.Directory.Combine(it.NewName).FullPath })];
+      workflow.PostExecute(NullProgressIndicator.Create());
+      return renamed;
+   }
 
    static List<object> ExtractConflicts(RefactoringDriverWithConflicts driver, SkippedElements unreadable)
    {

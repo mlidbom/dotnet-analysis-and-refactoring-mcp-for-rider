@@ -13,6 +13,7 @@ public class When_previewing_a_rename(TheSandboxWithTheFixtureSolution sandbox)
    [XF] public void it_lists_the_file_that_declares_it() => _answer.Must().Contain("Circle.cs");
    [XF] public void and_the_file_that_uses_it() => _answer.Must().Contain("Drawing.cs");
    [XF] public void it_changes_nothing_on_disk() => File.ReadAllText(_sandbox.PathOf("Shapes/Circle.cs")).Must().Contain("class Circle");
+   [XF] public void and_renames_no_file() => Directory.GetFiles(_sandbox.PathOf("Shapes")).Select(Path.GetFileName).ToList().Must().Satisfy(it => it.Contains("Circle.cs") && !it.Contains("Disk.cs"));
 
    /// <summary>
    ///   Rolling the rename back sets ReSharper indexing the files it changed, and the answer said the index was still

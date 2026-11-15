@@ -9,9 +9,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
    references and usings, and gives extension-method callers their using, but leaves the file: Rider's documents hold
    the unsaved result, and a file moved on disk under them would lose it. ReSharper's Move to Folder refactoring may
    do it inside the model.
-2. **`rename_symbol` renaming a type's file too,** as Rider's Rename does. It sets `RenameFile = false` and passes
-   `RenameFilesOption.NothingToRename`, so a renamed type's file keeps the old name: in the sandbox, `Rope.cs` declared
-   `Cord` (2026-11-15). The user-level rule on C# code intelligence says to rename the file by hand until then.
 
 ## Swapping the tools without a restart
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Application.Threading;
@@ -56,7 +57,7 @@ sealed class UnsavedDocuments
    /// </remarks>
    public async Task<List<string>> SaveThoseUnsavedSince(List<IDocument> before, Lifetime lifetime)
    {
-      var changed = (await Now(lifetime).ConfigureAwait(false)).Except(before).ToList();
+      var changed = (await Now(lifetime).ConfigureAwait(false)).Except(before).Where(HasItsFile).ToList();
       if(changed.Count == 0)
          return [];
 
@@ -77,6 +78,16 @@ sealed class UnsavedDocuments
          await Task.Delay(BetweenChecks, lifetime).ConfigureAwait(false);
       }
    }
+
+   /// <summary>
+   ///   Whether <paramref name="document"/>'s file is on disk. One whose file isn't, and that was saved before the edit,
+   ///   is one whose file the edit renamed, such as a renamed type's: the document of the file's new name holds its text.
+   /// </summary>
+   /// <remarks>
+   ///   Saving the old one waited <see cref="HowLongSavingMayTake"/> for a file that wasn't coming, and then said that Rider
+   ///   hadn't saved it (2026-11-15).
+   /// </remarks>
+   static bool HasItsFile(IDocument document) => File.Exists(document.Moniker);
 
    /// <summary>
    ///   Those of <paramref name="documents"/> whose files on disk don't hold their text: the texts are taken on the main
