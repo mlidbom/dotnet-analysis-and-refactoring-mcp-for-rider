@@ -307,10 +307,9 @@ dev_docs/swappable-tools.md            # the host/tools split: how swapping work
 src/DotNetAnalysisAndRefactoringMcp/   # THE HOST: what Rider loads; a change here needs a Rider restart
   DotNetAnalysisAndRefactoringMcp.csproj  # targets net472, refs JetBrains.ReSharper.SDK 2025.3.3
   McpShellComponent.cs                 # ShellComponent — owns HTTP server (process-level singleton)
-  McpServerComponent.cs                # SolutionComponent — serves a solution's calls from the current tools build
+  McpServerComponent.cs                # SolutionComponent — holds what outlives a tools build; hands each call to it
   McpHttpServer.cs                     # HttpListener-based MCP server with multi-solution routing
   SolutionRoot.cs                      # Where relative paths start: solution directory and the work tree above it
-  McpToolExecution.cs                  # Interruptible PSI reads and read-then-main-thread continuations
   JsonOf.cs                            # JSON of the tools' anonymous objects without Newtonsoft's type caches
   DaemonHighlightingCollector.cs       # Runs the daemon on a file; in the host because ReSharper keeps its type
   Threading/                           # IThreadShared: state shared between threads, reached only inside its lock; the one raw lock
@@ -321,21 +320,17 @@ src/DotNetAnalysisAndRefactoringMcp/   # THE HOST: what Rider loads; a change he
     CollectibleLoadContext.cs          # AssemblyLoadContext through reflection (net472 has none)
   Disk/
     DiskChanges.cs                     # FileSystemWatcher: source files changed since last taken
-    DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk; stale tracking
-    RiderInternals.cs                  # Rider API missing from the SDK, found by reflection (RdPath)
-    RefreshRequests.cs                 # RdFsRefreshRequest across Rider versions (reflection)
+    DiskSyncState.cs                   # What the disk sync remembers between calls: stale and absent files
   Protocol/
     JsonRpc.cs                         # JSON-RPC request/response/error types
     McpTypes.cs                        # MCP types: InitializeResult, ToolDefinition, etc.
   Tools/                               # what the tools implement, and the host's helpers for calls
-    IMcpTool.cs                        # Tool interface: Name, Description, InputSchema, Execute
-    IMcpToolsEntryPoint.cs             # The way into a tools build: creates the tools for a call
-    IMcpWriteTool.cs                   # Marker interface for write tools (write lock + PsiTransaction)
-    IMcpEditTool.cs                    # Markers: edits source files (stale guard); expands arguments
-    IMcpAsyncTool.cs                   # Read phase, then mutation phase, no lock held in between
+    IMcpToolsEntryPoint.cs             # The way into a tools build: lists its tools, calls one
+    IMcpSolution.cs                    # An open solution as a call sees it: what of it outlives a tools build
     ToolFailure.cs                     # One-line crash text
     FileArguments.cs                   # filePath / filePaths / symbols[].filePath of a call
 src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between calls; same namespaces as before the split
+  McpToolExecution.cs                  # Interruptible PSI reads and read-then-main-thread continuations
   PsiHelpers.cs                        # Shared: file lookup, name/position resolution, suggestions, snippets
   SymbolName.cs                        # Parses "Ns.Type.Member<T>(...)" as agents write it
   CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
@@ -345,9 +340,18 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   SuperMembers.cs                      # The members a member overrides/implements: what find_usages and call hierarchy follow
   DeclarationSite.cs                   # Where a declaration is: the file, line and column of its name (not its doc comment)
   DecompiledSource.cs                  # ReSharper decompiler / metadata view for compiled types
-  Disk/GitChanges.cs                   # Files changed since a git ref (for get_file_errors changedSince)
+  Disk/
+    GitChanges.cs                      # Files changed since a git ref (for get_file_errors changedSince)
+    DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk, before every call
+    RiderInternals.cs                  # Rider API missing from the SDK, found by reflection (RdPath)
+    RefreshRequests.cs                 # RdFsRefreshRequest across Rider versions (reflection)
   Tools/
-    ToolsEntryPoint.cs                 # Creates every tool; the host knows it by name
+    ToolsEntryPoint.cs                 # Lists and calls the tools; the host knows it by name
+    ToolCall.cs                        # One call's flow: disk sync, stale-file refusal, dispatch by kind, timeout, notes
+    IMcpTool.cs                        # Tool interface: Name, Description, InputSchema, Execute
+    IMcpWriteTool.cs                   # Marker interface for write tools (write lock + PsiTransaction)
+    IMcpEditTool.cs                    # Markers: edits source files (stale guard); expands arguments
+    IMcpAsyncTool.cs                   # Read phase, then mutation phase, no lock held in between
     ToolBatch.cs                       # Batch runner with per-item isolation; ToolText
     FindUsagesTool.cs                  # find_usages — IFinder.FindReferences()
     GetSymbolInfoTool.cs               # get_symbol_info — detailed symbol metadata

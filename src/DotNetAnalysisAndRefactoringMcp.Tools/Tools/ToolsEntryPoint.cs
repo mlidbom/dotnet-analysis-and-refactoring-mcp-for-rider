@@ -1,6 +1,9 @@
 using System.Collections.Generic;
+using System.Linq;
+using DotNetAnalysisAndRefactoringMcp.Protocol;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Feature.Services.CodeCleanup;
+using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
 
@@ -12,7 +15,23 @@ public sealed class ToolsEntryPoint : IMcpToolsEntryPoint
 {
    public string Instructions => McpInstructions.Text;
 
-   public IReadOnlyList<IMcpTool> CreateTools(ISolution solution) =>
+   public List<ToolDefinition> ListTools(ISolution solution) =>
+      CreateTools(solution).Select(tool => new ToolDefinition
+                                           {
+                                              Name = tool.Name,
+                                              Description = tool.Description,
+                                              InputSchema = JsonOf.Value(tool.InputSchema)
+                                           })
+                           .ToList();
+
+   public string CallTool(IMcpSolution solution, string name, JObject arguments)
+   {
+      var tool = CreateTools(solution.Solution).FirstOrDefault(it => it.Name == name);
+      return tool == null ? null : new ToolCall(solution, tool).Answer(arguments);
+   }
+
+   /// <summary>The tools, created anew for every call: one kept would keep its build loaded after it was swapped out.</summary>
+   static IReadOnlyList<IMcpTool> CreateTools(ISolution solution) =>
    [
       new FindUsagesTool(solution),
       new GetSymbolInfoTool(solution),

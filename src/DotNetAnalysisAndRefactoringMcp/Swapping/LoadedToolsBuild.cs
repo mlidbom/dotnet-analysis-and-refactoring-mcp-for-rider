@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
+using DotNetAnalysisAndRefactoringMcp.Protocol;
 using DotNetAnalysisAndRefactoringMcp.Threading;
 using DotNetAnalysisAndRefactoringMcp.Tools;
 using JetBrains.ProjectModel;
+using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Swapping;
 
@@ -70,8 +72,11 @@ sealed class LoadedToolsBuild
       _calls.Locked(it => it.InProgress++);
    }
 
-   /// <summary>The tools for one call, which must be counted in.</summary>
-   public IReadOnlyList<IMcpTool> CreateTools(ISolution solution) => _entryPoint.CreateTools(solution);
+   /// <summary>The tools a solution's calls are served with, for a call that is counted in.</summary>
+   public List<ToolDefinition> ListTools(ISolution solution) => _entryPoint.ListTools(solution);
+
+   /// <summary>A call of the tool <paramref name="name"/>, which must be counted in: its answer, or <c>null</c> for no such tool.</summary>
+   public string CallTool(IMcpSolution solution, string name, JObject arguments) => _entryPoint.CallTool(solution, name, arguments);
 
    /// <summary>The usage guide, for a call that is counted in. A string, which keeps nothing of the build loaded.</summary>
    public string Instructions => _entryPoint.Instructions;
@@ -122,7 +127,9 @@ public sealed class ToolsLease : IDisposable
 
    internal ToolsLease(LoadedToolsBuild build) => _build = build;
 
-   public IReadOnlyList<IMcpTool> CreateTools(ISolution solution) => _build.CreateTools(solution);
+   public List<ToolDefinition> ListTools(ISolution solution) => _build.ListTools(solution);
+
+   public string CallTool(IMcpSolution solution, string name, JObject arguments) => _build.CallTool(solution, name, arguments);
 
    public string Instructions => _build.Instructions;
 

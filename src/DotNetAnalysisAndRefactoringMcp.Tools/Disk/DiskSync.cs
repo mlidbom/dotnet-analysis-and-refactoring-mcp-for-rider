@@ -55,20 +55,19 @@ public sealed class DiskSync
    // Files compared with disk per call; past it (a branch switch), the rest are only rescanned.
    const int MaxChecked = 500;
 
-   readonly IThreadShared<Settled> _settled = ThreadShared.New(new Settled());
+   readonly IThreadShared<DiskSyncState> _settled;
    readonly ISolution _solution;
    readonly IShellLocks _locks;
    readonly DiskChanges _changes;
-   bool _watchesProjects;
 
-   public DiskSync(ISolution solution, IShellLocks locks, DiskChanges changes)
+   /// <param name="settled">What the disk sync remembers from one call to the next, which the host holds.</param>
+   public DiskSync(ISolution solution, IShellLocks locks, DiskChanges changes, IThreadShared<DiskSyncState> settled)
    {
       _solution = solution;
       _locks = locks;
       _changes = changes;
+      _settled = settled;
    }
-
-   public int Pending => _changes.Count + _settled.Locked(it => it.Stale.Count);
 
    /// <param name="named">Absolute paths of the files the call names.</param>
    public async Task<DiskReport> Run(Lifetime lifetime, McpToolExecution execution, IReadOnlyCollection<string> named)
@@ -108,10 +107,10 @@ public sealed class DiskSync
 
    async Task WatchProjects(McpToolExecution execution)
    {
-      if(_watchesProjects)
+      if(_settled.Locked(it => it.WatchesProjects))
          return;
 
-      _watchesProjects = true;
+      _settled.Locked(it => it.WatchesProjects = true);
       var directories = await execution.Read(() => _solution.GetAllProjects()
                                                             .Select(x => x.Location)
                                                             .Where(x => !x.IsEmpty)
@@ -234,7 +233,7 @@ public sealed class DiskSync
    ///   Whether a file is worth a reload and a wait: it was not left in <paramref name="settled"/> by an earlier
    ///   call, or it changed on disk since.
    /// </summary>
-   bool IsUnsettled(Func<Settled, Dictionary<string, DateTime>> settled, string file) =>
+   bool IsUnsettled(Func<DiskSyncState, Dictionary<string, DateTime>> settled, string file) =>
       _settled.Locked(it => !settled(it).TryGetValue(file, out var time) || time != DiskTime(file));
 
    void Remember(IEnumerable<string> checkedFiles, DiskState state)
@@ -283,16 +282,6 @@ public sealed class DiskSync
 
    static VirtualFileSystemPath Parse(string path) =>
       VirtualFileSystemPath.Parse(path, InteractionContext.SolutionContext);
-
-   /// <summary>
-   ///   Files found stale or absent, and their disk times then: a file still so after the wait isn't waited on
-   ///   again until its disk time changes. Shared by the calls in progress.
-   /// </summary>
-   sealed class Settled
-   {
-      public readonly Dictionary<string, DateTime> Stale = new(StringComparer.Ordinal);
-      public readonly Dictionary<string, DateTime> Absent = new(StringComparer.Ordinal);
-   }
 }
 
 /// <summary>

@@ -109,6 +109,21 @@ context of its own, calls it, and unloads the previous one. In the sandbox, Ride
   without it, an update from the Marketplace would reload the JVM part and leave the old host serving, its tools
   folder replaced under it. A host change costs a restart less often only if the host changes less often.
 
+## In progress: the minimal host (Magnus, 2026-11-15)
+
+The host keeps only what has to outlive a swap, or what ReSharper holds on to; everything else moves into the tools
+(the rule "The host stays minimal" in `.claude/rules/02-universal-local/developing-the-plugin.md`). Two increments, each
+built, specified and committed on its own, then one restart:
+
+1. **The call pipeline.** `McpServerComponent`'s per-call flow (expanding arguments, the disk sync, refusing edits on
+   stale files, dispatching by the tool's marker, the notes, the timeout), with `DiskSync`, `RefreshRequests`,
+   `RiderInternals`, `McpToolExecution`, the tool interfaces and `FileArguments`, moves into the tools. The host keeps
+   `DiskChanges` (the watcher) and the disk sync's state across calls, in a host type the tools' `DiskSync` works on,
+   and asks the tools build to list and call its tools for a solution.
+2. **The protocol.** `McpHttpServer`'s JSON-RPC handling (initialize, tools/list, tools/call, list_solutions, routing
+   to solutions and peers, health) moves into the tools. The host keeps the listener and its threads, the event
+   streams, and the registrations of solutions and peers, and hands each request to the tools build.
+
 ## Not done yet
 
 - **Whether every MCP client acts on `notifications/tools/list_changed`** is the client's business. The specifications
