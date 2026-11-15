@@ -18,7 +18,12 @@ public class When_asking_for_the_health(TheSandboxWithTheFixtureSolution sandbox
       _health.GetProperty("solutions").EnumerateArray()
              .Single(it => string.Equals(it.GetProperty("path").GetString(), _peersSolution, StringComparison.OrdinalIgnoreCase));
 
-   [XF] public void it_says_the_peers_solution_is_not_indexing() => ThePeersSolution.GetProperty("indexing").GetBoolean().Must().Be(false);
+   /// <summary>
+   ///   Whether it is, not that it isn't: the peer may index again right after it started, as after a new host
+   ///   (2026-11-15). A peer that didn't answer is listed without it.
+   /// </summary>
+   [XF] public void it_says_whether_the_peers_solution_is_indexing() =>
+      ThePeersSolution.GetProperty("indexing").ValueKind.Must().Satisfy(it => it is JsonValueKind.True or JsonValueKind.False);
 
    /// <summary>Only the peer knows that: it answers for itself.</summary>
    [XF] public void it_says_which_tools_build_serves_the_peers_solution() =>
