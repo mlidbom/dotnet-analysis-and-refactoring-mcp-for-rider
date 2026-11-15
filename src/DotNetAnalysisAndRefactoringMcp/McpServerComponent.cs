@@ -5,7 +5,6 @@ using System.Threading;
 using JetBrains.Application.Parts;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
-using JetBrains.ReSharper.Psi.Caches;
 using DotNetAnalysisAndRefactoringMcp.Disk;
 using DotNetAnalysisAndRefactoringMcp.Swapping;
 using DotNetAnalysisAndRefactoringMcp.Threading;
@@ -22,7 +21,6 @@ public class McpServerComponent : IDisposable
 {
    readonly McpShellComponent _shellComponent;
    readonly Lifetime _lifetime;
-   readonly Lazy<IPsiCachesState> _caches;
    readonly SolutionRoot _root;
    readonly DiskChanges _diskChanges;
    readonly IThreadShared<DiskSyncState> _diskSyncState = ThreadShared.New(new DiskSyncState());
@@ -39,7 +37,6 @@ public class McpServerComponent : IDisposable
       _solution = solution;
       _swappableTools = swappableTools;
       _shellComponent = shellComponent;
-      _caches = new Lazy<IPsiCachesState>(() => solution.TryGetComponent<IPsiCachesState>());
       FilePath = solution.SolutionFilePath?.FullPath ?? "";
 
       // Rider 2026.3's lightweight backend loads the plugin too, with a solution that has no file. Registered, it
@@ -65,8 +62,6 @@ public class McpServerComponent : IDisposable
 
    /// <inheritdoc cref="IMcpSolution.FilePath"/>
    public string FilePath { get; }
-
-   bool IsIndexing => _caches.Value is {} caches && !caches.IsIdle.Value;
 
    /// <summary>The solution as one request on <paramref name="lease"/>'s tools build sees it.</summary>
    public IMcpSolution For(ToolsLease lease) => new LeasedSolution(this, lease);
@@ -95,8 +90,6 @@ public class McpServerComponent : IDisposable
       public DiskChanges Changes => _component._diskChanges;
 
       public IThreadShared<DiskSyncState> DiskSyncState => _component._diskSyncState;
-
-      public bool IsIndexing => _component.IsIndexing;
 
       public IReadOnlyList<string> BuildNotes => _component._swappableTools.Notes();
 
