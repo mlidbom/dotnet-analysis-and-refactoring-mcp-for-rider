@@ -25,17 +25,27 @@ public interface IThreadShared<out TShared>
 }
 
 /// <summary>Creates <see cref="IThreadShared{TShared}"/>s, as Compze's <c>IThreadShared.New</c> does.</summary>
-public interface IThreadShared
+/// <remarks>
+///   A static class where Compze has an interface with a static member: Rider marks static interface members an error
+///   for a net472 plugin, a C# 15 feature, so the call sites read the same with no such member (2026-11-15).
+/// </remarks>
+// ReSharper disable once InconsistentNaming
+public static class IThreadShared
 {
+   //review: named like an interface, against the naming rule, so the call sites read as Compze's IThreadShared.New does
+   //   and stay as they are when Compze.Threading replaces this. ThreadShared.New would satisfy the rule instead.
+
    /// <summary>A new <see cref="IThreadShared{TShared}"/> that protects <paramref name="shared"/> with a critical section of its own.</summary>
-   public static IThreadShared<TShared> New<TShared>(TShared shared) => new ThreadShared<TShared>(shared, ICriticalSection.New());
+   public static IThreadShared<TShared> New<TShared>(TShared shared) => new ThreadShared<TShared>(shared, new CriticalSection());
 
    sealed class ThreadShared<TShared>(TShared shared, ICriticalSection criticalSection) : IThreadShared<TShared>
    {
+      readonly TShared _shared = shared;
+
       public ICriticalSection CriticalSection { get; } = criticalSection;
 
-      public TResult Locked<TResult>(Func<TShared, TResult> func) => CriticalSection.Locked(() => func(shared));
+      public TResult Locked<TResult>(Func<TShared, TResult> func) => CriticalSection.Locked(() => func(_shared));
 
-      public void Locked(Action<TShared> action) => CriticalSection.Locked(() => action(shared));
+      public void Locked(Action<TShared> action) => CriticalSection.Locked(() => action(_shared));
    }
 }
