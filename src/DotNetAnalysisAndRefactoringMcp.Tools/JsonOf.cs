@@ -2,13 +2,15 @@ using System;
 using System.Collections;
 using System.Linq;
 using System.Reflection;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp;
 
 /// <summary>
 ///   The JSON of an object of the tools assembly, such as an anonymous object a tool answers or describes its input
-///   with, built by walking its properties: the same JSON Newtonsoft.Json writes for it, without its help.
+///   with, or a JSON-RPC response, built by walking its properties: the same JSON Newtonsoft.Json writes for it,
+///   without its help.
 /// </summary>
 /// <remarks>
 ///   Newtonsoft.Json is Rider's copy, in the default load context, and caches what it learns about each type it
@@ -31,11 +33,25 @@ public static class JsonOf
          _ => new JObject(value.GetType()
                                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
                                .Where(property => property.CanRead && property.GetIndexParameters().Length == 0)
-                               .Select(property => new JProperty(property.Name, Value(property.GetValue(value)))))
+                               .Select(property => PropertyOf(value, property))
+                               .Where(property => property is not null))
       };
 
    /// <summary>A tool's answer as the text a caller gets: text as it is, anything else as indented JSON.</summary>
-   public static string Text(object answer) => answer as string ?? Value(answer).ToString(Newtonsoft.Json.Formatting.Indented);
+   public static string Text(object answer) => answer as string ?? Value(answer).ToString(Formatting.Indented);
+
+   /// <summary>
+   ///   <paramref name="property"/> of <paramref name="owner"/> as Newtonsoft.Json writes it: by the name its
+   ///   <see cref="JsonPropertyAttribute"/> gives, and left out when it is null and the attribute says to ignore nulls.
+   /// </summary>
+   static JProperty PropertyOf(object owner, PropertyInfo property)
+   {
+      var value = property.GetValue(owner);
+      var attribute = property.GetCustomAttribute<JsonPropertyAttribute>();
+      if(value is null && attribute?.NullValueHandling == NullValueHandling.Ignore) return null;
+
+      return new JProperty(attribute?.PropertyName ?? property.Name, Value(value));
+   }
 
    static bool IsInteger(TypeCode code) => code is TypeCode.SByte or TypeCode.Byte or TypeCode.Int16 or TypeCode.UInt16
                                                    or TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64;

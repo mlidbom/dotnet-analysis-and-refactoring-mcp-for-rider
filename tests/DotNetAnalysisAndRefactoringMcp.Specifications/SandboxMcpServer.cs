@@ -19,17 +19,24 @@ public sealed class SandboxMcpServer
    ///   What the <c>/health</c> endpoint says about the tools build that serves <paramref name="solution"/>: its name as
    ///   <c>build</c>, and the names of the builds swapped out that are <c>beingFreed</c> or <c>notFreed</c>.
    /// </summary>
-   public JsonElement ToolsOf(string solution)
+   public JsonElement ToolsOf(string solution) =>
+      Health().GetProperty("solutions").EnumerateArray()
+              .Single(it => string.Equals(it.GetProperty("path").GetString(), solution, StringComparison.OrdinalIgnoreCase))
+              .GetProperty("tools");
+
+   /// <summary>What the <c>/health</c> endpoint answers: the open solutions, whether any is indexing, the tools builds.</summary>
+   public JsonElement Health()
    {
       using var health = JsonDocument.Parse(Client.GetStringAsync(new Uri(_address, "health")).GetAwaiter().GetResult());
-      return health.RootElement.GetProperty("solutions").EnumerateArray()
-                   .Single(it => string.Equals(it.GetProperty("path").GetString(), solution, StringComparison.OrdinalIgnoreCase))
-                   .GetProperty("tools").Clone();
+      return health.RootElement.Clone();
    }
 
-   /// <summary>The result of the <c>initialize</c> request a client sends when it connects.</summary>
-   public JsonElement Initialize() =>
-      Send("initialize", new JsonObject { ["protocolVersion"] = "2025-03-26", ["capabilities"] = new JsonObject() });
+   /// <summary>The result of the <c>initialize</c> request a client sends when it connects, in <paramref name="protocolVersion"/>.</summary>
+   public JsonElement Initialize(string protocolVersion = "2025-03-26") =>
+      Send("initialize", new JsonObject { ["protocolVersion"] = protocolVersion, ["capabilities"] = new JsonObject() });
+
+   /// <summary>The tools <c>tools/list</c> lists, as their definitions.</summary>
+   public IReadOnlyList<JsonElement> ListTools() => Send("tools/list", new JsonObject()).GetProperty("tools").EnumerateArray().ToList();
 
    /// <summary>An event stream, opened as a client opens one with a GET: what the server sends without being asked.</summary>
    public ServerEvents OpenEventStream() => new(_address);
@@ -41,27 +48,65 @@ public sealed class SandboxMcpServer
    /// </remarks>
    public string CallTool(string tool, object arguments)
    {
+      var (text, isError) = Call(tool, arguments);
+      if(isError) throw new InvalidOperationException($"{tool} failed: {text}");
+      return text;
+   }
+
+   /// <summary>Calls <paramref name="tool"/> as the server is to refuse, and returns the refusal's text.</summary>
+   public string Refusal(string tool, object arguments)
+   {
+      var (text, isError) = Call(tool, arguments);
+      if(!isError) throw new InvalidOperationException($"{tool} answered instead of refusing: {text}");
+      return text;
+   }
+
+   /// <summary>The JSON-RPC error the server answers <paramref name="method"/> with.</summary>
+   public JsonElement Error(string method)
+   {
+      var answer = Post(Request(method, new JsonObject()));
+      if(!answer.TryGetProperty("error", out var error)) throw new InvalidOperationException($"The server answered {method}: {answer}");
+      return error;
+   }
+
+   /// <summary>Sends <paramref name="method"/> as a notification, a request without an id, and returns the HTTP status and body it gets.</summary>
+   public (int Status, string Body) Notify(string method)
+   {
+      var notification = Request(method, new JsonObject());
+      notification.Remove("id");
+      using var response = Client.PostAsJsonAsync(_address, notification).GetAwaiter().GetResult();
+      return ((int)response.StatusCode, response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+   }
+
+   (string Text, bool IsError) Call(string tool, object arguments)
+   {
       var result = Send("tools/call", new JsonObject { ["name"] = tool, ["arguments"] = JsonSerializer.SerializeToNode(arguments) });
       var text = string.Join("\n", result.GetProperty("content").EnumerateArray().Select(it => it.GetProperty("text").GetString()));
-      if(result.TryGetProperty("isError", out var isError) && isError.GetBoolean()) throw new InvalidOperationException($"{tool} failed: {text}");
-      return text;
+      return (text, result.TryGetProperty("isError", out var isError) && isError.GetBoolean());
    }
 
    JsonElement Send(string method, JsonObject parameters)
    {
-      var request = new JsonObject
-                    {
-                       ["jsonrpc"] = "2.0",
-                       ["id"] = Interlocked.Increment(ref _lastRequestId),
-                       ["method"] = method,
-                       ["params"] = parameters
-                    };
+      var answer = Post(Request(method, parameters));
+      if(answer.TryGetProperty("error", out var error)) throw new InvalidOperationException($"The server rejected {method}: {error}");
+      return answer.GetProperty("result");
+   }
 
+   JsonObject Request(string method, JsonObject parameters) =>
+      new()
+      {
+         ["jsonrpc"] = "2.0",
+         ["id"] = Interlocked.Increment(ref _lastRequestId),
+         ["method"] = method,
+         ["params"] = parameters
+      };
+
+   JsonElement Post(JsonObject request)
+   {
       using var response = Client.PostAsJsonAsync(_address, request).GetAwaiter().GetResult();
       response.EnsureSuccessStatusCode();
       using var answer = JsonDocument.Parse(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
-      if(answer.RootElement.TryGetProperty("error", out var error)) throw new InvalidOperationException($"The server rejected {method}: {error}");
-      return answer.RootElement.GetProperty("result").Clone();
+      return answer.RootElement.Clone();
    }
 }
 

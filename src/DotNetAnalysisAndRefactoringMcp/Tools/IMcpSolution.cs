@@ -13,6 +13,12 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 /// </summary>
 public interface IMcpSolution
 {
+   /// <summary>The solution file's name without its extension, by which calls name it in <c>solutionName</c>.</summary>
+   string Name { get; }
+
+   /// <summary>The solution file's full path, which tells it from other solutions of the same name.</summary>
+   string FilePath { get; }
+
    ISolution Solution { get; }
 
    /// <summary>The solution's lifetime: a call's own lifetime nests in it.</summary>

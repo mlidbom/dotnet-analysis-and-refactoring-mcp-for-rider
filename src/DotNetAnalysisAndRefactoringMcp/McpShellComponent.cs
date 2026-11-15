@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -8,9 +7,6 @@ using JetBrains.Application;
 using JetBrains.Application.Parts;
 using JetBrains.Lifetimes;
 using JetBrains.Util;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using DotNetAnalysisAndRefactoringMcp.Protocol;
 using DotNetAnalysisAndRefactoringMcp.Swapping;
 using DotNetAnalysisAndRefactoringMcp.Tools;
 
@@ -25,7 +21,6 @@ public class McpShellComponent : IDisposable
    readonly ILogger _logger;
    readonly SwappableTools _swappableTools;
    readonly int _primaryPort;
-   bool _isPrimary;
 
    public int Port => _server?.Port ?? 0;
 
@@ -40,15 +35,13 @@ public class McpShellComponent : IDisposable
       for(var attempt = 0; attempt < MaxPortAttempts; attempt++)
       {
          var tryPort = basePort + attempt;
-         var tryServer = new McpHttpServer(tryPort, logger, Instructions);
+         var tryServer = new McpHttpServer(tryPort, basePort, logger, swappableTools);
          try
          {
             tryServer.Start();
             _server = tryServer;
-            _isPrimary = (tryPort == basePort);
-            _server.IsPrimary = _isPrimary;
 
-            if(_isPrimary)
+            if(_server.IsPrimary)
                _logger.Info($"MCP primary server started on port {tryPort}");
             else
                _logger.Info($"MCP peer server started on port {tryPort} (primary on {basePort})");
@@ -78,59 +71,12 @@ public class McpShellComponent : IDisposable
       lifetime.OnTermination(this);
    }
 
-   /// <summary>The usage guide of the tools build served.</summary>
-   string Instructions()
-   {
-      using var lease = _swappableTools.Lease();
-      return lease.Instructions;
-   }
+   /// <summary>The tools build served changed: <see cref="McpHttpServer.ToolsSwapped"/>.</summary>
+   void OnToolsSwapped() => _server?.ToolsSwapped();
 
-   /// <summary>
-   /// The clients are told on the primary, which they connect to. A peer registers its solutions with the primary
-   /// again, with the new build's tools, and the primary tells the clients.
-   /// </summary>
-   void OnToolsSwapped()
-   {
-      var server = _server;
-      if(server == null) return;
+   public void RegisterSolution(McpServerComponent solution) => _server?.RegisterSolution(solution);
 
-      if(_isPrimary)
-      {
-         server.NotifyToolsChanged();
-         return;
-      }
-
-      foreach(var solution in server.LocalSolutions())
-         NotifyPrimary("internal/register", solution.Name, solution.Path, solution.ListTools());
-   }
-
-   public void RegisterSolution(string solutionName,
-                                string solutionPath,
-                                Func<List<ToolDefinition>> listTools,
-                                Func<string, JObject, string> callTool,
-                                Func<JObject> health)
-   {
-      if(_server == null) return;
-
-      // Always register locally
-      _server.RegisterSolution(solutionName, solutionPath, listTools, callTool, health);
-      _logger.Info($"Registered solution '{solutionName}' locally on port {_server.Port}");
-
-      // If we're a peer, also notify the primary server
-      if(!_isPrimary)
-         NotifyPrimary("internal/register", solutionName, solutionPath, listTools());
-   }
-
-   public void UnregisterSolution(string solutionPath)
-   {
-      if(_server == null) return;
-
-      _server.UnregisterSolution(solutionPath);
-
-      // If we're a peer, also notify the primary server
-      if(!_isPrimary)
-         NotifyPrimaryDeregister(solutionPath);
-   }
+   public void UnregisterSolution(McpServerComponent solution) => _server?.UnregisterSolution(solution);
 
    public void Dispose()
    {
@@ -138,97 +84,12 @@ public class McpShellComponent : IDisposable
       _logger.Info("MCP server stopped");
    }
 
-   void NotifyPrimary(string method, string solutionName, string solutionPath, List<ToolDefinition> tools)
-   {
-      try
-      {
-         var toolsArray = new JArray();
-         foreach(var tool in tools)
-         {
-            toolsArray.Add(new JObject
-                           {
-                              ["name"] = tool.Name,
-                              ["description"] = tool.Description,
-                              ["inputSchema"] = JsonOf.Value(tool.InputSchema)
-                           });
-         }
-
-         var request = new JsonRpcRequest
-                       {
-                          Id = 1,
-                          Method = method,
-                          Params = new JObject
-                                   {
-                                      ["port"] = _server.Port,
-                                      ["solutionName"] = solutionName,
-                                      ["solutionPath"] = solutionPath,
-                                      ["tools"] = toolsArray
-                                   }
-                       };
-
-         SendToPrimary(request);
-         _logger.Info($"Registered solution '{solutionName}' with primary server on port {_primaryPort}");
-      }
-      catch(Exception ex)
-      {
-         // The primary may have gone, which its watchdog's takeover handles; until then the primary lacks this solution.
-         ToolFailure.Logged(ex, "registering with the primary MCP server");
-      }
-   }
-
-   void NotifyPrimaryDeregister(string solutionPath)
-   {
-      try
-      {
-         var request = new JsonRpcRequest
-                       {
-                          Id = 1,
-                          Method = "internal/deregister",
-                          Params = new JObject
-                                   {
-                                      ["solutionPath"] = solutionPath
-                                   }
-                       };
-
-         SendToPrimary(request);
-         _logger.Info($"Deregistered solution from primary MCP server");
-      }
-      catch(Exception ex)
-      {
-         // As registering: the primary may have gone.
-         ToolFailure.Logged(ex, "deregistering from the primary MCP server");
-      }
-   }
-
-   void SendToPrimary(JsonRpcRequest request)
-   {
-      var json = JsonConvert.SerializeObject(request);
-      var url = $"http://127.0.0.1:{_primaryPort}/";
-
-      var webRequest = (HttpWebRequest)WebRequest.Create(url);
-      webRequest.Method = "POST";
-      webRequest.ContentType = "application/json";
-      webRequest.Timeout = 5000;
-
-      var bytes = Encoding.UTF8.GetBytes(json);
-      webRequest.ContentLength = bytes.Length;
-      using(var stream = webRequest.GetRequestStream())
-         stream.Write(bytes, 0, bytes.Length);
-
-      using(var response = (HttpWebResponse)webRequest.GetResponse())
-      {
-         // Just consume the response
-         using(var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
-            reader.ReadToEnd();
-      }
-   }
-
    void WatchdogPing()
    {
       if(_server == null) return;
 
       // For peers: check if the primary is still alive; if not, try to take over
-      if(!_isPrimary)
+      if(!_server.IsPrimary)
       {
          TryPromoteToPrimary();
          return;
@@ -278,16 +139,14 @@ public class McpShellComponent : IDisposable
 
          try
          {
-            var newServer = new McpHttpServer(_primaryPort, _logger, Instructions);
+            var newServer = new McpHttpServer(_primaryPort, _primaryPort, _logger, _swappableTools);
             newServer.Start();
-            newServer.IsPrimary = true;
 
             // Transfer all solution registrations from old server to new server
             var oldServer = _server;
             oldServer.TransferRegistrationsTo(newServer);
 
             _server = newServer;
-            _isPrimary = true;
 
             oldServer.Stop();
 
@@ -301,7 +160,7 @@ public class McpShellComponent : IDisposable
       }
    }
 
-   void PingServer(int port)
+   static void PingServer(int port)
    {
       var url = $"http://127.0.0.1:{port}/";
       var request = (HttpWebRequest)WebRequest.Create(url);

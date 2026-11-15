@@ -1,29 +1,31 @@
-using System.Collections.Generic;
-using DotNetAnalysisAndRefactoringMcp.Protocol;
-using JetBrains.ProjectModel;
-using Newtonsoft.Json.Linq;
-
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
 
 /// <summary>
 ///   The way into a build of the tools assembly: the host creates the type <see cref="McpToolsEntryPoint.TypeName"/> names when it loads the build,
-///   and asks it to list and call its tools.
+///   and hands it every request the MCP server gets.
 /// </summary>
 /// <remarks>
 ///   What crosses is the host's types and plain data, never an object of the build: one the host kept would keep the
-///   build loaded after it was swapped out. A call's whole flow is the build's: the disk sync before it, the dispatch by
-///   the tool's kind, the timeout, the notes (until 2026-11-15 it was the host's, and changing it took a Rider restart).
+///   build loaded after it was swapped out. The whole protocol is the build's: answering the JSON-RPC requests, routing
+///   calls to the solutions and the peers, a call's flow, the health report. Until 2026-11-15 the host had it, and
+///   changing it took a Rider restart.
 /// </remarks>
 public interface IMcpToolsEntryPoint
 {
-   /// <summary>The tools a solution's calls are served with, described in the host's types.</summary>
-   List<ToolDefinition> ListTools(ISolution solution);
+   /// <summary>
+   ///   The answer to a JSON-RPC request that a client, or another Rider's server, posted: the response's JSON, or
+   ///   <c>null</c> for a notification, which gets none.
+   /// </summary>
+   string Answer(IMcpServer server, string request);
 
-   /// <summary>The answer of the tool <paramref name="name"/>, or <c>null</c> when the build has no tool by that name.</summary>
-   string CallTool(IMcpSolution solution, string name, JObject arguments);
+   /// <summary>The JSON of <c>GET /health</c>: the open solutions, whether they're indexing, the tools builds.</summary>
+   string Health(IMcpServer server);
 
-   /// <summary>The usage guide clients get when they connect, in the <c>initialize</c> response.</summary>
-   string Instructions { get; }
+   /// <summary>Registers <paramref name="solution"/> with the primary, when <paramref name="server"/> is a peer.</summary>
+   void RegisterWithThePrimary(IMcpServer server, IMcpSolution solution);
+
+   /// <summary>Tells the primary that <paramref name="solution"/> closed, when <paramref name="server"/> is a peer.</summary>
+   void DeregisterFromThePrimary(IMcpServer server, IMcpSolution solution);
 }
 
 public static class McpToolsEntryPoint

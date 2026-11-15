@@ -1,12 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
-using DotNetAnalysisAndRefactoringMcp.Protocol;
 using DotNetAnalysisAndRefactoringMcp.Threading;
 using DotNetAnalysisAndRefactoringMcp.Tools;
-using JetBrains.ProjectModel;
-using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Swapping;
 
@@ -72,14 +68,8 @@ sealed class LoadedToolsBuild
       _calls.Locked(it => it.InProgress++);
    }
 
-   /// <summary>The tools a solution's calls are served with, for a call that is counted in.</summary>
-   public List<ToolDefinition> ListTools(ISolution solution) => _entryPoint.ListTools(solution);
-
-   /// <summary>A call of the tool <paramref name="name"/>, which must be counted in: its answer, or <c>null</c> for no such tool.</summary>
-   public string CallTool(IMcpSolution solution, string name, JObject arguments) => _entryPoint.CallTool(solution, name, arguments);
-
-   /// <summary>The usage guide, for a call that is counted in. A string, which keeps nothing of the build loaded.</summary>
-   public string Instructions => _entryPoint.Instructions;
+   /// <summary>The build's entry point, for a call that is counted in: <see cref="ToolsLease"/> hands it no further.</summary>
+   public IMcpToolsEntryPoint EntryPoint => _entryPoint;
 
    /// <summary>Counts a call out, and unloads the build if it's retired and that was its last call.</summary>
    public void Exit()
@@ -127,11 +117,17 @@ public sealed class ToolsLease : IDisposable
 
    internal ToolsLease(LoadedToolsBuild build) => _build = build;
 
-   public List<ToolDefinition> ListTools(ISolution solution) => _build.ListTools(solution);
+   /// <inheritdoc cref="IMcpToolsEntryPoint.Answer"/>
+   public string Answer(IMcpServer server, string request) => _build.EntryPoint.Answer(server, request);
 
-   public string CallTool(IMcpSolution solution, string name, JObject arguments) => _build.CallTool(solution, name, arguments);
+   /// <inheritdoc cref="IMcpToolsEntryPoint.Health"/>
+   public string Health(IMcpServer server) => _build.EntryPoint.Health(server);
 
-   public string Instructions => _build.Instructions;
+   /// <inheritdoc cref="IMcpToolsEntryPoint.RegisterWithThePrimary"/>
+   public void RegisterWithThePrimary(IMcpServer server, IMcpSolution solution) => _build.EntryPoint.RegisterWithThePrimary(server, solution);
+
+   /// <inheritdoc cref="IMcpToolsEntryPoint.DeregisterFromThePrimary"/>
+   public void DeregisterFromThePrimary(IMcpServer server, IMcpSolution solution) => _build.EntryPoint.DeregisterFromThePrimary(server, solution);
 
    /// <summary>A second lease on the same build, for work that may outlive this one, such as a call that timed out.</summary>
    public ToolsLease Extend()

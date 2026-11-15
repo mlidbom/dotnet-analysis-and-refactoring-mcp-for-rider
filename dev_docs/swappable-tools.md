@@ -9,12 +9,13 @@ plugin does it itself.
 
 ## The design
 
-- **The host**, `src/DotNetAnalysisAndRefactoringMcp`, is what Rider loads as the plugin: the ReSharper components, the
-  HTTP server, the disk sync, the dispatch onto ReSharper's threads and locks, the interfaces the tools implement, and
+- **The host**, `src/DotNetAnalysisAndRefactoringMcp`, is what Rider loads as the plugin: only what has to outlive a
+  tools build, or what ReSharper holds on to (see "The minimal host" below), the interfaces the tools implement, and
   the loader (`Swapping/`). It changes rarely, and a change to it still needs a restart.
-- **The tools**, `src/DotNetAnalysisAndRefactoringMcp.Tools`, are everything that answers a call. The host loads a
-  build of them into a collectible `AssemblyLoadContext`, and swaps it for a newer one between calls. Every Rider on the
-  machine picks a new build up at its next call, with no restart.
+- **The tools**, `src/DotNetAnalysisAndRefactoringMcp.Tools`, are everything that answers a request: the MCP protocol,
+  the routing to solutions and peers, a call's flow, the tools themselves. The host loads a build of them into a
+  collectible `AssemblyLoadContext`, and swaps it for a newer one between calls. Every Rider on the machine picks a new
+  build up at its next call, with no restart.
 
 ## How it works (built 2026-11-14)
 
@@ -47,7 +48,7 @@ and **publishing** is uploading the plugin to the Marketplace, nothing else.
   context is gone. One that isn't freed is listed under `tools.notFreed` in `/health`, and named in a note on every
   answer until Rider restarts. `When_the_tools_are_swapped_twice` swaps twice and checks that every build swapped out
   in the run was freed, the first one included: the fixture has it run every tool that changes nothing first.
-- **The tools are created anew at every call** (`IMcpToolsEntryPoint.CreateTools`), and the host keeps none of them.
+- **The tools are created anew at every request** (`McpTools.Of`), and the host keeps none of them.
 - **Deploying:** `sandbox install` and `everyday deploy` deploy the tools build, which takes effect at the next call.
   Only when the host changed do they install the plugin too, which takes effect at the restart.
 
@@ -57,8 +58,9 @@ A swapped-out build is freed only if nothing in the default load context keeps o
 
 - **No object of the tools assembly handed to Newtonsoft.Json's reflection,** such as an anonymous object to
   `JObject.FromObject` or `JsonConvert.SerializeObject`: Newtonsoft.Json is Rider's copy, and caches each type it
-  serializes for good. Answers and input schemas may be anonymous objects; the host turns them into JSON with `JsonOf`,
-  which walks their properties itself. Tools that need the JSON themselves call `JsonOf` too.
+  serializes for good. Answers and input schemas may be anonymous objects; `JsonOf` turns them into JSON, walking
+  their properties itself, and writes the JSON-RPC responses too, by their `[JsonProperty]` names. Requests are read
+  with `JObject.Parse`, never deserialized into a type.
 - **Exceptions are logged as text** (`$"...: {exception}"`), never handed to ReSharper's logger: an exception keeps
   loaded every build its stack trace runs through, for as long as it's kept.
 - **No subclass of a ReSharper class whose type ReSharper might keep:** such classes go in the host. ReSharper's
@@ -109,20 +111,38 @@ context of its own, calls it, and unloads the previous one. In the sandbox, Ride
   without it, an update from the Marketplace would reload the JVM part and leave the old host serving, its tools
   folder replaced under it. A host change costs a restart less often only if the host changes less often.
 
-## In progress: the minimal host (Magnus, 2026-11-15)
+## The minimal host (Magnus, 2026-11-15; built the same day)
 
-The host keeps only what has to outlive a swap, or what ReSharper holds on to; everything else moves into the tools
-(the rule "The host stays minimal" in `.claude/rules/02-universal-local/developing-the-plugin.md`). Two increments, each
-built, specified and committed on its own, then one restart:
+The host keeps only what has to outlive a swap, or what ReSharper holds on to; everything else is in the tools (the
+rule "The host stays minimal" in `.claude/rules/02-universal-local/developing-the-plugin.md`). It went from 114 KB to
+59 KB in two increments, each committed on its own, which took one restart.
 
-1. **The call pipeline.** `McpServerComponent`'s per-call flow (expanding arguments, the disk sync, refusing edits on
-   stale files, dispatching by the tool's marker, the notes, the timeout), with `DiskSync`, `RefreshRequests`,
-   `RiderInternals`, `McpToolExecution`, the tool interfaces and `FileArguments`, moves into the tools. The host keeps
-   `DiskChanges` (the watcher) and the disk sync's state across calls, in a host type the tools' `DiskSync` works on,
-   and asks the tools build to list and call its tools for a solution.
-2. **The protocol.** `McpHttpServer`'s JSON-RPC handling (initialize, tools/list, tools/call, list_solutions, routing
-   to solutions and peers, health) moves into the tools. The host keeps the listener and its threads, the event
-   streams, and the registrations of solutions and peers, and hands each request to the tools build.
+**What the host keeps, and why:**
+
+- `McpShellComponent`: binding a port, as the primary or a peer; the watchdog, and a peer's takeover of the primary's
+  port. ReSharper creates it, and it holds the server.
+- `McpHttpServer`: the HTTP listener and its threads, the clients' event streams (`notifications/tools/list_changed`),
+  and the registrations of this Rider's solutions and the peers' solutions. It hands every POST and `GET /health` to
+  the tools build, and when that fails, as when no build loads, it answers a JSON-RPC error, or a `/health` with no
+  solutions, that says why.
+- `McpServerComponent`: one per solution, from ReSharper; it holds the file watcher (`DiskChanges`) and the disk sync's
+  memory between calls (`DiskSyncState`).
+- `DaemonHighlightingCollector`: ReSharper keeps the type of a daemon process it measured.
+- `Swapping/`, `Threading/`, `SolutionRoot`, `ToolFailure`.
+
+**What the tools see:** `IMcpServer` (the port and role, the registrations as they were when the request came, and what
+only the host can do: register a peer, tell the clients, restart the listener) and `IMcpSolution` (one open solution,
+as one request on one build sees it). Both are made for one request, on the lease that request holds, so a call that
+outlives it keeps its build loaded through `IMcpSolution.KeepTheBuildLoaded`. What the tools hand back to keep, a
+peer's registration, is a host type holding JSON (`PeerRegistration`).
+
+**In the tools:** `Serving/` answers the JSON-RPC requests (`McpRequest`), lists the tools (`ToolList`), routes a call
+(`OpenSolutions`, `LocalSolution`, `PeerSolution`), reports the health, and registers a peer's solutions with the
+primary (`PrimaryServer`); `Protocol/` has the JSON-RPC and MCP types; `Tools/ToolCall` is a call's flow, with the disk
+sync in `Disk/`.
+
+**Not checked live:** the peer paths (registering with the primary, forwarding a call, a peer's health) need two
+Riders, and the specifications run one. Nor the answers when no tools build loads.
 
 ## Not done yet
 

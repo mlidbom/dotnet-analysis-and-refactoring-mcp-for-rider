@@ -3,7 +3,7 @@ using Compze.xUnitBDD;
 
 // ReSharper disable InconsistentNaming
 
-namespace DotNetAnalysisAndRefactoringMcp.Specifications;
+namespace DotNetAnalysisAndRefactoringMcp.Specifications.Serving;
 
 public class When_listing_the_open_solutions(TheSandboxWithTheFixtureSolution sandbox)
 {

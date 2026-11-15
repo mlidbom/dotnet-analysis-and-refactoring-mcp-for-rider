@@ -32,9 +32,9 @@ tools/<build>/                                # the tools build it was installed
 The official C# MCP SDK (`ModelContextProtocol` NuGet) requires .NET 8+ for HTTP transport,
 but ReSharper plugins target **net472**. So we implement a lightweight MCP server manually:
 
-- `McpHttpServer.cs` — `HttpListener`-based HTTP server on `127.0.0.1:23751`
-- Implements JSON-RPC 2.0 directly (handles `initialize`, `tools/list`, `tools/call`)
-- Protocol types in `Protocol/JsonRpc.cs` and `Protocol/McpTypes.cs`
+- `McpHttpServer.cs` (host) — `HttpListener`-based HTTP server on `127.0.0.1:23751`; hands every request to the tools build
+- `Serving/McpRequest.cs` (tools) — implements JSON-RPC 2.0 directly (`initialize`, `tools/list`, `tools/call`, the `internal/*` methods)
+- Protocol types in the tools' `Protocol/JsonRpc.cs` and `Protocol/McpTypes.cs`, written with `JsonOf`, never Newtonsoft's serializer
 - Uses `Newtonsoft.Json` (bundled with Rider's ReSharper host, no need to ship it)
 
 ### Multi-solution support (primary/peer architecture)
@@ -48,8 +48,9 @@ The plugin uses a **primary/peer** model:
 
 Component breakdown:
 
-- `McpShellComponent.cs` — `[ShellComponent]` (process-level singleton). Tries to bind the base port; on failure, increments and becomes a peer. Owns the `McpHttpServer`. Handles peer registration notifications.
-- `McpServerComponent.cs` — `[SolutionComponent]` (per-solution). Registers/unregisters the solution with the shell component on solution open/close, serves its calls from the current tools build (`Swapping/SwappableTools`), and handles PSI thread dispatch. Skips solutions without a file (Rider 2026.3's lightweight backend has one).
+- `McpShellComponent.cs` — `[ShellComponent]` (process-level singleton). Tries to bind the base port; on failure, increments and becomes a peer. Owns the `McpHttpServer`; its watchdog lets a peer take over the primary's port.
+- `McpServerComponent.cs` — `[SolutionComponent]` (per-solution). Registers/unregisters the solution with the server on solution open/close, and holds what of it outlives a tools build. Skips solutions without a file (Rider 2026.3's lightweight backend has one).
+- In the tools, `Serving/`: `OpenSolutions` routes a call (`LocalSolution`, `PeerSolution`), `PrimaryServer` is a peer's registering with the primary, `OtherMcpServer` reaches another Rider's server.
 - When only one solution is open (across all Rider instances), all tool calls route to it automatically (backwards-compatible).
 - When multiple solutions are open, callers must specify `solutionName` in tool arguments.
 - The `list_solutions` meta-tool returns all currently open solutions (local + peers).
@@ -306,11 +307,11 @@ rider-plugin/META-INF/plugin.xml       # IntelliJ plugin descriptor
 dev_docs/swappable-tools.md            # the host/tools split: how swapping works, the rules for tools code
 src/DotNetAnalysisAndRefactoringMcp/   # THE HOST: what Rider loads; a change here needs a Rider restart
   DotNetAnalysisAndRefactoringMcp.csproj  # targets net472, refs JetBrains.ReSharper.SDK 2025.3.3
-  McpShellComponent.cs                 # ShellComponent — owns HTTP server (process-level singleton)
-  McpServerComponent.cs                # SolutionComponent — holds what outlives a tools build; hands each call to it
-  McpHttpServer.cs                     # HttpListener-based MCP server with multi-solution routing
+  McpShellComponent.cs                 # ShellComponent — binds a port, owns the HTTP server; watchdog, peer takeover
+  McpServerComponent.cs                # SolutionComponent — holds what of a solution outlives a tools build
+  McpHttpServer.cs                     # HttpListener, event streams, registrations; hands each request to the tools
+  PeerRegistration.cs                  # A peer's solution registered with the primary: its port, its tools as JSON
   SolutionRoot.cs                      # Where relative paths start: solution directory and the work tree above it
-  JsonOf.cs                            # JSON of the tools' anonymous objects without Newtonsoft's type caches
   DaemonHighlightingCollector.cs       # Runs the daemon on a file; in the host because ReSharper keeps its type
   Threading/                           # IThreadShared: state shared between threads, reached only inside its lock; the one raw lock
   Swapping/
@@ -321,16 +322,26 @@ src/DotNetAnalysisAndRefactoringMcp/   # THE HOST: what Rider loads; a change he
   Disk/
     DiskChanges.cs                     # FileSystemWatcher: source files changed since last taken
     DiskSyncState.cs                   # What the disk sync remembers between calls: stale and absent files
-  Protocol/
-    JsonRpc.cs                         # JSON-RPC request/response/error types
-    McpTypes.cs                        # MCP types: InitializeResult, ToolDefinition, etc.
   Tools/                               # what the tools implement, and the host's helpers for calls
-    IMcpToolsEntryPoint.cs             # The way into a tools build: lists its tools, calls one
-    IMcpSolution.cs                    # An open solution as a call sees it: what of it outlives a tools build
+    IMcpToolsEntryPoint.cs             # The way into a tools build: answers a request, the health, registers with the primary
+    IMcpServer.cs                      # The server as one request sees it: registrations, and what only the host can do
+    IMcpSolution.cs                    # An open solution as one request sees it: what of it outlives a tools build
     ToolFailure.cs                     # One-line crash text
-    FileArguments.cs                   # filePath / filePaths / symbols[].filePath of a call
 src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between calls; same namespaces as before the split
   McpToolExecution.cs                  # Interruptible PSI reads and read-then-main-thread continuations
+  JsonOf.cs                            # JSON of the tools' objects without Newtonsoft's type caches, [JsonProperty] names
+  Protocol/
+    JsonRpc.cs                         # JSON-RPC request/response/error types, read and answered
+    McpTypes.cs                        # MCP types: InitializeResult, ToolDefinition, etc.
+  Serving/
+    McpRequest.cs                      # One JSON-RPC request and its answer, by method
+    ToolList.cs                        # tools/list: the solutions' tools with solutionName, after list_solutions
+    OpenSolutions.cs                   # The solutions a call is routed to; list_solutions; /health
+    OpenSolution.cs                    # One solution, by name, path segment or the files it holds
+    LocalSolution.cs                   # One of this Rider's: its tools answer the call
+    PeerSolution.cs                    # One of a peer's: the call is forwarded to the peer
+    PrimaryServer.cs                   # A peer registering its solutions with the primary
+    OtherMcpServer.cs                  # Another Rider's MCP server, reached at its port
   PsiHelpers.cs                        # Shared: file lookup, name/position resolution, suggestions, snippets
   SymbolName.cs                        # Parses "Ns.Type.Member<T>(...)" as agents write it
   CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
@@ -346,7 +357,9 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     RiderInternals.cs                  # Rider API missing from the SDK, found by reflection (RdPath)
     RefreshRequests.cs                 # RdFsRefreshRequest across Rider versions (reflection)
   Tools/
-    ToolsEntryPoint.cs                 # Lists and calls the tools; the host knows it by name
+    ToolsEntryPoint.cs                 # Answers the host's requests; the host knows it by name
+    McpTools.cs                        # The tools a solution is served with, created anew for every request
+    FileArguments.cs                   # filePath / filePaths / symbols[].filePath of a call
     ToolCall.cs                        # One call's flow: disk sync, stale-file refusal, dispatch by kind, timeout, notes
     IMcpTool.cs                        # Tool interface: Name, Description, InputSchema, Execute
     IMcpWriteTool.cs                   # Marker interface for write tools (write lock + PsiTransaction)
