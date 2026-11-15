@@ -25,6 +25,7 @@ plugin is a fork of.
 
 ### Fixed
 
+- `move_type_to_namespace` makes a file's namespace file-scoped again when the solution's code style has it so: once a file's types had moved to the same namespace one after the other, their namespace stayed block-scoped, as the first move had to make it
 - `rename_symbol` renames a positional record's property, through the record's parameter that declares it, as Rider's Rename does; it answered that the property "has no source file"
 - `rename_symbol`'s `changedFiles` left out the files of the implementations and overrides it renamed with the symbol: it is now the files the rename changed
 - Answers ended with `(index still building — results may be incomplete)` though the solution was indexed: every edit tool's, as the edit's own changes, and a dry run's rolling them back, set ReSharper indexing the files they changed; and most answers right after a file was edited on disk, as reloading it does too, for tens of milliseconds. The note now says that ReSharper was indexing as the call's work began, for longer than the second the call waits for it

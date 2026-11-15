@@ -13,6 +13,7 @@ using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.CSharp;
 using JetBrains.ReSharper.Psi.CSharp.Impl;
 using JetBrains.ReSharper.Psi.CSharp.Tree;
+using JetBrains.ReSharper.Psi.CSharp.Util;
 using JetBrains.ReSharper.Psi.DataContext;
 using JetBrains.ReSharper.Psi.Files;
 using JetBrains.ReSharper.Psi.Search;
@@ -131,6 +132,7 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
       }
 
       var usingsAdded = extensionCallers.Where(it => AddUsing(it, newNamespace!)).Select(it => it.GetLocation().FullPath).ToList();
+      var madeFileScoped = SourceFilesOf(moved).Where(MakeFileScopedAsTheStyleHasIt).Select(it => it.GetLocation().FullPath).ToList();
       var root = SolutionRoot.Of(_solution);
       var answer = new StringBuilder();
       answer.AppendLine(dryRun
@@ -141,6 +143,11 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
       {
          answer.AppendLine($"{(dryRun ? "Would add" : "Added")} using {newNamespace}; for the extension methods' callers in:");
          foreach(var file in usingsAdded) answer.AppendLine("  " + root.Relative(file));
+      }
+      if(madeFileScoped.Count > 0)
+      {
+         answer.AppendLine($"{(dryRun ? "Would make" : "Made")} the namespace file-scoped again, as the solution's code style has it, in:");
+         foreach(var file in madeFileScoped) answer.AppendLine("  " + root.Relative(file));
       }
 
       foreach(var conflict in driver.Conflicts)
@@ -168,6 +175,27 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
                                NullProgressIndicator.Create());
       files.ExceptWith(SourceFilesOf(type));
       return [.. files];
+   }
+
+   /// <summary>
+   ///   Makes the namespace of <paramref name="sourceFile"/> file-scoped, when the solution's code style prefers that and
+   ///   the file can have it: one namespace, block-scoped, and nothing outside it. Whether it did.
+   /// </summary>
+   /// <remarks>
+   ///   ReSharper's move puts the types of a file in block-scoped namespaces when they are in two, and leaves the blocks
+   ///   once they're in one again, after the file's other types have moved there too. Until 2026-11-15 the tool left them
+   ///   too: JAStudio's <c>IBackendDataLoader.cs</c>, whose interface and class moved one after the other. ReSharper's
+   ///   own fix for its <c>ArrangeNamespaceBody</c> inspection converts it so.
+   /// </remarks>
+   static bool MakeFileScopedAsTheStyleHasIt(IPsiSourceFile sourceFile)
+   {
+      var declaration = (sourceFile.GetDominantPsiFile<CSharpLanguage>() as ICSharpFile)?.NamespaceDeclarationNodesEnumerable.SingleItem;
+      if(declaration == null || !TheStyleHasItFileScoped(declaration)) return false;
+      FileScopedNamespaces.ConvertToFileScoped(declaration);
+      return true;
+
+      static bool TheStyleHasItFileScoped(ICSharpNamespaceDeclaration declaration) =>
+         !declaration.IsFileScoped && CSharpNamespaceUtil.CanChangeStyle(declaration) && CSharpNamespaceUtil.IsFileScopedNamespaceBodyStylePreferred(declaration);
    }
 
    static List<IPsiSourceFile> SourceFilesOf(IDeclaredElement element)

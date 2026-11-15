@@ -38,10 +38,6 @@ See `dev_docs/swappable-tools.md`.
   solution would do the same. `apply_suggestions` now says how many files a fix changed, and why none may have changed.
   A fix: re-run the analysis, `SolutionAnalysisManager.ReanalyzeAll()`, which takes minutes on a large solution, so
   only when asked, such as a `reanalyze` argument to `inspect_code`.
-- `move_type_to_namespace` turned a file-scoped namespace into a block-scoped one, in a file that held two types
-  moved one after the other to the same namespace (JAStudio's `IBackendDataLoader.cs`, with the interface and
-  `BackendData`, 2026-11-15). Two namespaces in the file between the two moves need blocks, but once both types are
-  in the one namespace it should be file-scoped again, as the solution's style has it.
 
 - A directory `DiskChanges` fails to watch is never tried again: each is watched once, so edits under it are noticed
   only in files a call names. Retrying each call would log the failure each call; retrying with a backoff would

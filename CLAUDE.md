@@ -355,6 +355,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   PsiHelpers.cs                        # Shared: file lookup, name/position resolution, suggestions, snippets
   SymbolName.cs                        # Parses "Ns.Type.Member<T>(...)" as agents write it
   CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
+  FileScopedNamespaces.cs              # A namespace declaration made file-scoped, across Rider versions (reflection)
   SkippedElements.cs                   # Per-element guard for walks + the "skipped N elements" line
   McpInstructions.cs                   # Usage guide sent in the initialize response (from the tools, so no restart)
   Severities.cs                        # "error"/"warning"/... to and from ReSharper's Severity, and their order
