@@ -20,6 +20,10 @@ See `dev_docs/swappable-tools.md`.
 
 ## Known bugs
 
+- `get_diagnostics` called with `filePaths`, which it doesn't take, answered "Multiple solutions are open. Specify
+  'solutionName'", of six files all in one solution (2026-11-15): the error didn't say the parameter is unknown, and the
+  call wasn't routed by those files. Either it takes `filePaths`, as `inspect_code` does, or an unknown argument is
+  named in the error.
 - `search_symbol` with `includeLibraries` finds a compiled member only as `Type.Member`, not by its name alone
   (`GetProjectMark` gives none): scanning every compiled type's members takes seconds. An index of member names
   would do it.
