@@ -9,9 +9,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
    references and usings, and gives extension-method callers their using, but leaves the file: Rider's documents hold
    the unsaved result, and a file moved on disk under them would lose it. ReSharper's Move to Folder refactoring may
    do it inside the model.
-2. **Edit tools saving what they changed before they answer.** Rider saves the documents a refactoring changed a
-   while later, so an agent that builds at once builds the old text (the move specification waits for the save). The
-   protocol has an `RdSaveAllRequest` (Rider's `RdRequests`), which may be the way to ask the frontend to save.
 
 ## Swapping the tools without a restart
 

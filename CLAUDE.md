@@ -88,6 +88,10 @@ measured). Before every call `McpServerComponent` runs `DiskSync.Run`:
 
 Edit tools are refused while any suspect differs. Read tools get a note instead.
 
+After an edit tool's work, and before its answer, the documents it changed are saved (`Disk/UnsavedDocuments.cs`):
+Rider's backend asks the frontend to (`SaveDocument`), and the call waits until disk holds their text. Documents that
+differed from disk before the edit are left alone: someone's unsaved typing.
+
 **Never change a document's text from the backend** (`DocumentBindingUtil.SyncDocumentsWithFiles`, `ChangeDocument`):
 it is an in-memory edit, the document counts as unsaved, and Rider's autosave later writes it over disk. Observed:
 it reverted a file the agent had just restored. `tests/live_disk_sync.py` checks for this.
@@ -360,6 +364,8 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   Disk/
     GitChanges.cs                      # Files changed since a git ref (for get_file_errors changedSince)
     DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk, before every call
+    DiskText.cs                        # Whether a file on disk holds a document's text (line endings, BOM aside)
+    UnsavedDocuments.cs                # An edit's documents saved before the answer: through Rider's frontend, waited for
     RiderInternals.cs                  # Rider API missing from the SDK, found by reflection (RdPath)
     RefreshRequests.cs                 # RdFsRefreshRequest across Rider versions (reflection)
   Tools/

@@ -37,6 +37,7 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
 
    readonly IShellLocks _locks = solution.Solution.GetComponent<IShellLocks>();
    readonly Indexing _indexing = new(solution.Solution);
+   readonly UnsavedDocuments _unsaved = new(solution.Solution);
    readonly IMcpSolution _solution = solution;
    readonly IMcpTool _tool = tool;
 
@@ -86,15 +87,22 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
          return new { error = refusal };
 
       var indexingAsTheWorkBegan = await IndexingAsTheWorkBegins(lifetime).ConfigureAwait(false);
-      var result = await (_tool switch
-                            {
-                               IMcpAsyncTool asyncTool => asyncTool.ExecuteAsync(arguments, execution),
-                               IMcpWriteTool           => WriteAsync(arguments, lifetime),
-                               _                       => execution.Read(() => _tool.Execute(arguments)),
-                            }).ConfigureAwait(false);
+      var unsavedBefore = EditsFiles(arguments) ? await _unsaved.Now(lifetime).ConfigureAwait(false) : null;
+      var result = await Work(arguments, lifetime, execution).ConfigureAwait(false);
+      var notSaved = unsavedBefore == null ? [] : await _unsaved.SaveThoseUnsavedSince(unsavedBefore, lifetime).ConfigureAwait(false);
 
-      return WithNotes(result, Notes(disk, requested, indexingAsTheWorkBegan));
+      return WithNotes(result, Notes(disk, requested, indexingAsTheWorkBegan, notSaved));
    }
+
+   /// <summary>The tool's work, on the thread and under the lock its kind asks for.</summary>
+   Task<object> Work(JObject arguments, Lifetime lifetime, McpToolExecution execution) =>
+      _tool switch
+      {
+         IMcpAsyncTool asyncTool => asyncTool.ExecuteAsync(arguments, execution),
+         IMcpWriteTool           => WriteAsync(arguments, lifetime),
+         _                       => execution.Read(() => _tool.Execute(arguments)),
+      };
+
 
    Task<object> WriteAsync(JObject arguments, Lifetime lifetime) =>
       _locks.ExecuteOrQueueReadLockAsync(lifetime,
@@ -138,10 +146,17 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
    async Task<bool> IndexingAsTheWorkBegins(Lifetime lifetime) =>
       _indexing.IsRunning && !await _indexing.IsDoneWithin(HowLongIndexingAChangeMayTake, lifetime).ConfigureAwait(false);
 
+   /// <summary>
+   ///   Whether this call edits files: an edit tool's, and not a dry run. Such a call saves the documents it changed
+   ///   before it answers: Rider saves them a while later, and a build started right after the answer built the text
+   ///   before the edit.
+   /// </summary>
+   bool EditsFiles(JObject arguments) => _tool is IMcpEditTool && arguments["dryRun"]?.Value<bool>() != true;
+
    /// <summary>Why an edit tool may not run: an edit applied to Rider's old copy of a file would be saved over the newer text on disk.</summary>
    string Refusal(DiskReport disk, JObject arguments)
    {
-      if(_tool is not IMcpEditTool || arguments["dryRun"]?.Value<bool>() == true)
+      if(!EditsFiles(arguments))
          return null;
 
       if(disk.Stale.Count == 0)
@@ -153,7 +168,7 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
            + "\nSave or revert unsaved edits in Rider, or re-run in a few seconds.";
    }
 
-   List<string> Notes(DiskReport disk, IReadOnlyList<string> requested, bool indexingAsTheWorkBegan)
+   List<string> Notes(DiskReport disk, IReadOnlyList<string> requested, bool indexingAsTheWorkBegan, List<string> notSaved)
    {
       var notes = new List<string>();
       if(disk.Stale.Count > 0)
@@ -163,6 +178,9 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       var absent = disk.Absent.Where(requested.Contains).ToList();
       if(absent.Count > 0)
          notes.Add($"note: {Listed(absent)} {(absent.Count == 1 ? "is" : "are")} on disk but in no project yet");
+
+      if(notSaved.Count > 0)
+         notes.Add($"note: Rider hadn't saved {Listed(notSaved)} after this edit yet: a build started before it has reads the text before the edit");
 
       if(indexingAsTheWorkBegan)
          notes.Add("(index still building — results may be incomplete)");

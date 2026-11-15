@@ -11,6 +11,7 @@ plugin is a fork of.
 
 ### Changed
 
+- Edit tools save the files they changed before they answer, so that a build started right after the answer builds the edit: Rider saved them a while later. Files with unsaved changes before the edit, such as someone's typing in Rider, are left for Rider to save. A file Rider hasn't saved within 10 seconds is named in a note
 - No use of deprecated platform API: the Kotlin compiler no longer generates a forwarding method for the deprecated `StatusBarWidget.getPresentation(PlatformType)` into the status-bar widget, which the Marketplace's verifier reported as two usages of deprecated API
 
 ### Added

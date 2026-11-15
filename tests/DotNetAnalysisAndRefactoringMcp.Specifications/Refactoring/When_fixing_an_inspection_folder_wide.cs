@@ -8,12 +8,11 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Refactoring;
 /// <summary>Rider's Fix in folder, found in one file and applied to every file in its folder (2026-11-15).</summary>
 /// <remarks>
 ///   It changes files, so it fixes them once, for every fact: xUnit makes an instance per fact, and runs a class's
-///   facts one at a time. Rider saves the changed documents a while after the fix, so the other file is read once it's
-///   saved.
+///   facts one at a time. The other file is read as the answer comes: an edit tool saves what it changed before it
+///   answers, and until 2026-11-15 Rider saved it a while later.
 /// </remarks>
 public class When_fixing_an_inspection_folder_wide(TheSandboxWithTheFixtureSolution sandbox)
 {
-   static readonly TimeSpan HowLongSavingMayTake = TimeSpan.FromSeconds(30);
    static (string Answer, string OtherFile)? _observed;
 
    readonly (string Answer, string OtherFile) _the = _observed ??= Observe(sandbox);
@@ -33,10 +32,6 @@ public class When_fixing_an_inspection_folder_wide(TheSandboxWithTheFixtureSolut
                                                  inspectionIds = "PrimaryConstructorParameterCaptureDisallowed",
                                                  scope = "folder"
                                               });
-      var other = sandbox.PathOf("Shapes.Drawing/Captures/Rectangle.cs");
-      var deadline = DateTime.UtcNow + HowLongSavingMayTake;
-      while(!File.ReadAllText(other).Contains("readonly double") && DateTime.UtcNow < deadline)
-         Thread.Sleep(250);
-      return (answer, File.ReadAllText(other));
+      return (answer, File.ReadAllText(sandbox.PathOf("Shapes.Drawing/Captures/Rectangle.cs")));
    }
 }

@@ -11,12 +11,11 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Refactoring;
 /// </summary>
 /// <remarks>
 ///   It changes files, so it moves the type once, for every fact: xUnit makes an instance per fact, and runs a class's
-///   facts one at a time. Rider saves the changed documents a while after the move, so the files are read once they're
-///   saved.
+///   facts one at a time. The files are read as the answer comes: an edit tool saves what it changed before it answers,
+///   and until 2026-11-15 Rider saved them a while later.
 /// </remarks>
 public class When_moving_a_type_to_another_namespace(TheSandboxWithTheFixtureSolution sandbox)
 {
-   static readonly TimeSpan HowLongSavingMayTake = TimeSpan.FromSeconds(30);
    static Observed? _observed;
 
    readonly Observed _the = _observed ??= Observe(sandbox);
@@ -35,9 +34,6 @@ public class When_moving_a_type_to_another_namespace(TheSandboxWithTheFixtureSol
    {
       var answer = sandbox.McpServer.CallTool("move_type_to_namespace", new { symbolName = "Shapes.Drawing.Moving.Lengths", newNamespace = "Shapes.Drawing.Units" });
       var calling = sandbox.PathOf("Shapes.Drawing/Moving/Ruler.cs");
-      var deadline = DateTime.UtcNow + HowLongSavingMayTake;
-      while(!File.ReadAllText(calling).Contains("using Shapes.Drawing.Units;") && DateTime.UtcNow < deadline)
-         Thread.Sleep(250);
       return new Observed(answer,
                           File.ReadAllText(sandbox.PathOf("Shapes.Drawing/Moving/Lengths.cs")),
                           File.ReadAllText(calling),
