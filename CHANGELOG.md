@@ -25,6 +25,7 @@ plugin is a fork of.
 
 ### Fixed
 
+- `rename_symbol` renames a positional record's property, through the record's parameter that declares it, as Rider's Rename does; it answered that the property "has no source file"
 - `rename_symbol`'s `changedFiles` left out the files of the implementations and overrides it renamed with the symbol: it is now the files the rename changed
 - Answers ended with `(index still building — results may be incomplete)` though the solution was indexed: every edit tool's, as the edit's own changes, and a dry run's rolling them back, set ReSharper indexing the files they changed; and most answers right after a file was edited on disk, as reloading it does too, for tens of milliseconds. The note now says that ReSharper was indexing as the call's work began, for longer than the second the call waits for it
 - Failures are reported, not hidden. `get_diagnostics`, `list_quick_fixes`, `apply_quick_fix` and `apply_suggestions` answered an empty or partial list when ReSharper failed to read a highlighting or a fix, or a daemon stage failed; they now say what was skipped, and when the list may be incomplete. `apply_quick_fix`, `complete_at` and `generate_members` answered a failure as an ordinary result; it is now an error, logged

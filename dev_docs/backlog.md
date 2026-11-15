@@ -38,10 +38,6 @@ See `dev_docs/swappable-tools.md`.
   solution would do the same. `apply_suggestions` now says how many files a fix changed, and why none may have changed.
   A fix: re-run the analysis, `SolutionAnalysisManager.ReanalyzeAll()`, which takes minutes on a large solution, so
   only when asked, such as a `reanalyze` argument to `inspect_code`.
-- `rename_symbol` can't rename a positional record's property by name: for `StudyNoteFieldDifference.InAnki`, of
-  `record StudyNoteFieldDifference(string Field, string? InAnki, string JAStudioWrites)`, with `kind: 'property'`, it
-  answered "Symbol 'InAnki' has no source file; only source-defined symbols can be renamed." The property is
-  declared by the record's parameter, which is its source. JAStudio, 2026-11-15.
 - `move_type_to_namespace` turned a file-scoped namespace into a block-scoped one, in a file that held two types
   moved one after the other to the same namespace (JAStudio's `IBackendDataLoader.cs`, with the interface and
   `BackendData`, 2026-11-15). Two namespaces in the file between the two moves need blocks, but once both types are

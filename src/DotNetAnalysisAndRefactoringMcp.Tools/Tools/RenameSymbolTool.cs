@@ -72,7 +72,7 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
 
       var dryRun = arguments["dryRun"]?.Value<bool>() ?? false;
 
-      var (declaredElement, error) = PsiHelpers.ResolveFromArgs(
+      var (named, error) = PsiHelpers.ResolveFromArgs(
          _solution,
          arguments["symbolName"]?.ToString(),
          arguments["kind"]?.ToString(),
@@ -82,7 +82,10 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
 
       if(error != null) return error;
 
-      var oldName = declaredElement.ShortName;
+      var oldName = named.ShortName;
+      var declaredElement = TheElementARenameStartsFrom(named);
+      if(declaredElement == null)
+         return new { error = $"Symbol '{oldName}' cannot be renamed: ReSharper finds no element for its rename to start from.", oldName, newName };
 
       // Same name: nothing to do.
       if(string.Equals(oldName, newName, StringComparison.Ordinal))
@@ -239,6 +242,23 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
          lifetimeDefinition.Terminate();
       }
    }
+
+   /// <summary>
+   ///   The element that a rename of <paramref name="named"/> renames first, as Rider's Rename has it: a positional
+   ///   record's property is declared by the record's parameter, so renaming the property renames the parameter, which
+   ///   renames the property with it. Most elements are their own.
+   /// </summary>
+   /// <remarks>
+   ///   <para>
+   ///     Until 2026-11-15 the tool renamed the element as named, and a positional record's property, which has no
+   ///     declaration of its own, failed: "has no source file".
+   ///   </para>
+   ///   <para>
+   ///     Null when one of ReSharper's <see cref="IPrimaryDeclaredElementForRenameProvider"/>s finds none to start from.
+   ///   </para>
+   /// </remarks>
+   static IDeclaredElement TheElementARenameStartsFrom(IDeclaredElement named) =>
+      RenameRefactoringService.Instance.GetPrimevalDeclaredElement(named, null);
 
    static List<object> ExtractConflicts(RefactoringDriverWithConflicts driver, SkippedElements unreadable)
    {
