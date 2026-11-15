@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Text;
 using JetBrains.DocumentModel;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Feature.Services.CodeCleanup;

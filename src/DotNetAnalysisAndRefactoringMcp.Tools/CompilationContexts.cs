@@ -1,6 +1,5 @@
 #nullable enable
 using System;
-using System.Linq;
 using JetBrains.ReSharper.Psi;
 
 namespace DotNetAnalysisAndRefactoringMcp
