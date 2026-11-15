@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -40,7 +41,7 @@ public class BrowseNamespaceTool : IMcpTool
                                                                        items = new { type = "string" }
                                                                     }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    public object Execute(JObject arguments) =>

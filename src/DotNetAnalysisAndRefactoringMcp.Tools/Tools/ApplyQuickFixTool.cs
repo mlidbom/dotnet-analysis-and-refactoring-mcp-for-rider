@@ -47,7 +47,7 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
                                                    fixId = new { type = "string", description = "The fix to apply: its id (e.g. 'OptimizeImportsFix', as returned by list_quick_fixes and the 'available' list) or its display text. Optional." },
                                                    index = new { type = "integer", description = "0-based index into the available fixes to apply. Optional alternative to fixId." }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    object IMcpTool.Execute(JObject arguments) =>
@@ -115,7 +115,7 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
                    reason = "No quick-fixes are available at this position. The file may not have " +
                             "been analyzed yet (open it in the editor so the daemon computes highlightings), " +
                             "or there is no issue here.",
-                   available = new object[0]
+                   available = Array.Empty<object>()
                 };
       }
 

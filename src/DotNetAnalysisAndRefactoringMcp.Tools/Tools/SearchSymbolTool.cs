@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -61,7 +62,7 @@ public class SearchSymbolTool : IMcpTool
                                                                    description = "Maximum number of results to return per query. Default: 50"
                                                                 }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    public object Execute(JObject arguments) =>

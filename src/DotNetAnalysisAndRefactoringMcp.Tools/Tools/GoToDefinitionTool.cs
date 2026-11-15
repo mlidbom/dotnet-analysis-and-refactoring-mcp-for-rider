@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using JetBrains.ProjectModel;
 using Newtonsoft.Json.Linq;
@@ -48,7 +49,7 @@ public class GoToDefinitionTool : IMcpTool
                                                                         }
                                                              }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    public object Execute(JObject arguments) =>

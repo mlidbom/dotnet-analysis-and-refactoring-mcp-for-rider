@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -36,7 +37,7 @@ public class ListSymbolsInFileTool : IMcpTool
                                                    kinds = new { type = "string", description = "Comma-separated filter: 'type', 'method', 'property', 'field', 'event'. Default: all (excluding locals/parameters)." },
                                                    includeLocals = new { type = "boolean", description = "Include local variables and parameters. Default: false." }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    public object Execute(JObject arguments) =>

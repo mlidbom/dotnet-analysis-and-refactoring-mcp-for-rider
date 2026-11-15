@@ -99,7 +99,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
                                                                             "occurrence: it's where the fix is found. inspect_code finds such files."
                                                            }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    object IMcpTool.Execute(JObject arguments) =>

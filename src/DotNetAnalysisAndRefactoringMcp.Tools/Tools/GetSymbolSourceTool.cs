@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using JetBrains.ProjectModel;
@@ -38,7 +39,7 @@ public class GetSymbolSourceTool : IMcpTool
                                                    column = new { type = "integer", description = "1-based column number of the symbol" },
                                                    allDeclarations = new { type = "boolean", description = "Return every declaration (partial classes, overloads, etc.) instead of only the primary one. Default: false." }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    public object Execute(JObject arguments)

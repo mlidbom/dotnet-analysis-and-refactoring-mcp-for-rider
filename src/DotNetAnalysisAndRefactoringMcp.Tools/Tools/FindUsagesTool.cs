@@ -72,7 +72,7 @@ public class FindUsagesTool : IMcpTool
                                                                         }
                                                              }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    public object Execute(JObject arguments) =>

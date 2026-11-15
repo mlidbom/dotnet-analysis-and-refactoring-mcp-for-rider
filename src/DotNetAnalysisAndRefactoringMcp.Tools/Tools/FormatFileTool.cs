@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using JetBrains.DocumentModel;
 using JetBrains.ProjectModel;
@@ -59,7 +60,7 @@ public class FormatFileTool : IMcpSelfTransactingWriteTool, IMcpEditTool
                                                              @enum = new[] { "format", "cleanup", "style" }
                                                           }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    public object Execute(JObject arguments) =>

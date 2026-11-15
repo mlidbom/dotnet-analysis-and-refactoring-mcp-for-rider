@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -26,7 +27,7 @@ public class GetSolutionStructureTool : IMcpTool
                                                 {
                                                    includeFiles = new { type = "boolean", description = "If true, include file lists for each project. Default: false (can be verbose)." }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    public object Execute(JObject arguments)

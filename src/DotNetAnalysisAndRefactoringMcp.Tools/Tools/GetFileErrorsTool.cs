@@ -84,7 +84,7 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
                                                                        description = $"Maximum diagnostics to list per call (errors first). The total is always printed. Default: {DefaultMaxDiagnostics}."
                                                                     }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    public JObject Expand(JObject arguments)

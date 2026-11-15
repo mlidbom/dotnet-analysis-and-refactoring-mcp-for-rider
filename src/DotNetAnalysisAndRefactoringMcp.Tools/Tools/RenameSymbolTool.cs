@@ -92,7 +92,7 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
                    applied = false,
                    oldName,
                    newName,
-                   conflicts = new object[0],
+                   conflicts = Array.Empty<object>(),
                    note = "New name is identical to the current name; nothing to rename."
                 };
       }

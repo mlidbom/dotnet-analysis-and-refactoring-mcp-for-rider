@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -82,7 +83,7 @@ public class FlowTool : IMcpTool
                                                                         }
                                                              }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    // ── Batch entry point ─────────────────────────────────────────

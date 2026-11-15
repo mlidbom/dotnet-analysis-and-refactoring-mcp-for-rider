@@ -55,7 +55,7 @@ public class GetSymbolInfoTool : IMcpTool
                                                                         }
                                                              }
                                                 },
-                                   required = new string[0]
+                                   required = Array.Empty<string>()
                                 };
 
    public object Execute(JObject arguments) =>
