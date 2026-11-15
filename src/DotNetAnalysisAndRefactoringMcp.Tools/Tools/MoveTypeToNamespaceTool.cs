@@ -242,7 +242,7 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
    {
       var declaration = (sourceFile.GetDominantPsiFile<CSharpLanguage>() as ICSharpFile)?.NamespaceDeclarationNodesEnumerable.SingleItem;
       if(declaration == null || !TheStyleHasItFileScoped(declaration)) return false;
-      FileScopedNamespaces.ConvertToFileScoped(declaration);
+      CSharpNamespaceUtil.ConvertToFileScoped(declaration);
       return true;
 
       static bool TheStyleHasItFileScoped(ICSharpNamespaceDeclaration declaration) =>

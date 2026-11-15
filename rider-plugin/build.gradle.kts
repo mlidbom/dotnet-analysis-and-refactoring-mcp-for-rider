@@ -44,9 +44,10 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            // 253 = Rider 2025.3, the ReSharper SDK the .NET part is built against. No upper bound: a cap
-            // disables the plugin on every new Rider until a release raises it.
-            sinceBuild = "253"
+            // 263 = Rider 2026.3, the ReSharper SDK the .NET part is built against: the Rider Magnus runs. Older
+            // Riders keep the last release built for theirs. No upper bound: a cap disables the plugin on every new
+            // Rider until a release raises it.
+            sinceBuild = "263"
             untilBuild = provider { null }
         }
         // Per-version "What's new" on the Marketplace listing, rendered from this version's CHANGELOG.md

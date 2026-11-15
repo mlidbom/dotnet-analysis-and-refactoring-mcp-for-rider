@@ -32,12 +32,9 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
 
 ## Bigger ideas
 
-- **Build against the SDK of the Rider version Magnus runs, and drop older ones,** once the fork is renamed: no more
-  reflection to bridge versions, and an API change becomes a compile error instead of a run-time failure such as
-  issue #8's `MethodAccessException`.
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence
   with Rider closed, in cloud sessions and in CI. Uncertain: the plugin makes some calls only Rider's frontend
-  answers, such as the file rescans in `Disk/RefreshRequests.cs`.
+  answers, such as the file rescans in `Disk/Rescans.cs`.
 
 ## Decided against
 

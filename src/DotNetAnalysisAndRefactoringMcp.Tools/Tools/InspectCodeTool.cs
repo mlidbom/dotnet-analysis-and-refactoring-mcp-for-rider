@@ -126,13 +126,12 @@ public sealed class InspectCodeTool : IMcpAsyncTool
                                                                                 foreach(var issue in found) Keep(issue.File.File, issue);
                                                                              });
                                               else
-                                                 RunLocalInspections(engine,
-                                                                     files,
-                                                                     (file, found) =>
-                                                                     {
-                                                                        foreach(var issue in found) Keep(file, issue);
-                                                                        System.Threading.Interlocked.Increment(ref inspected);
-                                                                     });
+                                                 engine.RunLocalInspections(files,
+                                                                            (file, found) =>
+                                                                            {
+                                                                               foreach(var issue in found) Keep(file, issue);
+                                                                               System.Threading.Interlocked.Increment(ref inspected);
+                                                                            });
                                            })
                      .ConfigureAwait(false);
 
@@ -147,26 +146,6 @@ public sealed class InspectCodeTool : IMcpAsyncTool
                     maxResults,
                     stopwatch.Elapsed,
                     global ? null : solutionWide is { Enabled.Value: true } ? "is still running" : "is off");
-   }
-
-   /// <summary>
-   ///   <see cref="CollectInspectionResults.RunLocalInspections"/>, called by reflection: Rider 2026.3 added a parameter,
-   ///   the daemon's kind, so the 2025.3 SDK's signature isn't found there (MissingMethodException). 2025.3 runs its
-   ///   daemon as <see cref="DaemonProcessKind.OTHER"/>, so that's what 2026.3 is given.
-   /// </summary>
-   static void RunLocalInspections(CollectInspectionResults engine, Stack<IPsiSourceFile> files, Action<IPsiSourceFile, List<IssuePointer>> consumer)
-   {
-      var method = typeof(CollectInspectionResults).GetMethod(nameof(CollectInspectionResults.RunLocalInspections))
-                ?? throw new MissingMethodException(nameof(CollectInspectionResults), nameof(CollectInspectionResults.RunLocalInspections));
-      object?[] arguments = method.GetParameters().Length == 5 ? [files, consumer, null, null, DaemonProcessKind.OTHER] : [files, consumer, null, null];
-      try
-      {
-         method.Invoke(engine, arguments);
-      }
-      catch(System.Reflection.TargetInvocationException exception) when(exception.InnerException != null)
-      {
-         System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
-      }
    }
 
    /// <param name="inspected">How many files were inspected, when they were inspected one by one.</param>

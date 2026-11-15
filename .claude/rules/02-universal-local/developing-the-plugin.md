@@ -61,9 +61,10 @@ Release and publishes to the Marketplace. Pushing a release tag publishes, so it
 any finding, in CI and before a release: updates with none have been approved at once (Magnus, 2026-11-14). Keep the two
 plugins' release setups alike (Magnus, 2026-11-14): change one, and say whether the other should follow.
 
-The plugin supports Rider 2025.3 and later, the SDK it builds against. Drop an older Rider only once supporting it
-actually hinders us, not before (Magnus, 2026-11-15): a reflection bridge for an API that changed, as
-`Disk/RefreshRequests.cs` and `InspectCodeTool` have, is no reason by itself.
+The plugin is built against the Rider Magnus runs, 2026.3 now (Magnus, 2026-11-15: "I want the best possible for
+me"). The SDK it compiles against is then the Rider the sandbox tests: an API that changed is a build error, not a
+failure at run time, and no Rider it supports goes untested. When he moves to a newer Rider, the plugin moves with it;
+an older Rider keeps the last release built for it, which the Marketplace goes on offering it.
 
 ## Branches: `main` is ours, a pull request's branch is upstream's
 

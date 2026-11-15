@@ -21,8 +21,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Disk;
 ///   <para>
 ///     Rider's frontend owns a document's text and saves it: Rider's backend saves a document by asking the frontend
 ///     to (<c>RiderDocumentOperationsImpl.SaveDocument</c>, through the protocol's <c>SaveFiles</c>), and it is saved
-///     once the frontend has written it. Rider 2026's <c>SaveDocumentAsync</c> waits for that, and the 2025.3 SDK
-///     doesn't have it.
+///     once the frontend has written it. Its <c>SaveDocumentAsync</c> waits for that, and could replace the waiting
+///     here since the plugin builds against the 2026.3 SDK, which has it. Not tried yet.
 ///   </para>
 ///   <para>
 ///     Unsaved means that the text on disk differs, by <see cref="DiskText"/>. Rider's own <c>IsDocumentUnsaved</c>

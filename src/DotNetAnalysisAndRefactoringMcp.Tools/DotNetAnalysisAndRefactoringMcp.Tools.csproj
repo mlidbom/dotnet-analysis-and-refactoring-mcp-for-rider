@@ -9,10 +9,16 @@
     <LangVersion>14</LangVersion>
     <RootNamespace>DotNetAnalysisAndRefactoringMcp</RootNamespace>
     <AssemblyName>DotNetAnalysisAndRefactoringMcp.Tools</AssemblyName>
+    <!--
+      MSB3277 for System.Threading.Tasks.Extensions: the ReSharper SDK 2026.3.0 pins its package at exactly 4.5.4
+      (assembly 4.2.0.1), while some of its own assemblies were built against 4.6.0 (4.2.1.0). A conflict inside the
+      SDK's graph, and at compile time only: the plugin ships none of these assemblies, Rider's runtime has its own.
+    -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="JetBrains.ReSharper.SDK" Version="2025.3.3" PrivateAssets="all" />
+    <PackageReference Include="JetBrains.ReSharper.SDK" Version="2026.3.0" PrivateAssets="all" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 

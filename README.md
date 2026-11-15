@@ -84,6 +84,8 @@ When a call's work begins while ReSharper is indexing, its result ends with `(in
 
 ## Installation
 
+Requires Rider 2026.3 or later. Rider 2025.3 to 2026.2 get version 0.13.0 from the Marketplace.
+
 ### From JetBrains Marketplace
 
 Install the plugin from Rider: **Settings → Plugins → Marketplace** → search for ".NET Analysis&Refactoring MCP".

@@ -1,9 +1,11 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Application.Threading;
 using JetBrains.Application.Threading.Tasks;
+using JetBrains.IDE;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
 using JetBrains.Rd.Tasks;
@@ -39,7 +41,7 @@ sealed class Rescans(ISolution solution, IShellLocks locks)
                                              Scheduling.MainGuard,
                                              () =>
                                              {
-                                                var request = RefreshRequests.New(paths);
+                                                var request = new RdFsRefreshRequest([.. paths.Select(it => VirtualFileSystemPath.Parse(it, InteractionContext.SolutionContext).ToRd())], false);
 
                                                 return _solution.GetProtocolSolution().GetFileSystemModel().RefreshPaths.Start(lifetime, request).AsTask();
                                              });

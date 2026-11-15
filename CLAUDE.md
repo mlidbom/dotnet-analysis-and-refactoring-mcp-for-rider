@@ -19,7 +19,7 @@ Rider plugins require both a JVM frontend and a .NET backend:
   before changing either: code in the tools follows rules so that a swapped-out build can be freed, and the
   specifications check that it was.
 
-### Installed plugin layout (in `~/.local/share/JetBrains/Rider2025.3/DotNetAnalysisAndRefactoringMcp/`)
+### Installed plugin layout (in Rider's plugins folder, such as `%APPDATA%\JetBrains\Rider2026.3\plugins\DotNetAnalysisAndRefactoringMcp\`)
 
 ```
 lib/DotNetAnalysisAndRefactoringMcp.jar       # plugin.xml descriptor (tells Rider this plugin exists)
@@ -81,7 +81,7 @@ measured). Before every call `McpServerComponent` runs `DiskSync.Run`:
 3. Stale documents without unsaved edits: `DocumentOperationsImpl.SynchronizeDocumentContentsWithStorage` on the
    main thread under the write lock (Rider's own reconcile: an external change, file marked reconciled).
 4. Ask the frontend to rescan stale files, new files and their folders: `FileSystemModel.RefreshPaths`
-   (built by `RefreshRequests`, see gotchas), on the main thread. It is queued and debounced, not synchronous.
+   (`Disk/Rescans.cs`, see gotchas), on the main thread. It is queued and debounced, not synchronous.
 5. Poll until the documents match disk (10 s). Closed files match at once after step 3; a tab open in an editor
    matches whenever the frontend reloads it. A file still stale after that wait is "settled": it is not waited
    on again until its disk time changes.
@@ -169,12 +169,14 @@ PSI file resolution is **language-agnostic** (`GetPsiFiles<KnownLanguage>()`), s
 
 ## Key Findings & Gotchas
 
-### ReSharper SDK on Linux
-- `JetBrains.ReSharper.SDK` 2025.3.3 **builds fine on Linux** with `dotnet build` targeting `net472`. The SDK provides reference assemblies.
-- Rider 2025.3 loads `net472` plugins (confirmed by inspecting `ReSharperPlugin.HeapView.dll`).
+### ReSharper SDK
+- `JetBrains.ReSharper.SDK` 2026.3.0, the SDK of the Rider Magnus runs, targeting `net472`: the SDK provides reference
+  assemblies, and builds on Linux too (CI).
+- Its packages pin `System.Threading.Tasks.Extensions` at exactly 4.5.4 while some of its own assemblies were built
+  against 4.6.0. Both projects suppress the MSB3277 this gives: it is inside the SDK's graph, at compile time only.
 
-### SolutionComponent attribute (2025.3 SDK)
-The parameterless `[SolutionComponent]` constructor is **obsolete** in 2025.3. Must use:
+### SolutionComponent attribute
+The parameterless `[SolutionComponent]` constructor is **obsolete** since 2025.3. Must use:
 ```csharp
 [SolutionComponent(Instantiation.ContainerAsyncAnyThreadSafe)]
 ```
@@ -255,7 +257,7 @@ globalNs.GetNestedNamespaces(symbolScope);
 globalNs.GetNestedTypeElements(symbolScope);
 ```
 
-### Project references (2025.3 SDK)
+### Project references
 `GetProjectReferences` requires a `TargetFrameworkId`:
 ```csharp
 using JetBrains.ProjectModel.Impl;
@@ -276,17 +278,14 @@ var resolveContext = declaredElement.GetSourceFiles().FirstOrDefault()?.ResolveC
 using var cookie = CompilationContextCookie.GetOrCreate(resolveContext);
 ```
 
-### Rider protocol differs across versions: `RdFsRefreshRequest`
-2025.3 (the SDK) builds `RdFsRefreshRequest(List<string>, bool)`; 2026.x builds `RdFsRefreshRequest(List<RdPath>, bool)`,
-with `JetBrains.IDE.PathExtensions.ToRd(VirtualFileSystemPath)` in `JetBrains.Platform.Ide`. Binding either at
-compile time breaks the other at run time, so `Disk/RefreshRequests.cs` finds the constructor by reflection.
+### Asking the frontend to rescan: `RdFsRefreshRequest`
+It takes a `List<RdPath>`, which `JetBrains.IDE.PathExtensions.ToRd(VirtualFileSystemPath)` makes (`Disk/Rescans.cs`).
 `RdCall.Start` asserts the protocol thread: call it inside `IShellLocks.Tasks.StartNew(lifetime, Scheduling.MainGuard, ...)`.
 
-### `AllDocumentsAreCommittedReadConstraint` is internal from 2026.3
-The 2025.3 SDK has it public, so constructing it compiles, but Rider 2026.3 made the class internal, and every
-tool call then failed with a `MethodAccessException` in `McpToolExecution`'s constructor. Use the public
-`IPsiFiles.AllDocumentsAreCommittedConstraint`, which both versions have: in 2025.3 it is that same constraint; in
-2026.3 it also requires that no PSI transaction is running (`IPsiTransactions.NoPsiTransactionConstraint`).
+### `IPsiFiles.AllDocumentsAreCommittedConstraint`, not `AllDocumentsAreCommittedReadConstraint`
+That class is internal since Rider 2026.3: built against the 2025.3 SDK, constructing it failed every tool call with a
+`MethodAccessException` in `McpToolExecution`'s constructor. The public constraint also requires that no PSI
+transaction is running (`IPsiTransactions.NoPsiTransactionConstraint`).
 
 ### Position resolution near string literals
 Asking a string literal for references runs ReSharper's language-injection analysis, which NREs in
@@ -321,7 +320,7 @@ ReSharperMcp.sln                       # solution file (renamed with the clone's
 rider-plugin/META-INF/plugin.xml       # IntelliJ plugin descriptor
 dev_docs/swappable-tools.md            # the host/tools split: how swapping works, the rules for tools code
 src/DotNetAnalysisAndRefactoringMcp/   # THE HOST: what Rider loads; a change here needs a Rider restart
-  DotNetAnalysisAndRefactoringMcp.csproj  # targets net472, refs JetBrains.ReSharper.SDK 2025.3.3
+  DotNetAnalysisAndRefactoringMcp.csproj  # targets net472, refs JetBrains.ReSharper.SDK 2026.3.0
   McpShellComponent.cs                 # ShellComponent — binds a port, owns the HTTP server; watchdog, peer takeover
   McpServerComponent.cs                # SolutionComponent — holds what of a solution outlives a tools build
   McpHttpServer.cs                     # HttpListener, event streams, registrations; hands each request to the tools
@@ -361,7 +360,6 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   PsiHelpers.cs                        # Shared: file lookup, name/position resolution, suggestions, snippets
   SymbolName.cs                        # Parses "Ns.Type.Member<T>(...)" as agents write it
   CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
-  FileScopedNamespaces.cs              # A namespace declaration made file-scoped, across Rider versions (reflection)
   NamespaceFolders.cs                  # The directory of a namespace's files in a project, by the folders' expected namespaces
   SkippedElements.cs                   # Per-element guard for walks + the "skipped N elements" line
   McpInstructions.cs                   # Usage guide sent in the initialize response (from the tools, so no restart)
@@ -377,8 +375,6 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     DocumentNotSaved.cs                # One that Rider hadn't saved in time, and how its file differed, for the note
     FileMoves.cs                       # Files an edit moves, moved on disk after the save; FileMove.cs is one of them
     Rescans.cs                         # Rider's frontend asked to rescan paths (FileSystemModel.RefreshPaths)
-    RiderInternals.cs                  # Rider API missing from the SDK, found by reflection (RdPath)
-    RefreshRequests.cs                 # RdFsRefreshRequest across Rider versions (reflection)
   Tools/
     ToolsEntryPoint.cs                 # Answers the host's requests; the host knows it by name
     McpTools.cs                        # The tools a solution is served with, created anew for every request
