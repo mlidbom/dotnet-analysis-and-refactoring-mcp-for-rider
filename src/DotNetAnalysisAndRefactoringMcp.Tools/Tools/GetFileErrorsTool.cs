@@ -7,6 +7,7 @@ using JetBrains.Application;
 using JetBrains.Metadata.Reader.Impl;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
+using JetBrains.ReSharper.Psi.CSharp.Resolve;
 using JetBrains.ReSharper.Psi.CSharp.Tree;
 using JetBrains.ReSharper.Psi.Resolve;
 using JetBrains.ReSharper.Psi.Tree;
@@ -261,7 +262,7 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
             continue;
 
          var errorType = reference.Resolve().ResolveErrorType;
-         if(errorType == ResolveErrorType.OK || errorType == ResolveErrorType.IGNORABLE)
+         if(IsNoFailure(errorType))
             continue;
 
          var severity = errorType == ResolveErrorType.DYNAMIC ? "warning" : "error";
@@ -270,6 +271,17 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
          report.AddUnresolved(node, severity, $"Cannot resolve symbol '{name}'{unverified}");
       }
    }
+
+   /// <summary>
+   ///   Whether a reference that didn't resolve to an element failed nonetheless: not when resolving it is pointless, nor
+   ///   when it deconstructs a tuple, which has no <c>Deconstruct</c> method to resolve to, since the compiler
+   ///   deconstructs it itself. Until 2026-11-15 each such deconstruction was reported as an unresolved 'Deconstruct'.
+   /// </summary>
+   static bool IsNoFailure(ResolveErrorType errorType) =>
+      errorType == ResolveErrorType.OK
+   || errorType == ResolveErrorType.IGNORABLE
+   || errorType == CSharpResolveErrorType.VALUETUPLE_DECONSTRUCTION
+   || errorType == CSharpResolveErrorType.ITUPLE_DECONSTRUCTION;
 
    /// <summary>
    /// Whether an unresolved name could be a member a source generator adds: a pattern member, or a member of

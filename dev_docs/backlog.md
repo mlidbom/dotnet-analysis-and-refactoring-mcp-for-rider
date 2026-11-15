@@ -43,11 +43,6 @@ See `dev_docs/swappable-tools.md`.
     `move_type_to_namespace` answers over two hours ended with it, the applied ones too, while `inspect_code` in
     between said solution-wide analysis was complete. Every result was complete, by build and grep. As it stands the
     note says nothing, and teaches agents to ignore it.
-- `get_file_errors` reports "Cannot resolve symbol 'Deconstruct' (unverified: may be source-generated)" on tuple
-  deconstructions that compile, such as `var (offset, positionError) = …` in `GetDiagnosticsTool.cs`: `changedSince:
-  0eee149` on this repository gave 43 such errors in 20 files that build, where `get_diagnostics` gives none. The
-  usage guide calls it "the fast compile check", so agents trust it. A tuple's deconstruction has no `Deconstruct`
-  method to resolve to; the reference walk should skip it. Found by the shared-rules session, 2026-11-15.
 - A `rename_symbol` dry run of `IMcpTool.Execute` listed 2 changed files, `IMcpTool.cs` and `ToolCall.cs`, while about
   25 tools implement it. Unconfirmed: the answer also had the "index still building" note above, so it may be that, the
   changed-files list under-reporting, or the rename not following the implementations. Found by the shared-rules
