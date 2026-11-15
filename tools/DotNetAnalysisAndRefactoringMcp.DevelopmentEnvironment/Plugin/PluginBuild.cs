@@ -27,11 +27,13 @@ public sealed class PluginBuild
       return build;
    }
 
-   /// <summary>The host's files, each with the subfolder of the plugin folder it goes in.</summary>
+   /// <summary>
+   ///   The host's files, each with the subfolder of the plugin folder it goes in. No symbols file: the host is built
+   ///   without one, so that a comment doesn't change its identity.
+   /// </summary>
    public IEnumerable<(string Subfolder, string File)> HostFiles =>
    [
       ("dotnet", HostAssembly),
-      ("dotnet", Path.ChangeExtension(HostAssembly, ".pdb")),
       ("lib", FrontendJar)
    ];
 

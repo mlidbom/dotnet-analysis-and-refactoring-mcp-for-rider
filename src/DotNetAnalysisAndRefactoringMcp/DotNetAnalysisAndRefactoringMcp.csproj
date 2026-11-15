@@ -9,10 +9,12 @@
       (dev_docs/swappable-tools.md). The SDK writes the git commit into the informational version, and Source Link
       writes it into the symbols, whose id is stamped into the assembly: that gave the host new bytes at every commit,
       and made every deploy a host change that waits for a Rider restart. With no git queries, the bytes change only
-      with the code.
+      with the code. With no symbols file, a comment or a line ending doesn't change them either: the assembly carries
+      its symbols' id, which hashes the source files. Its stack traces keep the method names, not the line numbers.
     -->
     <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
     <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <ItemGroup>

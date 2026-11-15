@@ -97,11 +97,12 @@ context of its own, calls it, and unloads the previous one. In the sandbox, Ride
   into the assembly. The host's project turns the SDK's git queries off (`EnableSourceControlManagerQueries`); a
   rebuild after an empty commit gives the same bytes. Found at the first deploy to the everyday Riders.
 
-- **Any change to the host's sources is a host change, a comment or a line ending included** (2026-11-15). The host's
-  identity is the SHA-256 of its assembly, and the assembly carries the id of its symbols file, which hashes the
-  source files' bytes. A git stash of one host file brought it back with CRLF where the build had LF, and the host built
-  from it no longer matched the installed one. So no host file is touched outside a host change, not even to reword a
-  comment; Python's text mode, which writes LF, changes every line of a CRLF file.
+- **A comment or a line ending in the host's sources changed the host's identity,** until the host was built without a
+  symbols file (2026-11-15). The identity is the SHA-256 of its assembly, and the assembly carried the id of its symbols
+  file, which hashes the source files' bytes: a git stash of one host file brought it back with CRLF where the build had
+  LF, and the host built from it no longer matched the installed one. With `DebugType` none there is no symbols file
+  and no id: a comment-only change gave the same SHA-256, checked that day. The cost is the host's stack traces without
+  line numbers; they keep the method names, and the host is small.
 
 - **Rider 2026.3 runs a lightweight backend** (`lightweight-backend.*.log`) beside the solution's, and it loads the
   plugin too, with a solution that has no file. Registered, it made "Multiple solutions are open" of every call that

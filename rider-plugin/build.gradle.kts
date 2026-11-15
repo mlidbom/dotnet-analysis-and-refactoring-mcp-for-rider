@@ -145,7 +145,7 @@ val assembleToolsBuild by tasks.registering {
 tasks.prepareSandbox {
     dependsOn(compileDotNet, assembleToolsBuild)
     from(hostOutput) {
-        include("$host.dll", "$host.pdb")
+        include("$host.dll")
         into("${rootProject.name}/dotnet")
     }
     from(toolsBuildFolder) {

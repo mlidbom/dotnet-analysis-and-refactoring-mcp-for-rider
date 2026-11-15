@@ -22,12 +22,6 @@ See `dev_docs/swappable-tools.md`.
 
 Waiting for the next host change, which needs a restart anyway:
 
-- **The host built without a symbols file** (`<DebugType>none</DebugType>` in its project), so that its identity changes
-  only when its code does. Today a comment or a line ending changes it, and costs a restart of every Rider: the
-  assembly carries its symbols' id, which hashes the source files. The cost, host stack traces without line numbers,
-  is small: they keep the method names, and the host is small. `PluginBuild.HostFiles` and the Gradle build then ship
-  no host `.pdb`. Check with a comment-only change that the hash stays. Decided 2026-11-15 (Magnus left it to my
-  judgment).
 - `Threading/CriticalSection.cs`'s approval as the tag `rationale:violation-approved:Magnus-2026-11-15:`, the catalog's
   new form. Made and reverted on 2026-11-15: a comment changes the host's identity, so it would have cost a restart by
   itself.
