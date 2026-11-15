@@ -117,13 +117,14 @@ sealed class OpenSolutions
    }
 
    /// <summary>
-   ///   The solution whose work tree holds every one of <paramref name="paths"/>. For absolute paths the deepest tree
-   ///   wins (nested checkouts); a relative path found in several checkouts names none of them.
+   ///   The solution that holds every one of <paramref name="paths"/>, and most closely, by
+   ///   <see cref="OpenSolution.Closeness"/>: nested checkouts, and solutions of one work tree, each hold their own files
+   ///   most closely. A relative path found in several checkouts names none of them.
    /// </summary>
    (OpenSolution, string) HoldingEvery(IReadOnlyList<string> paths)
    {
       var holders = All.Where(solution => paths.All(solution.Holds))
-                       .OrderByDescending(solution => solution.WorkTree.Length)
+                       .OrderByDescending(solution => paths.Min(solution.Closeness))
                        .ToList();
 
       if(holders.Count > 1 && !paths.All(Path.IsPathRooted))

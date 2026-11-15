@@ -22,7 +22,10 @@ abstract class OpenSolution(string name, string filePath)
    ///   The work tree the solution is in, not the solution file's folder: a solution in <c>Client/TPS</c> still owns
    ///   files under <c>Shared/</c>.
    /// </summary>
-   public string WorkTree => SolutionRoot.Of(Path.GetDirectoryName(FilePath)).Workspace ?? FilePath;
+   public string WorkTree => SolutionRoot.Of(Folder).Workspace ?? Folder;
+
+   /// <summary>The solution file's folder.</summary>
+   string Folder => Path.GetDirectoryName(FilePath);
 
    /// <summary>The tools it is served with, as <c>tools/list</c> describes them.</summary>
    public abstract IReadOnlyList<ToolDefinition> Tools { get; }
@@ -47,12 +50,26 @@ abstract class OpenSolution(string name, string filePath)
    public bool Holds(string path)
    {
       if(Path.IsPathRooted(path))
-         return path.Replace('\\', '/').StartsWith(WorkTree.Replace('\\', '/').TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase);
+         return IsUnder(path, WorkTree);
 
-      var absolute = SolutionRoot.Of(Path.GetDirectoryName(FilePath)).Absolute(path);
+      var absolute = SolutionRoot.Of(Folder).Absolute(path);
 
       return absolute != null && (File.Exists(absolute) || Directory.Exists(absolute));
    }
+
+   /// <summary>
+   ///   How closely it holds the absolute <paramref name="path"/>, which it <see cref="Holds"/>: by its own folder, when
+   ///   the path is under it, more closely than by the work tree around it, and by a deeper folder more closely than by
+   ///   a shallower one. Two solutions in one work tree, such as a client's and a server's, then each hold their own
+   ///   files more closely than the other does. A relative path is held by none more closely than by another.
+   /// </summary>
+   public int Closeness(string path) =>
+      !Path.IsPathRooted(path) ? 0
+    : IsUnder(path, Folder)    ? Folder.Length
+                               : WorkTree.Length;
+
+   static bool IsUnder(string path, string folder) =>
+      path.Replace('\\', '/').StartsWith(folder.Replace('\\', '/').TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase);
 
    /// <summary>Its name and path, as every listing of the solutions starts.</summary>
    public JObject NameAndPath() => new() { ["name"] = Name, ["path"] = FilePath };
