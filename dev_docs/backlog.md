@@ -20,11 +20,6 @@ See `dev_docs/swappable-tools.md`.
 1. **Faster specification runs when only the tools changed:** swap the build into the running sandbox instead of
    restarting it with a fresh copy of the fixture solution.
 
-Waiting for the next host change, which needs a restart anyway:
-
-- `Threading/CriticalSection.cs`'s approval as the tag `rationale:violation-approved:Magnus-2026-11-15:`, the catalog's
-  new form. Made and reverted on 2026-11-15: a comment changes the host's identity, so it would have cost a restart by
-  itself.
 
 ## Known bugs
 

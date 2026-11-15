@@ -4,8 +4,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Threading;
 
 /// <summary>The <see cref="ICriticalSection"/> that every <see cref="IThreadShared{TShared}"/> has.</summary>
 /// <remarks>
-///   The plugin's one raw lock. The rule on locking says to use Compze.Threading, which the plugin can't reference:
-///   Magnus approved this in its place (2026-11-15).
+///   rationale:violation-approved:Magnus-2026-11-15: the plugin's one raw lock. The rule on locking says to use
+///   Compze.Threading, which the plugin can't reference.
 /// </remarks>
 sealed class CriticalSection : ICriticalSection
 {
