@@ -367,6 +367,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk, before every call
     DiskText.cs                        # Whether a file on disk holds a document's text (line endings, BOM aside)
     UnsavedDocuments.cs                # An edit's documents saved before the answer: through Rider's frontend, waited for
+    DocumentNotSaved.cs                # One that Rider hadn't saved in time, and how its file differed, for the note
     RiderInternals.cs                  # Rider API missing from the SDK, found by reflection (RdPath)
     RefreshRequests.cs                 # RdFsRefreshRequest across Rider versions (reflection)
   Tools/

@@ -20,6 +20,11 @@ See `dev_docs/swappable-tools.md`.
 
 ## Known bugs
 
+- **A save that waited 10 s for nothing:** in one specification run (2026-11-15), the second move of
+  `When_moving_the_types_of_a_file_one_after_the_other` waited the full `HowLongSavingMayTake` and noted `Loader.cs`
+  unsaved, though Rider had written and reloaded the file within 50 ms (the backend log), and the file was right after.
+  Three tries by hand, back to back with a type rename as in the run, were fast. The note now says how the file differed
+  from Rider's copy, and the specification fails on the note, so the next occurrence says why.
 - `search_symbol` with `includeLibraries` finds a compiled member only as `Type.Member`, not by its name alone
   (`GetProjectMark` gives none): scanning every compiled type's members takes seconds. An index of member names
   would do it.

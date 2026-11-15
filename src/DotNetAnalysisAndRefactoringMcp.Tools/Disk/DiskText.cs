@@ -1,4 +1,6 @@
+using System;
 using System.IO;
+using System.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Disk;
 
@@ -25,6 +27,34 @@ static class DiskText
       {
          return false;
       }
+   }
+
+   /// <summary>
+   ///   How <paramref name="file"/> on disk differs from <paramref name="text"/>, for a note: the first line in which they
+   ///   differ, as each has it, or why the file can't be read. Null when it holds the text.
+   /// </summary>
+   public static string DifferenceOf(string file, string text)
+   {
+      string onDisk;
+      try
+      {
+         onDisk = Normalized(File.ReadAllText(file));
+      }
+      catch(IOException exception)
+      {
+         return $"the file can't be read: {exception.Message}";
+      }
+
+      var inRider = Normalized(text);
+      if(onDisk == inRider) return null;
+
+      var diskLines = onDisk.Split('\n');
+      var riderLines = inRider.Split('\n');
+      var line = Enumerable.Range(0, Math.Max(diskLines.Length, riderLines.Length)).First(it => LineOf(diskLines, it) != LineOf(riderLines, it));
+      return $"from line {line + 1}: {Quoted(LineOf(diskLines, line))} on disk, {Quoted(LineOf(riderLines, line))} in Rider";
+
+      static string LineOf(string[] lines, int index) => index < lines.Length ? lines[index] : null;
+      static string Quoted(string line) => line == null ? "no line" : $"\"{(line.Length > 80 ? line.Substring(0, 80) + "\u2026" : line)}\"";
    }
 
    static string Normalized(string text) => text.TrimStart('\uFEFF').Replace("\r\n", "\n");

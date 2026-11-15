@@ -45,17 +45,18 @@ sealed class UnsavedDocuments
    }
 
    /// <summary>Those unsaved now: before an edit, the ones its saving leaves alone.</summary>
-   public Task<List<IDocument>> Now(Lifetime lifetime) => UnsavedOf(() => _operations.GetUnsavedDocuments(), lifetime);
+   public async Task<List<IDocument>> Now(Lifetime lifetime) =>
+      [.. (await UnsavedOf(() => _operations.GetUnsavedDocuments(), lifetime).ConfigureAwait(false)).Select(it => it.Document)];
 
    /// <summary>
    ///   Saves the documents unsaved now that weren't <paramref name="before"/>, and returns once Rider's frontend has saved
-   ///   them, or after <see cref="HowLongSavingMayTake"/> with the files of those it hadn't.
+   ///   them, or after <see cref="HowLongSavingMayTake"/> with those it hadn't, and how their files differed.
    /// </summary>
    /// <remarks>
    ///   Not those unsaved before: their unsaved text is someone's work in progress, such as Magnus's typing in Rider,
    ///   which is his to save.
    /// </remarks>
-   public async Task<List<string>> SaveThoseUnsavedSince(List<IDocument> before, Lifetime lifetime)
+   public async Task<List<DocumentNotSaved>> SaveThoseUnsavedSince(List<IDocument> before, Lifetime lifetime)
    {
       var changed = (await Now(lifetime).ConfigureAwait(false)).Except(before).Where(HasItsFile).ToList();
       if(changed.Count == 0)
@@ -74,7 +75,7 @@ sealed class UnsavedDocuments
       {
          var unsaved = await UnsavedOf(() => changed, lifetime).ConfigureAwait(false);
          if(unsaved.Count == 0 || DateTime.UtcNow >= deadline)
-            return [.. unsaved.Select(it => it.Moniker)];
+            return [.. unsaved.Select(it => new DocumentNotSaved(it.Document.Moniker, DiskText.DifferenceOf(it.Document.Moniker, it.Text)))];
          await Task.Delay(BetweenChecks, lifetime).ConfigureAwait(false);
       }
    }
@@ -90,13 +91,13 @@ sealed class UnsavedDocuments
    static bool HasItsFile(IDocument document) => File.Exists(document.Moniker);
 
    /// <summary>
-   ///   Those of <paramref name="documents"/> whose files on disk don't hold their text: the texts are taken on the main
-   ///   thread, the files read off it.
+   ///   Those of <paramref name="documents"/> whose files on disk don't hold their text, with that text: the texts are
+   ///   taken on the main thread, the files read off it.
    /// </summary>
-   async Task<List<IDocument>> UnsavedOf(Func<IEnumerable<IDocument>> documents, Lifetime lifetime)
+   async Task<List<(IDocument Document, string Text)>> UnsavedOf(Func<IEnumerable<IDocument>> documents, Lifetime lifetime)
    {
       var texts = await OnTheMainThread(lifetime, () => documents().Select(it => (Document: it, Text: it.GetText())).ToList()).ConfigureAwait(false);
-      return [.. texts.Where(it => !DiskText.Holds(it.Document.Moniker, it.Text)).Select(it => it.Document)];
+      return [.. texts.Where(it => !DiskText.Holds(it.Document.Moniker, it.Text))];
    }
 
    /// <summary>Under the read lock on the main thread, where Rider saves documents.</summary>

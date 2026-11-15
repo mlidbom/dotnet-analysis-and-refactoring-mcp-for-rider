@@ -21,17 +21,22 @@ public class When_moving_the_types_of_a_file_one_after_the_other(TheSandboxWithT
    readonly Observed _the = _observed ??= Observe(sandbox);
 
    [XF] public void the_file_has_one_file_scoped_namespace() => _the.File.Must().Contain("namespace Shapes.Drawing.Loading;").NotContain("namespace Shapes.Drawing.Moving");
-   [XF] public void the_second_answer_says_it_made_it_file_scoped_again() => _the.SecondAnswer.Must().Contain("file-scoped again");
+   [XF] public void the_second_answer_says_it_made_it_file_scoped_again() => _the.Answers[1].Must().Contain("file-scoped again");
    [XF] public void and_the_file_has_no_errors() => _the.Errors.Must().Contain("0 diagnostics");
 
-   sealed record Observed(string SecondAnswer, string File, string Errors);
+   /// <summary>
+   ///   One run on 2026-11-15 waited the full 10 s for Rider to save the file after the second move, and noted it unsaved;
+   ///   it didn't recur by hand. The note says how the file differed, which is what tells why.
+   /// </summary>
+   [XF] public void neither_answer_says_rider_hadnt_saved_the_file() => _the.Answers.Must().Satisfy(it => it.All(answer => !answer.Contains("hadn't saved")));
+
+   sealed record Observed(List<string> Answers, string File, string Errors);
 
    static Observed Observe(TheSandboxWithTheFixtureSolution sandbox)
    {
       var path = sandbox.PathOf("Shapes.Drawing/Moving/Loader.cs");
-      Move("Shapes.Drawing.Moving.ILoader");
-      var secondAnswer = Move("Shapes.Drawing.Moving.Loaded");
-      return new Observed(secondAnswer, File.ReadAllText(path), sandbox.McpServer.CallTool("get_file_errors", new { filePath = path }));
+      List<string> answers = [Move("Shapes.Drawing.Moving.ILoader"), Move("Shapes.Drawing.Moving.Loaded")];
+      return new Observed(answers, File.ReadAllText(path), sandbox.McpServer.CallTool("get_file_errors", new { filePath = path }));
 
       string Move(string type) => sandbox.McpServer.CallTool("move_type_to_namespace", new { symbolName = type, newNamespace = "Shapes.Drawing.Loading" });
    }

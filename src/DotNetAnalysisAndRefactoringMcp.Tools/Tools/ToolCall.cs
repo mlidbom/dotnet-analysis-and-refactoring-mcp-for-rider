@@ -168,7 +168,7 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
            + "\nSave or revert unsaved edits in Rider, or re-run in a few seconds.";
    }
 
-   List<string> Notes(DiskReport disk, IReadOnlyList<string> requested, bool indexingAsTheWorkBegan, List<string> notSaved)
+   List<string> Notes(DiskReport disk, IReadOnlyList<string> requested, bool indexingAsTheWorkBegan, List<DocumentNotSaved> notSaved)
    {
       var notes = new List<string>();
       if(disk.Stale.Count > 0)
@@ -180,7 +180,8 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
          notes.Add($"note: {Listed(absent)} {(absent.Count == 1 ? "is" : "are")} on disk but in no project yet");
 
       if(notSaved.Count > 0)
-         notes.Add($"note: Rider hadn't saved {Listed(notSaved)} after this edit yet: a build started before it has reads the text before the edit");
+         notes.Add($"note: Rider hadn't saved {Listed([.. notSaved.Select(it => it.File)])} after this edit yet: a build started before it has reads the text before the edit. "
+                 + string.Join("; ", notSaved.Take(3).Select(it => $"{_solution.Root.Relative(it.File)} differs {it.HowTheFileDiffers}")));
 
       if(indexingAsTheWorkBegan)
          notes.Add("(index still building — results may be incomplete)");
