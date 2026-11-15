@@ -24,14 +24,13 @@ public class When_renaming_a_positional_record_property(TheSandboxWithTheFixture
    [XF] public void and_its_use_in_another_file() => _the.Survey.Must().Contain("it => it.Amount");
    [XF] public void and_leaves_no_errors() => _the.Errors.Must().Satisfy(it => it.All(answer => answer.Contains("0 diagnostics")));
 
-   sealed record Observed(string Answer, string Record, string Survey, List<string> Errors);
+   sealed record Observed(string Record, string Survey, List<string> Errors);
 
    static Observed Observe(TheSandboxWithTheFixtureSolution sandbox)
    {
-      var answer = sandbox.McpServer.CallTool("rename_symbol", new { symbolName = "Shapes.Drawing.Renaming.Measurement.Value", kind = "property", newName = "Amount" });
+      sandbox.McpServer.CallTool("rename_symbol", new { symbolName = "Shapes.Drawing.Renaming.Measurement.Value", kind = "property", newName = "Amount" });
       string[] files = [PathOf("Measurement.cs"), PathOf("Survey.cs")];
-      return new Observed(answer,
-                          File.ReadAllText(files[0]),
+      return new Observed(File.ReadAllText(files[0]),
                           File.ReadAllText(files[1]),
                           [.. files.Select(it => sandbox.McpServer.CallTool("get_file_errors", new { filePath = it }))]);
 

@@ -98,7 +98,7 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
 
       var workflow = new MoveToNamespaceWorkflow(_solution, ActionId) { WorkflowExecuterLifetime = lifetime.Lifetime };
       workflow.SetDataProvider(new TargetNamespace(newNamespace!));
-      var rules = DataRules.AddRule(ActionId, PsiDataConstants.DECLARED_ELEMENTS, (ICollection<IDeclaredElement>)new IDeclaredElement[] { type })
+      var rules = DataRules.AddRule(ActionId, PsiDataConstants.DECLARED_ELEMENTS, [type])
                            .AddRule(ActionId, ProjectModelDataConstants.SOLUTION, _solution);
       if(!workflow.Initialize(_solution.GetComponent<DataContexts>().CreateWithoutDataRules(lifetime.Lifetime, rules)))
          return new { error = $"{type.ShortName} can't be moved to another namespace: a nested type, a type parameter, or a declaration with errors." };
@@ -110,7 +110,7 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
       var module = type.Module;
       var extensionCallers = ExtensionMethodCallers(type);
       var affected = FilesReferencing(type).Concat(extensionCallers).Concat(SourceFilesOf(type))
-                                           .Select(it => it.GetLocation().FullPath).Distinct().OrderBy(it => it).ToList();
+                                           .Select(it => it.GetLocation().FullPath).Distinct().OrderBy(it => it, StringComparer.Ordinal).ToList();
 
       var driver = new RefactoringDriverWithConflicts(new RefactoringDriverStorage());
       var psiServices = _solution.GetPsiServices();
@@ -198,12 +198,7 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
          !declaration.IsFileScoped && CSharpNamespaceUtil.CanChangeStyle(declaration) && CSharpNamespaceUtil.IsFileScopedNamespaceBodyStylePreferred(declaration);
    }
 
-   static List<IPsiSourceFile> SourceFilesOf(IDeclaredElement element)
-   {
-      var files = new List<IPsiSourceFile>();
-      foreach(var file in element.GetSourceFiles()) files.Add(file);
-      return files;
-   }
+   static List<IPsiSourceFile> SourceFilesOf(IDeclaredElement element) => [.. element.GetSourceFiles()];
 
    List<IPsiSourceFile> FilesReferencing(ITypeElement type)
    {
