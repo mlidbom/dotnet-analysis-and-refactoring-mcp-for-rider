@@ -37,193 +37,194 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 /// </remarks>
 public sealed class ReloadProjectsTool : IMcpAsyncTool
 {
-  static readonly TimeSpan HowLongLoadingMayTake = TimeSpan.FromSeconds(90);
-  static readonly TimeSpan HowLongIndexingMayTake = TimeSpan.FromSeconds(20);
-  static readonly TimeSpan BetweenIndexingChecks = TimeSpan.FromMilliseconds(250);
+   static readonly TimeSpan HowLongLoadingMayTake = TimeSpan.FromSeconds(90);
+   static readonly TimeSpan HowLongIndexingMayTake = TimeSpan.FromSeconds(20);
+   static readonly TimeSpan BetweenIndexingChecks = TimeSpan.FromMilliseconds(250);
 
-  readonly ISolution _solution;
+   readonly ISolution _solution;
 
-  public ReloadProjectsTool(ISolution solution) => _solution = solution;
+   public ReloadProjectsTool(ISolution solution) => _solution = solution;
 
-  public string Name => "reload_projects";
+   public string Name => "reload_projects";
 
-  public string Description =>
-    "Reload projects in Rider, as its Reload Project does, and return once Rider has loaded them and ReSharper has " +
-    "indexed the result. For a project whose model in Rider is stale: errors that the build doesn't have, such as " +
-    "'Cannot resolve symbol InitializeComponent' in a new view's code-behind. Pass project files, or any file or folder " +
-    "in the projects: a file's project is the one whose project file is in the nearest folder above it.";
+   public string Description =>
+      "Reload projects in Rider, as its Reload Project does, and return once Rider has loaded them and ReSharper has " +
+      "indexed the result. For a project whose model in Rider is stale: errors that the build doesn't have, such as " +
+      "'Cannot resolve symbol InitializeComponent' in a new view's code-behind. Pass project files, or any file or folder " +
+      "in the projects: a file's project is the one whose project file is in the nearest folder above it.";
 
-  public object InputSchema => new
-  {
-    type = "object",
-    properties = new
-    {
-      filePath = new { type = "string", description = "A project file, or a file or folder in the project to reload." },
-      filePaths = new { type = "array", items = new { type = "string" }, description = "Several, for several projects." }
-    }
-  };
+   public object InputSchema => new
+                                {
+                                   type = "object",
+                                   properties = new
+                                                {
+                                                   filePath = new { type = "string", description = "A project file, or a file or folder in the project to reload." },
+                                                   filePaths = new { type = "array", items = new { type = "string" }, description = "Several, for several projects." }
+                                                }
+                                };
 
-  object IMcpTool.Execute(JObject arguments) => throw new InvalidOperationException("Use the asynchronous tool dispatcher.");
+   object IMcpTool.Execute(JObject arguments) => throw new InvalidOperationException("Use the asynchronous tool dispatcher.");
 
-  public async Task<object> ExecuteAsync(JObject arguments, McpToolExecution execution)
-  {
-    var paths = (arguments["filePaths"] as JArray)?.Select(it => it.ToString()).ToList() ?? [];
-    if (arguments["filePath"]?.ToString() is { Length: > 0 } single) paths.Add(single);
-    if (paths.Count == 0)
-      return new { error = "Pass 'filePath' or 'filePaths': project files, or files or folders in the projects to reload." };
+   public async Task<object> ExecuteAsync(JObject arguments, McpToolExecution execution)
+   {
+      var paths = (arguments["filePaths"] as JArray)?.Select(it => it.ToString()).ToList() ?? [];
+      if(arguments["filePath"]?.ToString() is { Length: > 0 } single) paths.Add(single);
+      if(paths.Count == 0)
+         return new { error = "Pass 'filePath' or 'filePaths': project files, or files or folders in the projects to reload." };
 
-    var found = await execution.Read(() => ProjectsOf(paths)).ConfigureAwait(false);
-    if (found.Projects.Count == 0)
-      return new { error = "No project found for " + string.Join(", ", found.NotFound) };
+      var found = await execution.Read(() => ProjectsOf(paths)).ConfigureAwait(false);
+      if(found.Projects.Count == 0)
+         return new { error = "No project found for " + string.Join(", ", found.NotFound) };
 
-    var solutionHost = _solution.ProjectsHostContainer().GetComponent<ISolutionHost>();
-    var loadEvents = (solutionHost as SolutionHost)?.LoadEvents;
+      var solutionHost = _solution.ProjectsHostContainer().GetComponent<ISolutionHost>();
+      var loadEvents = (solutionHost as SolutionHost)?.LoadEvents;
 
-    using var call = Lifetime.Define(Lifetime.Eternal, "DotNetAnalysisAndRefactoringMcp.reload_projects");
-    var load = new ProjectsLoad(found.Projects.Select(it => it.Mark));
-    if (loadEvents != null)
-    {
-      loadEvents.Start.Advise(call.Lifetime, load.Started);
-      loadEvents.Finish.Advise(call.Lifetime, load.Finished);
-    }
-
-    var stopwatch = Stopwatch.StartNew();
-    await _solution.Locks.Tasks.StartNew(call.Lifetime, Scheduling.MainGuard,
-                                        () => solutionHost.ReloadProjectsAsync([..found.Projects.Select(it => it.Mark)], null))
-                  .ConfigureAwait(false);
-
-    var answer = new StringBuilder();
-    if (loadEvents == null)
-    {
-      answer.AppendLine("Asked Rider to reload them, but this Rider's solution host doesn't report loads, so the reload wasn't waited for.");
-    }
-    else if (await Task.WhenAny(load.Done, Task.Delay(HowLongLoadingMayTake, call.Lifetime)).ConfigureAwait(false) != load.Done)
-    {
-      answer.AppendLine($"Asked Rider to reload them, and it hadn't loaded them after {Seconds(HowLongLoadingMayTake)}. " +
-                        "Rider holds reloads back during a build, for example.");
-    }
-    else
-    {
-      // The result is applied on the main thread, queued when the load finished: these turns come after it.
-      await MainThreadTurn(call.Lifetime).ConfigureAwait(false);
-      await MainThreadTurn(call.Lifetime).ConfigureAwait(false);
-      var loadedIn = stopwatch.Elapsed;
-      var indexed = await IndexingIsDone(call.Lifetime).ConfigureAwait(false);
-      answer.AppendLine(indexed
-                          ? $"Reloaded in {Seconds(loadedIn)}, and ReSharper has indexed the result ({Seconds(stopwatch.Elapsed)} in all)."
-                          : $"Reloaded in {Seconds(loadedIn)}; ReSharper was still indexing {Seconds(HowLongIndexingMayTake)} later, so answers may be incomplete for a while.");
-    }
-
-    foreach (var project in found.Projects)
-      answer.AppendLine("  " + project.Name + " — " + project.File);
-    if (found.NotFound.Count > 0)
-      answer.AppendLine("No project found for " + string.Join(", ", found.NotFound));
-    return answer.ToString().TrimEnd();
-  }
-
-  static string Seconds(TimeSpan time) => time.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
-
-  Task MainThreadTurn(Lifetime lifetime) => _solution.Locks.Tasks.StartNew(lifetime, Scheduling.MainGuard, () => { });
-
-  /// <summary>Whether the caches went idle and stayed so between two checks, within <see cref="HowLongIndexingMayTake"/>.</summary>
-  async Task<bool> IndexingIsDone(Lifetime lifetime)
-  {
-    var caches = _solution.TryGetComponent<IPsiCachesState>();
-    if (caches == null) return true;
-    var deadline = DateTime.UtcNow + HowLongIndexingMayTake;
-    var idleBefore = false;
-    while (DateTime.UtcNow < deadline)
-    {
-      var idle = caches.IsIdle.Value;
-      if (idle && idleBefore) return true;
-      idleBefore = idle;
-      await Task.Delay(BetweenIndexingChecks, lifetime).ConfigureAwait(false);
-    }
-    return false;
-  }
-
-  sealed class FoundProject(string name, string file, IProjectMark mark)
-  {
-    public string Name { get; } = name;
-    public string File { get; } = file;
-    public IProjectMark Mark { get; } = mark;
-  }
-
-  sealed class Found(List<FoundProject> projects, List<string> notFound)
-  {
-    public List<FoundProject> Projects { get; } = projects;
-    public List<string> NotFound { get; } = notFound;
-  }
-
-  /// <summary>
-  ///   Each path's project: the one with that project file, or else the one whose project file is in the nearest folder
-  ///   above it, so a file Rider's model doesn't hold yet finds its project too.
-  /// </summary>
-  Found ProjectsOf(IEnumerable<string> paths)
-  {
-    var root = SolutionRoot.Of(_solution);
-    var candidates = _solution.GetAllProjects()
-                             .Where(it => !it.ProjectFileLocation.IsEmpty && it.GetProjectMark() != null)
-                             .Select(it => (Project: it, File: it.ProjectFileLocation.FullPath, Folder: it.ProjectFileLocation.Directory.FullPath))
-                             .ToList();
-
-    var projects = new List<FoundProject>();
-    var notFound = new List<string>();
-    foreach (var path in paths)
-    {
-      var full = Path.GetFullPath(root.Absolute(SolutionRoot.Trimmed(path)) ?? path);
-      var match = candidates.FirstOrDefault(it => string.Equals(it.File, full, StringComparison.OrdinalIgnoreCase));
-      if (match.Project == null)
-        match = candidates.Where(it => IsInOrIs(full, it.Folder)).OrderByDescending(it => it.Folder.Length).FirstOrDefault();
-
-      if (match.Project == null)
-        notFound.Add(path);
-      else if (projects.All(it => !Equals(it.Mark, match.Project.GetProjectMark())))
-        projects.Add(new FoundProject(match.Project.Name, root.Relative(match.File), match.Project.GetProjectMark()!));
-    }
-    return new Found(projects, notFound);
-  }
-
-  static bool IsInOrIs(string path, string folder) =>
-    string.Equals(path, folder, StringComparison.OrdinalIgnoreCase)
-    || path.StartsWith(folder.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-
-  /// <summary>
-  ///   Which of the projects Rider has loaded: a load reports the projects it starts on, and then that it finished.
-  ///   A project Rider has unloaded, or filters out, is never started on.
-  /// </summary>
-  sealed class ProjectsLoad
-  {
-    readonly HashSet<IProjectMark> _waitingFor;
-    readonly HashSet<IProjectMark> _loading = [];
-    readonly TaskCompletionSource<bool> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-    public ProjectsLoad(IEnumerable<IProjectMark> projects) => _waitingFor = [..projects];
-
-    public Task Done => _done.Task;
-
-    public void Started(ICollection<IProjectMark> projects)
-    {
-      lock (_waitingFor)
+      using var call = Lifetime.Define(Lifetime.Eternal, "DotNetAnalysisAndRefactoringMcp.reload_projects");
+      var load = new ProjectsLoad(found.Projects.Select(it => it.Mark));
+      if(loadEvents != null)
       {
-        _loading.Clear();
-        _loading.UnionWith(projects.Where(_waitingFor.Contains));
+         loadEvents.Start.Advise(call.Lifetime, load.Started);
+         loadEvents.Finish.Advise(call.Lifetime, load.Finished);
       }
-    }
 
-    /// <remarks>
-    ///   The batch's end, not <c>FinishLoadProject</c>'s per project: the result is queued for applying only once the
-    ///   whole batch is loaded.
-    /// </remarks>
-    /// <param name="_">Nothing: what a <c>SimpleSignal</c> hands its subscribers.</param>
-    public void Finished(bool _)
-    {
-      lock (_waitingFor)
+      var stopwatch = Stopwatch.StartNew();
+      await _solution.Locks.Tasks.StartNew(call.Lifetime,
+                                           Scheduling.MainGuard,
+                                           () => solutionHost.ReloadProjectsAsync([.. found.Projects.Select(it => it.Mark)], null))
+                     .ConfigureAwait(false);
+
+      var answer = new StringBuilder();
+      if(loadEvents == null)
       {
-        _waitingFor.ExceptWith(_loading);
-        _loading.Clear();
-        if (_waitingFor.Count == 0) _done.TrySetResult(true);
+         answer.AppendLine("Asked Rider to reload them, but this Rider's solution host doesn't report loads, so the reload wasn't waited for.");
+      } else if(await Task.WhenAny(load.Done, Task.Delay(HowLongLoadingMayTake, call.Lifetime)).ConfigureAwait(false) != load.Done)
+      {
+         answer.AppendLine($"Asked Rider to reload them, and it hadn't loaded them after {Seconds(HowLongLoadingMayTake)}. " +
+                           "Rider holds reloads back during a build, for example.");
+      } else
+      {
+         // The result is applied on the main thread, queued when the load finished: these turns come after it.
+         await MainThreadTurn(call.Lifetime).ConfigureAwait(false);
+         await MainThreadTurn(call.Lifetime).ConfigureAwait(false);
+         var loadedIn = stopwatch.Elapsed;
+         var indexed = await IndexingIsDone(call.Lifetime).ConfigureAwait(false);
+         answer.AppendLine(indexed
+                              ? $"Reloaded in {Seconds(loadedIn)}, and ReSharper has indexed the result ({Seconds(stopwatch.Elapsed)} in all)."
+                              : $"Reloaded in {Seconds(loadedIn)}; ReSharper was still indexing {Seconds(HowLongIndexingMayTake)} later, so answers may be incomplete for a while.");
       }
-    }
-  }
+
+      foreach(var project in found.Projects)
+         answer.AppendLine("  " + project.Name + " — " + project.File);
+      if(found.NotFound.Count > 0)
+         answer.AppendLine("No project found for " + string.Join(", ", found.NotFound));
+      return answer.ToString().TrimEnd();
+   }
+
+   static string Seconds(TimeSpan time) => time.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
+
+   Task MainThreadTurn(Lifetime lifetime) => _solution.Locks.Tasks.StartNew(lifetime, Scheduling.MainGuard, () => {});
+
+   /// <summary>Whether the caches went idle and stayed so between two checks, within <see cref="HowLongIndexingMayTake"/>.</summary>
+   async Task<bool> IndexingIsDone(Lifetime lifetime)
+   {
+      var caches = _solution.TryGetComponent<IPsiCachesState>();
+      if(caches == null) return true;
+      var deadline = DateTime.UtcNow + HowLongIndexingMayTake;
+      var idleBefore = false;
+      while(DateTime.UtcNow < deadline)
+      {
+         var idle = caches.IsIdle.Value;
+         if(idle && idleBefore) return true;
+         idleBefore = idle;
+         await Task.Delay(BetweenIndexingChecks, lifetime).ConfigureAwait(false);
+      }
+
+      return false;
+   }
+
+   sealed class FoundProject(string name, string file, IProjectMark mark)
+   {
+      public string Name { get; } = name;
+      public string File { get; } = file;
+      public IProjectMark Mark { get; } = mark;
+   }
+
+   sealed class Found(List<FoundProject> projects, List<string> notFound)
+   {
+      public List<FoundProject> Projects { get; } = projects;
+      public List<string> NotFound { get; } = notFound;
+   }
+
+   /// <summary>
+   ///   Each path's project: the one with that project file, or else the one whose project file is in the nearest folder
+   ///   above it, so a file Rider's model doesn't hold yet finds its project too.
+   /// </summary>
+   Found ProjectsOf(IEnumerable<string> paths)
+   {
+      var root = SolutionRoot.Of(_solution);
+      var candidates = _solution.GetAllProjects()
+                                .Where(it => !it.ProjectFileLocation.IsEmpty && it.GetProjectMark() != null)
+                                .Select(it => (Project: it, File: it.ProjectFileLocation.FullPath, Folder: it.ProjectFileLocation.Directory.FullPath))
+                                .ToList();
+
+      var projects = new List<FoundProject>();
+      var notFound = new List<string>();
+      foreach(var path in paths)
+      {
+         var full = Path.GetFullPath(root.Absolute(SolutionRoot.Trimmed(path)) ?? path);
+         var match = candidates.FirstOrDefault(it => string.Equals(it.File, full, StringComparison.OrdinalIgnoreCase));
+         if(match.Project == null)
+            match = candidates.Where(it => IsInOrIs(full, it.Folder)).OrderByDescending(it => it.Folder.Length).FirstOrDefault();
+
+         if(match.Project == null)
+            notFound.Add(path);
+         else if(projects.All(it => !Equals(it.Mark, match.Project.GetProjectMark())))
+            projects.Add(new FoundProject(match.Project.Name, root.Relative(match.File), match.Project.GetProjectMark()!));
+      }
+
+      return new Found(projects, notFound);
+   }
+
+   static bool IsInOrIs(string path, string folder) =>
+      string.Equals(path, folder, StringComparison.OrdinalIgnoreCase)
+   || path.StartsWith(folder.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+   /// <summary>
+   ///   Which of the projects Rider has loaded: a load reports the projects it starts on, and then that it finished.
+   ///   A project Rider has unloaded, or filters out, is never started on.
+   /// </summary>
+   sealed class ProjectsLoad
+   {
+      readonly HashSet<IProjectMark> _waitingFor;
+      readonly HashSet<IProjectMark> _loading = [];
+      readonly TaskCompletionSource<bool> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+      public ProjectsLoad(IEnumerable<IProjectMark> projects) => _waitingFor = [.. projects];
+
+      public Task Done => _done.Task;
+
+      public void Started(ICollection<IProjectMark> projects)
+      {
+         lock(_waitingFor)
+         {
+            _loading.Clear();
+            _loading.UnionWith(projects.Where(_waitingFor.Contains));
+         }
+      }
+
+      /// <remarks>
+      ///   The batch's end, not <c>FinishLoadProject</c>'s per project: the result is queued for applying only once the
+      ///   whole batch is loaded.
+      /// </remarks>
+      /// <param name="_">Nothing: what a <c>SimpleSignal</c> hands its subscribers.</param>
+      public void Finished(bool _)
+      {
+         lock(_waitingFor)
+         {
+            _waitingFor.ExceptWith(_loading);
+            _loading.Clear();
+            if(_waitingFor.Count == 0) _done.TrySetResult(true);
+         }
+      }
+   }
 }

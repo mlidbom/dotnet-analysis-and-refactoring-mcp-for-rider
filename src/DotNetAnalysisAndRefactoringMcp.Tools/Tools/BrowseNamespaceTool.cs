@@ -7,181 +7,181 @@ using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Caches;
 using Newtonsoft.Json.Linq;
 
-namespace DotNetAnalysisAndRefactoringMcp.Tools
+namespace DotNetAnalysisAndRefactoringMcp.Tools;
+
+public class BrowseNamespaceTool : IMcpTool
 {
-    public class BrowseNamespaceTool : IMcpTool
-    {
-        private readonly ISolution _solution;
+   readonly ISolution _solution;
 
-        public BrowseNamespaceTool(ISolution solution) => _solution = solution;
+   public BrowseNamespaceTool(ISolution solution) => _solution = solution;
 
-        public string Name => "browse_namespace";
+   public string Name => "browse_namespace";
 
-        public string Description =>
-            "Browse the namespace hierarchy. With no arguments, lists all top-level namespaces. " +
-            "With a namespace name, lists its child namespaces and types. " +
-            "Enables top-down exploration of the codebase structure. " +
-            "Pass multiple namespaces via the 'namespaceNames' array to browse several in one call.";
+   public string Description =>
+      "Browse the namespace hierarchy. With no arguments, lists all top-level namespaces. " +
+      "With a namespace name, lists its child namespaces and types. " +
+      "Enables top-down exploration of the codebase structure. " +
+      "Pass multiple namespaces via the 'namespaceNames' array to browse several in one call.";
 
-        public object InputSchema => new
-        {
-            type = "object",
-            properties = new
+   public object InputSchema => new
+                                {
+                                   type = "object",
+                                   properties = new
+                                                {
+                                                   namespaceName = new
+                                                                   {
+                                                                      type = "string",
+                                                                      description = "Namespace to browse (e.g. 'MyApp.Core'). Omit or leave empty to list top-level namespaces."
+                                                                   },
+                                                   namespaceNames = new
+                                                                    {
+                                                                       type = "array",
+                                                                       description = "Array of namespace names to browse in batch. Results are concatenated with separators. Alternative to single 'namespaceName' parameter.",
+                                                                       items = new { type = "string" }
+                                                                    }
+                                                },
+                                   required = new string[0]
+                                };
+
+   public object Execute(JObject arguments) =>
+      ToolBatch.Of(arguments, "namespaceNames", item: "namespaceName")?.Run(ExecuteSingle) ?? ExecuteSingle(arguments);
+
+   object ExecuteSingle(JObject arguments)
+   {
+      var namespaceName = arguments["namespaceName"]?.ToString() ?? "";
+
+      var psiServices = _solution.GetPsiServices();
+      var symbolScope = psiServices.Symbols
+                                   .GetSymbolScope(LibrarySymbolScope.NONE, caseSensitive: true);
+
+      // Find the target namespace
+      INamespace targetNs;
+      if(string.IsNullOrEmpty(namespaceName))
+      {
+         targetNs = symbolScope.GlobalNamespace;
+      } else
+      {
+         targetNs = FindNamespace(symbolScope, namespaceName);
+         if(targetNs == null)
+            return new { error = $"Namespace not found: {namespaceName}" };
+      }
+
+      // Format compact output
+      var sb = new StringBuilder();
+      var skipped = new SkippedElements();
+      var displayName = string.IsNullOrEmpty(namespaceName) ? "(root)" : namespaceName;
+      sb.Append("namespace: ").AppendLine(displayName);
+
+      // Child namespaces
+      var childNamespaces = targetNs.GetNestedNamespaces(symbolScope)
+                                    .OrderBy(ns => ns.ShortName)
+                                    .ToList();
+
+      if(childNamespaces.Count > 0)
+      {
+         sb.AppendLine();
+         sb.AppendLine("child namespaces:");
+         foreach(var childNs in childNamespaces)
+         {
+            skipped.Guard(childNs.QualifiedName,
+                          () =>
+                          {
+                             var typeCount = childNs.GetNestedTypeElements(symbolScope).Count();
+                             sb.Append("  ").Append(childNs.QualifiedName);
+                             sb.Append(" (").Append(typeCount).AppendLine(" types)");
+                          });
+         }
+      }
+
+      // Types in this namespace (only direct types, not nested)
+      var types = new List<ITypeElement>();
+      foreach(var typeElement in targetNs.GetNestedTypeElements(symbolScope))
+      {
+         skipped.Guard(typeElement,
+                       () =>
+                       {
+                          if(typeElement.GetContainingType() == null)
+                             types.Add(typeElement);
+                       });
+      }
+
+      types = types.OrderBy(te => te.ShortName).ToList();
+
+      if(types.Count > 0)
+      {
+         sb.AppendLine();
+         sb.AppendLine("types:");
+         foreach(var typeElement in types)
+            skipped.Guard(typeElement, () => sb.Append(TypeLine(typeElement)));
+      }
+
+      if(skipped.Line != null)
+         sb.AppendLine().AppendLine(skipped.Line);
+
+      return sb.ToString().TrimEnd();
+   }
+
+   static string TypeLine(ITypeElement typeElement)
+   {
+      var sb = new StringBuilder();
+      sb.Append("  ").Append(typeElement.GetElementType().PresentableName);
+      sb.Append(' ').Append(typeElement.ShortName);
+
+      var declarations = typeElement.GetDeclarations();
+      if(declarations.Count > 0)
+      {
+         var decl = declarations[0];
+         var sf = decl.GetSourceFile();
+         if(sf != null)
+         {
+            var fileName = Path.GetFileName(sf.GetLocation().FullPath);
+            if(IsGeneratedFile(fileName))
+               sb.Append(" [generated]");
+
+            sb.Append(" — ").Append(fileName);
+
+            var site = DeclarationSite.Of(decl);
+            if(site != null)
+               sb.Append(':').Append(site.Line);
+         }
+      }
+
+      return sb.AppendLine().ToString();
+   }
+
+   static bool IsGeneratedFile(string fileName)
+   {
+      return fileName.EndsWith(".g.cs") ||
+             fileName.EndsWith(".g.fs") ||
+             fileName.EndsWith(".generated.cs") ||
+             fileName.EndsWith(".designer.cs", System.StringComparison.OrdinalIgnoreCase) ||
+             fileName.EndsWith(".g.i.cs") ||
+             fileName == "AssemblyInfo.cs" ||
+             fileName == "AssemblyAttributes.cs" ||
+             fileName.EndsWith(".razor.g.cs");
+   }
+
+   static INamespace FindNamespace(ISymbolScope symbolScope, string qualifiedName)
+   {
+      var parts = qualifiedName.Split('.');
+      var current = symbolScope.GlobalNamespace;
+
+      foreach(var part in parts)
+      {
+         INamespace found = null;
+         foreach(var child in current.GetNestedNamespaces(symbolScope))
+         {
+            if(child.ShortName == part)
             {
-                namespaceName = new
-                {
-                    type = "string",
-                    description = "Namespace to browse (e.g. 'MyApp.Core'). Omit or leave empty to list top-level namespaces."
-                },
-                namespaceNames = new
-                {
-                    type = "array",
-                    description = "Array of namespace names to browse in batch. Results are concatenated with separators. Alternative to single 'namespaceName' parameter.",
-                    items = new { type = "string" }
-                }
-            },
-            required = new string[0]
-        };
-
-        public object Execute(JObject arguments) =>
-            ToolBatch.Of(arguments, "namespaceNames", item: "namespaceName")?.Run(ExecuteSingle) ?? ExecuteSingle(arguments);
-
-        private object ExecuteSingle(JObject arguments)
-        {
-            var namespaceName = arguments["namespaceName"]?.ToString() ?? "";
-
-            var psiServices = _solution.GetPsiServices();
-            var symbolScope = psiServices.Symbols
-                .GetSymbolScope(LibrarySymbolScope.NONE, caseSensitive: true);
-
-            // Find the target namespace
-            INamespace targetNs;
-            if (string.IsNullOrEmpty(namespaceName))
-            {
-                targetNs = symbolScope.GlobalNamespace;
+               found = child;
+               break;
             }
-            else
-            {
-                targetNs = FindNamespace(symbolScope, namespaceName);
-                if (targetNs == null)
-                    return new { error = $"Namespace not found: {namespaceName}" };
-            }
+         }
 
-            // Format compact output
-            var sb = new StringBuilder();
-            var skipped = new SkippedElements();
-            var displayName = string.IsNullOrEmpty(namespaceName) ? "(root)" : namespaceName;
-            sb.Append("namespace: ").AppendLine(displayName);
+         if(found == null) return null;
+         current = found;
+      }
 
-            // Child namespaces
-            var childNamespaces = targetNs.GetNestedNamespaces(symbolScope)
-                .OrderBy(ns => ns.ShortName)
-                .ToList();
-
-            if (childNamespaces.Count > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("child namespaces:");
-                foreach (var childNs in childNamespaces)
-                {
-                    skipped.Guard(childNs.QualifiedName, () =>
-                    {
-                        var typeCount = childNs.GetNestedTypeElements(symbolScope).Count();
-                        sb.Append("  ").Append(childNs.QualifiedName);
-                        sb.Append(" (").Append(typeCount).AppendLine(" types)");
-                    });
-                }
-            }
-
-            // Types in this namespace (only direct types, not nested)
-            var types = new List<ITypeElement>();
-            foreach (var typeElement in targetNs.GetNestedTypeElements(symbolScope))
-            {
-                skipped.Guard(typeElement, () =>
-                {
-                    if (typeElement.GetContainingType() == null)
-                        types.Add(typeElement);
-                });
-            }
-
-            types = types.OrderBy(te => te.ShortName).ToList();
-
-            if (types.Count > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("types:");
-                foreach (var typeElement in types)
-                    skipped.Guard(typeElement, () => sb.Append(TypeLine(typeElement)));
-            }
-
-            if (skipped.Line != null)
-                sb.AppendLine().AppendLine(skipped.Line);
-
-            return sb.ToString().TrimEnd();
-        }
-
-        private static string TypeLine(ITypeElement typeElement)
-        {
-            var sb = new StringBuilder();
-            sb.Append("  ").Append(typeElement.GetElementType().PresentableName);
-            sb.Append(' ').Append(typeElement.ShortName);
-
-            var declarations = typeElement.GetDeclarations();
-            if (declarations.Count > 0)
-            {
-                var decl = declarations[0];
-                var sf = decl.GetSourceFile();
-                if (sf != null)
-                {
-                    var fileName = Path.GetFileName(sf.GetLocation().FullPath);
-                    if (IsGeneratedFile(fileName))
-                        sb.Append(" [generated]");
-
-                    sb.Append(" — ").Append(fileName);
-
-                    var site = DeclarationSite.Of(decl);
-                    if (site != null)
-                        sb.Append(':').Append(site.Line);
-                }
-            }
-
-            return sb.AppendLine().ToString();
-        }
-
-        private static bool IsGeneratedFile(string fileName)
-        {
-            return fileName.EndsWith(".g.cs") ||
-                   fileName.EndsWith(".g.fs") ||
-                   fileName.EndsWith(".generated.cs") ||
-                   fileName.EndsWith(".designer.cs", System.StringComparison.OrdinalIgnoreCase) ||
-                   fileName.EndsWith(".g.i.cs") ||
-                   fileName == "AssemblyInfo.cs" ||
-                   fileName == "AssemblyAttributes.cs" ||
-                   fileName.EndsWith(".razor.g.cs");
-        }
-
-        private static INamespace FindNamespace(ISymbolScope symbolScope, string qualifiedName)
-        {
-            var parts = qualifiedName.Split('.');
-            var current = symbolScope.GlobalNamespace;
-
-            foreach (var part in parts)
-            {
-                INamespace found = null;
-                foreach (var child in current.GetNestedNamespaces(symbolScope))
-                {
-                    if (child.ShortName == part)
-                    {
-                        found = child;
-                        break;
-                    }
-                }
-
-                if (found == null) return null;
-                current = found;
-            }
-
-            return current;
-        }
-    }
+      return current;
+   }
 }

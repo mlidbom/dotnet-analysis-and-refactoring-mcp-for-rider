@@ -17,101 +17,102 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
 /// </remarks>
 public sealed class InstalledPlugin
 {
-  /// <summary>
-  ///   How many replaced builds are kept. Every run of the specifications installs a build in the sandbox, so without
-  ///   a limit they would pile up.
-  /// </summary>
-  const int ReplacedBuildsKept = 10;
+   /// <summary>
+   ///   How many replaced builds are kept. Every run of the specifications installs a build in the sandbox, so without
+   ///   a limit they would pile up.
+   /// </summary>
+   const int ReplacedBuildsKept = 10;
 
-  readonly string _pluginFolder;
-  readonly string _replacedBuildsFolder;
+   readonly string _pluginFolder;
+   readonly string _replacedBuildsFolder;
 
-  /// <param name="pluginsFolder">The Rider's plugins folder, which holds a folder per plugin.</param>
-  /// <param name="replacedBuildsFolder">Where builds that a newer one replaced are kept, one folder each.</param>
-  public InstalledPlugin(string pluginsFolder, string replacedBuildsFolder)
-  {
-    _pluginFolder = Path.Combine(pluginsFolder, "DotNetAnalysisAndRefactoringMcp");
-    _replacedBuildsFolder = replacedBuildsFolder;
-  }
+   /// <param name="pluginsFolder">The Rider's plugins folder, which holds a folder per plugin.</param>
+   /// <param name="replacedBuildsFolder">Where builds that a newer one replaced are kept, one folder each.</param>
+   public InstalledPlugin(string pluginsFolder, string replacedBuildsFolder)
+   {
+      _pluginFolder = Path.Combine(pluginsFolder, "DotNetAnalysisAndRefactoringMcp");
+      _replacedBuildsFolder = replacedBuildsFolder;
+   }
 
-  /// <summary>Replaces the installed build, if any, by <paramref name="build"/>.</summary>
-  public void Install(PluginBuild build)
-  {
-    MoveTheInstalledBuildInto(Path.Combine(_replacedBuildsFolder, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture)));
-    foreach (var (subfolder, file) in build.HostFiles)
-    {
-      Directory.CreateDirectory(Path.Combine(_pluginFolder, subfolder));
-      File.Copy(file, Path.Combine(_pluginFolder, subfolder, Path.GetFileName(file)));
-    }
-    new ToolsBuilds(Path.Combine(_pluginFolder, "tools")).Deploy(build);
-    RecordTheInstall();
-    DeleteAllButTheNewestReplacedBuilds();
-  }
+   /// <summary>Replaces the installed build, if any, by <paramref name="build"/>.</summary>
+   public void Install(PluginBuild build)
+   {
+      MoveTheInstalledBuildInto(Path.Combine(_replacedBuildsFolder, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture)));
+      foreach(var (subfolder, file) in build.HostFiles)
+      {
+         Directory.CreateDirectory(Path.Combine(_pluginFolder, subfolder));
+         File.Copy(file, Path.Combine(_pluginFolder, subfolder, Path.GetFileName(file)));
+      }
 
-  /// <summary>
-  ///   Whether the installed host is the host of <paramref name="build"/>. If it is, the build's tools can be deployed
-  ///   to a running Rider without installing anything, and without a restart.
-  /// </summary>
-  public bool HasTheHostOf(PluginBuild build)
-  {
-    var installed = Path.Combine(_pluginFolder, "dotnet", "DotNetAnalysisAndRefactoringMcp.dll");
-    return File.Exists(installed) && PluginBuild.IdentityOf(installed) == build.HostIdentity;
-  }
+      new ToolsBuilds(Path.Combine(_pluginFolder, "tools")).Deploy(build);
+      RecordTheInstall();
+      DeleteAllButTheNewestReplacedBuilds();
+   }
 
-  /// <summary>
-  ///   When the installed host was installed or put back, unless that wasn't recorded. A Rider started before then
-  ///   still runs the host it replaced.
-  /// </summary>
-  /// <remarks>
-  ///   Recorded in a file of its own: the files' times don't tell. The files are moved out of their folders and the new
-  ///   ones copied in, and Windows gives a file created right after one of the same name left the old one's creation
-  ///   time (file-name tunneling).
-  /// </remarks>
-  public DateTime? HostInstalledAt =>
-    File.Exists(InstalledAtFile) ? DateTime.Parse(File.ReadAllText(InstalledAtFile), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : null;
+   /// <summary>
+   ///   Whether the installed host is the host of <paramref name="build"/>. If it is, the build's tools can be deployed
+   ///   to a running Rider without installing anything, and without a restart.
+   /// </summary>
+   public bool HasTheHostOf(PluginBuild build)
+   {
+      var installed = Path.Combine(_pluginFolder, "dotnet", "DotNetAnalysisAndRefactoringMcp.dll");
+      return File.Exists(installed) && PluginBuild.IdentityOf(installed) == build.HostIdentity;
+   }
 
-  string InstalledAtFile => Path.Combine(Path.GetDirectoryName(_replacedBuildsFolder)!, "host-installed-at.txt");
+   /// <summary>
+   ///   When the installed host was installed or put back, unless that wasn't recorded. A Rider started before then
+   ///   still runs the host it replaced.
+   /// </summary>
+   /// <remarks>
+   ///   Recorded in a file of its own: the files' times don't tell. The files are moved out of their folders and the new
+   ///   ones copied in, and Windows gives a file created right after one of the same name left the old one's creation
+   ///   time (file-name tunneling).
+   /// </remarks>
+   public DateTime? HostInstalledAt =>
+      File.Exists(InstalledAtFile) ? DateTime.Parse(File.ReadAllText(InstalledAtFile), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : null;
 
-  void RecordTheInstall()
-  {
-    Directory.CreateDirectory(Path.GetDirectoryName(InstalledAtFile)!);
-    File.WriteAllText(InstalledAtFile, DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
-  }
+   string InstalledAtFile => Path.Combine(Path.GetDirectoryName(_replacedBuildsFolder)!, "host-installed-at.txt");
 
-  void DeleteAllButTheNewestReplacedBuilds()
-  {
-    if (!Directory.Exists(_replacedBuildsFolder)) return;
-    foreach (var old in Directory.GetDirectories(_replacedBuildsFolder).Order(StringComparer.Ordinal).SkipLast(ReplacedBuildsKept))
-      Directory.Delete(old, recursive: true);
-  }
+   void RecordTheInstall()
+   {
+      Directory.CreateDirectory(Path.GetDirectoryName(InstalledAtFile)!);
+      File.WriteAllText(InstalledAtFile, DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+   }
 
-  /// <summary>
-  ///   Puts back the build the last <see cref="Install"/> replaced, keeping the build it takes out among the replaced
-  ///   builds, marked as rolled back.
-  /// </summary>
-  public void PutBackTheBuildItReplaced()
-  {
-    var lastReplaced = Directory.GetDirectories(_replacedBuildsFolder).Where(it => !it.EndsWith("_rolled-back", StringComparison.Ordinal)).Max()
-                       ?? throw new InvalidOperationException($"No replaced build in {_replacedBuildsFolder} to put back.");
-    MoveTheInstalledBuildInto(Path.Combine(_replacedBuildsFolder, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture) + "_rolled-back"));
-    MoveEveryFile(from: lastReplaced, to: _pluginFolder);
-    Directory.Delete(lastReplaced, recursive: true);
-    RecordTheInstall();
-  }
+   void DeleteAllButTheNewestReplacedBuilds()
+   {
+      if(!Directory.Exists(_replacedBuildsFolder)) return;
+      foreach(var old in Directory.GetDirectories(_replacedBuildsFolder).Order(StringComparer.Ordinal).SkipLast(ReplacedBuildsKept))
+         Directory.Delete(old, recursive: true);
+   }
 
-  void MoveTheInstalledBuildInto(string folder)
-  {
-    if (Directory.Exists(_pluginFolder)) MoveEveryFile(from: _pluginFolder, to: folder);
-  }
+   /// <summary>
+   ///   Puts back the build the last <see cref="Install"/> replaced, keeping the build it takes out among the replaced
+   ///   builds, marked as rolled back.
+   /// </summary>
+   public void PutBackTheBuildItReplaced()
+   {
+      var lastReplaced = Directory.GetDirectories(_replacedBuildsFolder).Where(it => !it.EndsWith("_rolled-back", StringComparison.Ordinal)).Max()
+                      ?? throw new InvalidOperationException($"No replaced build in {_replacedBuildsFolder} to put back.");
+      MoveTheInstalledBuildInto(Path.Combine(_replacedBuildsFolder, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture) + "_rolled-back"));
+      MoveEveryFile(from: lastReplaced, to: _pluginFolder);
+      Directory.Delete(lastReplaced, recursive: true);
+      RecordTheInstall();
+   }
 
-  /// <remarks>File by file, not the folder at once: a running Rider holds the backend assembly open, which lets the file
-  ///   itself be moved but not the folder it's in.</remarks>
-  static void MoveEveryFile(string from, string to)
-  {
-    Directory.CreateDirectory(to);
-    foreach (var folder in Directory.GetDirectories(from, "*", SearchOption.AllDirectories))
-      Directory.CreateDirectory(Path.Combine(to, Path.GetRelativePath(from, folder)));
-    foreach (var file in Directory.GetFiles(from, "*", SearchOption.AllDirectories))
-      File.Move(file, Path.Combine(to, Path.GetRelativePath(from, file)));
-  }
+   void MoveTheInstalledBuildInto(string folder)
+   {
+      if(Directory.Exists(_pluginFolder)) MoveEveryFile(from: _pluginFolder, to: folder);
+   }
+
+   /// <remarks>File by file, not the folder at once: a running Rider holds the backend assembly open, which lets the file
+   ///   itself be moved but not the folder it's in.</remarks>
+   static void MoveEveryFile(string from, string to)
+   {
+      Directory.CreateDirectory(to);
+      foreach(var folder in Directory.GetDirectories(from, "*", SearchOption.AllDirectories))
+         Directory.CreateDirectory(Path.Combine(to, Path.GetRelativePath(from, folder)));
+      foreach(var file in Directory.GetFiles(from, "*", SearchOption.AllDirectories))
+         File.Move(file, Path.Combine(to, Path.GetRelativePath(from, file)));
+   }
 }

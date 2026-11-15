@@ -7,304 +7,313 @@ using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Search;
 using Newtonsoft.Json.Linq;
 
-namespace DotNetAnalysisAndRefactoringMcp.Tools
+namespace DotNetAnalysisAndRefactoringMcp.Tools;
+
+public class FindImplementationsTool : IMcpTool
 {
-    public class FindImplementationsTool : IMcpTool
-    {
-        private readonly ISolution _solution;
+   readonly ISolution _solution;
 
-        public FindImplementationsTool(ISolution solution) => _solution = solution;
+   public FindImplementationsTool(ISolution solution) => _solution = solution;
 
-        public string Name => "find_implementations";
+   public string Name => "find_implementations";
 
-        public string Description =>
-            "Find all implementations of an interface, abstract class, or virtual/abstract member. " +
-            "Returns the locations of all concrete implementations in the solution, " +
-            "distinguishing direct implementations from indirect ones (via intermediate interfaces). " +
-            "Provide either a symbolName or a file path with position. " +
-            "Pass multiple symbols via the 'symbols' array to search for several in one call.";
+   public string Description =>
+      "Find all implementations of an interface, abstract class, or virtual/abstract member. " +
+      "Returns the locations of all concrete implementations in the solution, " +
+      "distinguishing direct implementations from indirect ones (via intermediate interfaces). " +
+      "Provide either a symbolName or a file path with position. " +
+      "Pass multiple symbols via the 'symbols' array to search for several in one call.";
 
-        public object InputSchema => new
-        {
-            type = "object",
-            properties = new
-            {
-                symbolName = new { type = "string", description = "Symbol name to find implementations of (e.g. 'IMyInterface', 'Namespace.IMyInterface'). Alternative to filePath+line+column." },
-                kind = new { type = "string", description = "Filter by symbol kind when using symbolName: 'type', 'method', 'property', 'field', 'event'. Helps disambiguate when multiple symbols share a name." },
-                filePath = new { type = "string", description = "Absolute path to the file containing the symbol" },
-                line = new { type = "integer", description = "1-based line number of the symbol" },
-                column = new { type = "integer", description = "1-based column number of the symbol" },
-                maxResults = new { type = "integer", description = "Maximum number of implementations to return per symbol. Default: 50. Use to prevent overflow on widely-implemented interfaces." },
-                symbols = new
-                {
-                    type = "array",
-                    description = "Array of symbols to find implementations for in batch. Each item is an object with symbolName/kind or filePath/line/column. Results are concatenated with separators.",
-                    items = new
-                    {
-                        type = "object",
-                        properties = new
-                        {
-                            symbolName = new { type = "string", description = "Symbol name" },
-                            kind = new { type = "string", description = "Symbol kind filter" },
-                            filePath = new { type = "string", description = "File path" },
-                            line = new { type = "integer", description = "1-based line" },
-                            column = new { type = "integer", description = "1-based column" }
-                        }
-                    }
-                }
-            },
-            required = new string[0]
-        };
-
-        public object Execute(JObject arguments) =>
-            ToolBatch.Of(arguments, "symbols", item: "symbolName")?.Run(ExecuteSingle) ?? ExecuteSingle(arguments);
-
-        private object ExecuteSingle(JObject arguments)
-        {
-            var (declaredElement, error) = PsiHelpers.ResolveFromArgs(
-                _solution,
-                arguments["symbolName"]?.ToString(),
-                arguments["kind"]?.ToString(),
-                arguments["filePath"]?.ToString(),
-                arguments["line"]?.Value<int>() ?? 0,
-                arguments["column"]?.Value<int>() ?? 0);
-
-            if (error != null) return error;
-            using var context = CompilationContexts.For(declaredElement);
-
-            var skipped = new SkippedElements();
-
-            var maxResults = arguments["maxResults"]?.Value<int>() ?? 50;
-            if (maxResults <= 0) maxResults = 50;
-            if (maxResults > 1000) maxResults = 1000;
-
-            var implementations = new List<ImplInfo>();
-            var hitLimit = false;
-
-            // For type elements (interfaces, abstract classes) — find inheritors with depth info
-            if (declaredElement is ITypeElement typeElement)
-            {
-                var searchDomain = SearchDomainFactory.Instance.CreateSearchDomain(_solution, false);
-                var psiServices = _solution.GetPsiServices();
-
-                // Collect inheritors (with limit to prevent overflow)
-                var inheritors = new List<ITypeElement>();
-                psiServices.Finder.FindInheritors(
-                    typeElement,
-                    searchDomain,
-                    new FindResultConsumer(findResult =>
-                    {
-                        if (inheritors.Count >= maxResults)
-                        {
-                            hitLimit = true;
-                            return FindExecution.Stop;
-                        }
-                        if (findResult is FindResultInheritedElement inherited &&
-                            inherited.DeclaredElement is ITypeElement inheritedType)
-                            inheritors.Add(inheritedType);
-                        return FindExecution.Continue;
-                    }),
-                    NullProgressIndicator.Create());
-
-                // Build a set of all inheritor FQNs for "via" resolution
-                var inheritorSet = new HashSet<string>(
-                    inheritors.Select(i => i.GetClrName().FullName));
-
-                foreach (var inheritor in inheritors)
-                {
-                    skipped.Guard(inheritor, () =>
-                    {
-                        var info = BuildImplInfo(inheritor);
-                        if (info == null) return;
-
-                        var directlyImplements = IsDirectImplementor(inheritor, typeElement);
-                        info.Direct = directlyImplements;
-
-                        if (!directlyImplements)
-                        {
-                            var via = FindIntermediateTypes(inheritor, typeElement, inheritorSet);
-                            if (via.Count > 0)
-                                info.Via = via;
-                        }
-
-                        implementations.Add(info);
-                    });
-                }
-            }
-
-            // For overridable members (virtual/abstract methods, properties) — find overrides
-            if (!hitLimit && declaredElement is IOverridableMember overridable)
-            {
-                var psiServices = _solution.GetPsiServices();
-
-                psiServices.Finder.FindImplementingMembers(
-                    overridable,
-                    overridable.GetSearchDomain(),
-                    new FindResultConsumer(findResult =>
-                    {
-                        if (implementations.Count >= maxResults)
-                        {
-                            hitLimit = true;
-                            return FindExecution.Stop;
-                        }
-                        if (findResult is FindResultOverridableMember overrideResult)
-                        {
-                            var member = overrideResult.OverridableMember;
-                            if (member == null) return FindExecution.Continue;
-
-                            skipped.Guard(member, () =>
-                            {
-                                var info = BuildImplInfo(member);
-                                if (info == null) return;
-
-                                if (member is IClrDeclaredElement clr)
+   public object InputSchema => new
                                 {
-                                    var containingType = clr.GetContainingType();
-                                    if (containingType != null && declaredElement is IClrDeclaredElement baseClr)
-                                    {
-                                        var baseContainingType = baseClr.GetContainingType();
-                                        if (baseContainingType != null)
+                                   type = "object",
+                                   properties = new
+                                                {
+                                                   symbolName = new { type = "string", description = "Symbol name to find implementations of (e.g. 'IMyInterface', 'Namespace.IMyInterface'). Alternative to filePath+line+column." },
+                                                   kind = new { type = "string", description = "Filter by symbol kind when using symbolName: 'type', 'method', 'property', 'field', 'event'. Helps disambiguate when multiple symbols share a name." },
+                                                   filePath = new { type = "string", description = "Absolute path to the file containing the symbol" },
+                                                   line = new { type = "integer", description = "1-based line number of the symbol" },
+                                                   column = new { type = "integer", description = "1-based column number of the symbol" },
+                                                   maxResults = new { type = "integer", description = "Maximum number of implementations to return per symbol. Default: 50. Use to prevent overflow on widely-implemented interfaces." },
+                                                   symbols = new
+                                                             {
+                                                                type = "array",
+                                                                description = "Array of symbols to find implementations for in batch. Each item is an object with symbolName/kind or filePath/line/column. Results are concatenated with separators.",
+                                                                items = new
+                                                                        {
+                                                                           type = "object",
+                                                                           properties = new
+                                                                                        {
+                                                                                           symbolName = new { type = "string", description = "Symbol name" },
+                                                                                           kind = new { type = "string", description = "Symbol kind filter" },
+                                                                                           filePath = new { type = "string", description = "File path" },
+                                                                                           line = new { type = "integer", description = "1-based line" },
+                                                                                           column = new { type = "integer", description = "1-based column" }
+                                                                                        }
+                                                                        }
+                                                             }
+                                                },
+                                   required = new string[0]
+                                };
+
+   public object Execute(JObject arguments) =>
+      ToolBatch.Of(arguments, "symbols", item: "symbolName")?.Run(ExecuteSingle) ?? ExecuteSingle(arguments);
+
+   object ExecuteSingle(JObject arguments)
+   {
+      var (declaredElement, error) = PsiHelpers.ResolveFromArgs(
+         _solution,
+         arguments["symbolName"]?.ToString(),
+         arguments["kind"]?.ToString(),
+         arguments["filePath"]?.ToString(),
+         arguments["line"]?.Value<int>() ?? 0,
+         arguments["column"]?.Value<int>() ?? 0);
+
+      if(error != null) return error;
+      using var context = CompilationContexts.For(declaredElement);
+
+      var skipped = new SkippedElements();
+
+      var maxResults = arguments["maxResults"]?.Value<int>() ?? 50;
+      if(maxResults <= 0) maxResults = 50;
+      if(maxResults > 1000) maxResults = 1000;
+
+      var implementations = new List<ImplInfo>();
+      var hitLimit = false;
+
+      // For type elements (interfaces, abstract classes) — find inheritors with depth info
+      if(declaredElement is ITypeElement typeElement)
+      {
+         var searchDomain = SearchDomainFactory.Instance.CreateSearchDomain(_solution, false);
+         var psiServices = _solution.GetPsiServices();
+
+         // Collect inheritors (with limit to prevent overflow)
+         var inheritors = new List<ITypeElement>();
+         psiServices.Finder.FindInheritors(
+            typeElement,
+            searchDomain,
+            new FindResultConsumer(findResult =>
+            {
+               if(inheritors.Count >= maxResults)
+               {
+                  hitLimit = true;
+                  return FindExecution.Stop;
+               }
+
+               if(findResult is FindResultInheritedElement inherited &&
+                  inherited.DeclaredElement is ITypeElement inheritedType)
+                  inheritors.Add(inheritedType);
+               return FindExecution.Continue;
+            }),
+            NullProgressIndicator.Create());
+
+         // Build a set of all inheritor FQNs for "via" resolution
+         var inheritorSet = new HashSet<string>(
+            inheritors.Select(i => i.GetClrName().FullName));
+
+         foreach(var inheritor in inheritors)
+         {
+            skipped.Guard(inheritor,
+                          () =>
+                          {
+                             var info = BuildImplInfo(inheritor);
+                             if(info == null) return;
+
+                             var directlyImplements = IsDirectImplementor(inheritor, typeElement);
+                             info.Direct = directlyImplements;
+
+                             if(!directlyImplements)
+                             {
+                                var via = FindIntermediateTypes(inheritor, typeElement, inheritorSet);
+                                if(via.Count > 0)
+                                   info.Via = via;
+                             }
+
+                             implementations.Add(info);
+                          });
+         }
+      }
+
+      // For overridable members (virtual/abstract methods, properties) — find overrides
+      if(!hitLimit && declaredElement is IOverridableMember overridable)
+      {
+         var psiServices = _solution.GetPsiServices();
+
+         psiServices.Finder.FindImplementingMembers(
+            overridable,
+            overridable.GetSearchDomain(),
+            new FindResultConsumer(findResult =>
+            {
+               if(implementations.Count >= maxResults)
+               {
+                  hitLimit = true;
+                  return FindExecution.Stop;
+               }
+
+               if(findResult is FindResultOverridableMember overrideResult)
+               {
+                  var member = overrideResult.OverridableMember;
+                  if(member == null) return FindExecution.Continue;
+
+                  skipped.Guard(member,
+                                () =>
+                                {
+                                   var info = BuildImplInfo(member);
+                                   if(info == null) return;
+
+                                   if(member is IClrDeclaredElement clr)
+                                   {
+                                      var containingType = clr.GetContainingType();
+                                      if(containingType != null && declaredElement is IClrDeclaredElement baseClr)
+                                      {
+                                         var baseContainingType = baseClr.GetContainingType();
+                                         if(baseContainingType != null)
                                             info.Direct = IsDirectImplementor(containingType, baseContainingType);
-                                    }
-                                }
-                                implementations.Add(info);
-                            });
-                        }
-                        return FindExecution.Continue;
-                    }),
-                    true,
-                    NullProgressIndicator.Create());
-            }
+                                      }
+                                   }
 
-            // Sort: direct first, then by name
-            var sorted = implementations
-                .OrderBy(i => i.Direct ? 0 : 1)
-                .ThenBy(i => i.Name)
-                .ToList();
+                                   implementations.Add(info);
+                                });
+               }
 
-            // Format compact output
-            var sb = new StringBuilder();
-            sb.Append(declaredElement.GetElementType().PresentableName).Append(' ');
-            sb.Append(declaredElement.ShortName);
-            if (hitLimit)
-            {
-                sb.Append(" — showing ").Append(sorted.Count).Append(" of ").Append(sorted.Count)
-                  .Append("+ implementations (limit reached; increase maxResults to see more)");
-            }
-            else
-            {
-                sb.Append(" — ").Append(sorted.Count).Append(" implementations");
-            }
-            sb.AppendLine();
+               return FindExecution.Continue;
+            }),
+            true,
+            NullProgressIndicator.Create());
+      }
 
-            foreach (var impl in sorted)
-            {
-                sb.AppendLine();
-                if (impl.Direct)
-                    sb.Append("[direct] ");
-                else if (impl.Via != null && impl.Via.Count > 0)
-                    sb.Append("[via ").Append(string.Join(", ", impl.Via)).Append("] ");
-                else
-                    sb.Append("[indirect] ");
+      // Sort: direct first, then by name
+      var sorted = implementations
+                  .OrderBy(i => i.Direct ? 0 : 1)
+                  .ThenBy(i => i.Name)
+                  .ToList();
 
-                sb.Append(impl.Kind).Append(' ').Append(impl.Name);
-                sb.Append(" — ").Append(impl.File).Append(':').AppendLine(impl.Line.ToString());
-                if (impl.Text != null)
-                    sb.Append("  ").AppendLine(impl.Text);
-            }
+      // Format compact output
+      var sb = new StringBuilder();
+      sb.Append(declaredElement.GetElementType().PresentableName).Append(' ');
+      sb.Append(declaredElement.ShortName);
+      if(hitLimit)
+      {
+         sb.Append(" — showing ").Append(sorted.Count).Append(" of ").Append(sorted.Count)
+           .Append("+ implementations (limit reached; increase maxResults to see more)");
+      } else
+      {
+         sb.Append(" — ").Append(sorted.Count).Append(" implementations");
+      }
 
-            if (skipped.Line != null)
-                sb.AppendLine().AppendLine(skipped.Line);
+      sb.AppendLine();
 
-            return sb.ToString().TrimEnd();
-        }
+      foreach(var impl in sorted)
+      {
+         sb.AppendLine();
+         if(impl.Direct)
+            sb.Append("[direct] ");
+         else if(impl.Via != null && impl.Via.Count > 0)
+            sb.Append("[via ").Append(string.Join(", ", impl.Via)).Append("] ");
+         else
+            sb.Append("[indirect] ");
 
-        private class ImplInfo
-        {
-            public string Name;
-            public string Kind;
-            public string File;
-            public int Line;
-            public string Text;
-            public bool Direct;
-            public List<string> Via;
-        }
+         sb.Append(impl.Kind).Append(' ').Append(impl.Name);
+         sb.Append(" — ").Append(impl.File).Append(':').AppendLine(impl.Line.ToString());
+         if(impl.Text != null)
+            sb.Append("  ").AppendLine(impl.Text);
+      }
 
-        private static ImplInfo BuildImplInfo(IDeclaredElement element)
-        {
-            if (element == null) return null;
-            var declarations = element.GetDeclarations();
-            if (declarations.Count == 0) return null;
+      if(skipped.Line != null)
+         sb.AppendLine().AppendLine(skipped.Line);
 
-            var site = DeclarationSite.Of(declarations[0]);
-            if (site == null) return null;
+      return sb.ToString().TrimEnd();
+   }
 
-            var implFilePath = site.File.Length > 0 ? site.File : "[no source]";
-            var implLine = site.Line;
+   class ImplInfo
+   {
+      public string Name;
+      public string Kind;
+      public string File;
+      public int Line;
+      public string Text;
+      public bool Direct;
+      public List<string> Via;
+   }
 
-            return new ImplInfo
-            {
+   static ImplInfo BuildImplInfo(IDeclaredElement element)
+   {
+      if(element == null) return null;
+      var declarations = element.GetDeclarations();
+      if(declarations.Count == 0) return null;
+
+      var site = DeclarationSite.Of(declarations[0]);
+      if(site == null) return null;
+
+      var implFilePath = site.File.Length > 0 ? site.File : "[no source]";
+      var implLine = site.Line;
+
+      return new ImplInfo
+             {
                 Name = element.ShortName,
                 Kind = element.GetElementType().PresentableName,
                 File = implFilePath,
                 Line = implLine,
                 Text = PsiHelpers.TruncateSnippet(declarations[0].GetText(), 200)
-            };
-        }
+             };
+   }
 
-        /// <summary>
-        /// Checks if inheritor directly lists the target type in its super types (not via intermediate).
-        /// </summary>
-        private static bool IsDirectImplementor(ITypeElement inheritor, ITypeElement targetType)
-        {
-            var targetFqn = targetType.GetClrName().FullName;
-            foreach (var superType in inheritor.GetSuperTypes())
-            {
-                var resolved = superType.GetTypeElement();
-                if (resolved != null && resolved.GetClrName().FullName == targetFqn)
-                    return true;
-            }
-            return false;
-        }
+   /// <summary>
+   /// Checks if inheritor directly lists the target type in its super types (not via intermediate).
+   /// </summary>
+   static bool IsDirectImplementor(ITypeElement inheritor, ITypeElement targetType)
+   {
+      var targetFqn = targetType.GetClrName().FullName;
+      foreach(var superType in inheritor.GetSuperTypes())
+      {
+         var resolved = superType.GetTypeElement();
+         if(resolved != null && resolved.GetClrName().FullName == targetFqn)
+            return true;
+      }
 
-        /// <summary>
-        /// Finds intermediate types through which inheritor implements targetType.
-        /// Returns the short names of those intermediate types.
-        /// </summary>
-        private static List<string> FindIntermediateTypes(
-            ITypeElement inheritor, ITypeElement targetType, HashSet<string> allInheritorFqns)
-        {
-            var targetFqn = targetType.GetClrName().FullName;
-            var via = new List<string>();
+      return false;
+   }
 
-            foreach (var superType in inheritor.GetSuperTypes())
-            {
-                var resolved = superType.GetTypeElement();
-                if (resolved == null) continue;
+   /// <summary>
+   /// Finds intermediate types through which inheritor implements targetType.
+   /// Returns the short names of those intermediate types.
+   /// </summary>
+   static List<string> FindIntermediateTypes(
+      ITypeElement inheritor,
+      ITypeElement targetType,
+      HashSet<string> allInheritorFqns)
+   {
+      var targetFqn = targetType.GetClrName().FullName;
+      var via = new List<string>();
 
-                var resolvedFqn = resolved.GetClrName().FullName;
-                if (resolvedFqn == targetFqn) continue;
+      foreach(var superType in inheritor.GetSuperTypes())
+      {
+         var resolved = superType.GetTypeElement();
+         if(resolved == null) continue;
 
-                if (allInheritorFqns.Contains(resolvedFqn) || ImplementsType(resolved, targetFqn))
-                    via.Add(resolved.ShortName);
-            }
+         var resolvedFqn = resolved.GetClrName().FullName;
+         if(resolvedFqn == targetFqn) continue;
 
-            return via;
-        }
+         if(allInheritorFqns.Contains(resolvedFqn) || ImplementsType(resolved, targetFqn))
+            via.Add(resolved.ShortName);
+      }
 
-        /// <summary>
-        /// Recursively checks if a type implements/extends the target (by FQN).
-        /// </summary>
-        private static bool ImplementsType(ITypeElement type, string targetFqn)
-        {
-            foreach (var superType in type.GetSuperTypes())
-            {
-                var resolved = superType.GetTypeElement();
-                if (resolved == null) continue;
-                if (resolved.GetClrName().FullName == targetFqn) return true;
-                if (ImplementsType(resolved, targetFqn)) return true;
-            }
-            return false;
-        }
-    }
+      return via;
+   }
+
+   /// <summary>
+   /// Recursively checks if a type implements/extends the target (by FQN).
+   /// </summary>
+   static bool ImplementsType(ITypeElement type, string targetFqn)
+   {
+      foreach(var superType in type.GetSuperTypes())
+      {
+         var resolved = superType.GetTypeElement();
+         if(resolved == null) continue;
+         if(resolved.GetClrName().FullName == targetFqn) return true;
+         if(ImplementsType(resolved, targetFqn)) return true;
+      }
+
+      return false;
+   }
 }

@@ -14,33 +14,33 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Screen;
 /// </remarks>
 static class SandboxWindowPlacement
 {
-  const int Width = 1400;
-  const int Height = 900;
+   const int Width = 1400;
+   const int Height = 900;
 
-  public static void Apply(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId) =>
-    ScreenThread.Run(() => ApplyOnThisThread(sandboxWindows, sandboxProcessId));
+   public static void Apply(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId) =>
+      ScreenThread.Run(() => ApplyOnThisThread(sandboxWindows, sandboxProcessId));
 
-  static void ApplyOnThisThread(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId)
-  {
-    var developmentRider = TheDevelopmentRiderWindow(sandboxProcessId);
-    var monitor = Monitor.All().FirstOrDefault(it => developmentRider is null || !it.IsTheSameAs(developmentRider.Monitor))
-                  ?? Monitor.All()[0];
-    var workArea = monitor.WorkArea;
-    var bounds = new RECT(workArea.left, workArea.bottom - Height, workArea.left + Width, workArea.bottom);
+   static void ApplyOnThisThread(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId)
+   {
+      var developmentRider = TheDevelopmentRiderWindow(sandboxProcessId);
+      var monitor = Monitor.All().FirstOrDefault(it => developmentRider is null || !it.IsTheSameAs(developmentRider.Monitor))
+                 ?? Monitor.All()[0];
+      var workArea = monitor.WorkArea;
+      var bounds = new RECT(workArea.left, workArea.bottom - Height, workArea.left + Width, workArea.bottom);
 
-    foreach (var window in sandboxWindows)
-    {
-      if (developmentRider is not null) window.MoveToTheDesktopOf(developmentRider);
-      window.MoveTo(bounds);
-    }
-  }
+      foreach(var window in sandboxWindows)
+      {
+         if(developmentRider is not null) window.MoveToTheDesktopOf(developmentRider);
+         window.MoveTo(bounds);
+      }
+   }
 
-  /// <summary>
-  ///   The window of the Rider the plugin is developed in: the one with this repository's solution open, unless it's
-  ///   closed.
-  /// </summary>
-  public static TopLevelWindow? TheDevelopmentRiderWindow(int sandboxProcessId) =>
-    TopLevelWindow.AllVisible().FirstOrDefault(it => it.ProcessId != sandboxProcessId
-                                                     && it.Title.StartsWith(RepositoryRoot.SolutionName, StringComparison.Ordinal)
-                                                     && Process.GetProcessById(it.ProcessId).ProcessName == "rider64");
+   /// <summary>
+   ///   The window of the Rider the plugin is developed in: the one with this repository's solution open, unless it's
+   ///   closed.
+   /// </summary>
+   public static TopLevelWindow? TheDevelopmentRiderWindow(int sandboxProcessId) =>
+      TopLevelWindow.AllVisible().FirstOrDefault(it => it.ProcessId != sandboxProcessId
+                                                    && it.Title.StartsWith(RepositoryRoot.SolutionName, StringComparison.Ordinal)
+                                                    && Process.GetProcessById(it.ProcessId).ProcessName == "rider64");
 }

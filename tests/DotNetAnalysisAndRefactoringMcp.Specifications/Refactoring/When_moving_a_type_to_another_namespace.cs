@@ -15,38 +15,38 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Refactoring;
 /// </remarks>
 public class When_moving_a_type_to_another_namespace(TheSandboxWithTheFixtureSolution sandbox)
 {
-  static readonly TimeSpan HowLongSavingMayTake = TimeSpan.FromSeconds(30);
-  static readonly object Gate = new();
-  static Observed? _observed;
+   static readonly TimeSpan HowLongSavingMayTake = TimeSpan.FromSeconds(30);
+   static readonly object Gate = new();
+   static Observed? _observed;
 
-  readonly Observed _the = Once(sandbox);
+   readonly Observed _the = Once(sandbox);
 
-  [XF] public void it_says_it_moved_it() => _the.Answer.Must().Contain("Moved Lengths from Shapes.Drawing.Moving to Shapes.Drawing.Units");
+   [XF] public void it_says_it_moved_it() => _the.Answer.Must().Contain("Moved Lengths from Shapes.Drawing.Moving to Shapes.Drawing.Units");
 
-  [XF] public void the_declaration_is_in_the_new_namespace() => _the.MovedFile.Must().Contain("namespace Shapes.Drawing.Units");
+   [XF] public void the_declaration_is_in_the_new_namespace() => _the.MovedFile.Must().Contain("namespace Shapes.Drawing.Units");
 
-  [XF] public void the_file_that_calls_its_extension_method_gets_the_using() => _the.CallingFile.Must().Contain("using Shapes.Drawing.Units;");
+   [XF] public void the_file_that_calls_its_extension_method_gets_the_using() => _the.CallingFile.Must().Contain("using Shapes.Drawing.Units;");
 
-  [XF] public void and_has_no_errors() => _the.CallingFileErrors.Must().Contain("0 diagnostics");
+   [XF] public void and_has_no_errors() => _the.CallingFileErrors.Must().Contain("0 diagnostics");
 
-  sealed record Observed(string Answer, string MovedFile, string CallingFile, string CallingFileErrors);
+   sealed record Observed(string Answer, string MovedFile, string CallingFile, string CallingFileErrors);
 
-  static Observed Once(TheSandboxWithTheFixtureSolution sandbox)
-  {
-    lock (Gate)
-      return _observed ??= Observe(sandbox);
-  }
+   static Observed Once(TheSandboxWithTheFixtureSolution sandbox)
+   {
+      lock(Gate)
+         return _observed ??= Observe(sandbox);
+   }
 
-  static Observed Observe(TheSandboxWithTheFixtureSolution sandbox)
-  {
-    var answer = sandbox.McpServer.CallTool("move_type_to_namespace", new { symbolName = "Shapes.Drawing.Moving.Lengths", newNamespace = "Shapes.Drawing.Units" });
-    var calling = sandbox.PathOf("Shapes.Drawing/Moving/Ruler.cs");
-    var deadline = DateTime.UtcNow + HowLongSavingMayTake;
-    while (!File.ReadAllText(calling).Contains("using Shapes.Drawing.Units;") && DateTime.UtcNow < deadline)
-      Thread.Sleep(250);
-    return new Observed(answer,
-                        File.ReadAllText(sandbox.PathOf("Shapes.Drawing/Moving/Lengths.cs")),
-                        File.ReadAllText(calling),
-                        sandbox.McpServer.CallTool("get_file_errors", new { filePath = calling }));
-  }
+   static Observed Observe(TheSandboxWithTheFixtureSolution sandbox)
+   {
+      var answer = sandbox.McpServer.CallTool("move_type_to_namespace", new { symbolName = "Shapes.Drawing.Moving.Lengths", newNamespace = "Shapes.Drawing.Units" });
+      var calling = sandbox.PathOf("Shapes.Drawing/Moving/Ruler.cs");
+      var deadline = DateTime.UtcNow + HowLongSavingMayTake;
+      while(!File.ReadAllText(calling).Contains("using Shapes.Drawing.Units;") && DateTime.UtcNow < deadline)
+         Thread.Sleep(250);
+      return new Observed(answer,
+                          File.ReadAllText(sandbox.PathOf("Shapes.Drawing/Moving/Lengths.cs")),
+                          File.ReadAllText(calling),
+                          sandbox.McpServer.CallTool("get_file_errors", new { filePath = calling }));
+   }
 }

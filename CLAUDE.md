@@ -297,6 +297,7 @@ Never show the notice from a tool (it is a modal `MessageBox`).
 ```
 CLAUDE.md                              # this file
 README.md                              # user-facing docs
+.editorconfig                          # code style, as in Deskmancer and Compze: 3-space indents, no default modifiers
 CHANGELOG.md                           # change notes, Keep a Changelog: the Marketplace's and the GitHub Release's
 .github/workflows/                     # build.yml on every push; release.yml on a v* tag: sign, release, publish
 rider-plugin/build.gradle.kts          # the build: compileDotNet + prepareSandbox put the .NET part beside the jar

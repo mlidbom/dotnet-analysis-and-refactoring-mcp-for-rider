@@ -12,34 +12,35 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Refactoring;
 /// </remarks>
 public class When_fixing_an_inspection_folder_wide(TheSandboxWithTheFixtureSolution sandbox)
 {
-  static readonly TimeSpan HowLongSavingMayTake = TimeSpan.FromSeconds(30);
-  static readonly object Gate = new();
-  static (string Answer, string OtherFile)? _observed;
+   static readonly TimeSpan HowLongSavingMayTake = TimeSpan.FromSeconds(30);
+   static readonly object Gate = new();
+   static (string Answer, string OtherFile)? _observed;
 
-  readonly (string Answer, string OtherFile) _the = Once(sandbox);
+   readonly (string Answer, string OtherFile) _the = Once(sandbox);
 
-  [XF] public void it_says_it_applied_the_fix_in_the_folder() => _the.Answer.Must().Contain("each in the file's folder");
+   [XF] public void it_says_it_applied_the_fix_in_the_folder() => _the.Answer.Must().Contain("each in the file's folder");
 
-  [XF] public void it_fixes_the_other_file_in_the_folder_too() => _the.OtherFile.Must().Contain("readonly double");
+   [XF] public void it_fixes_the_other_file_in_the_folder_too() => _the.OtherFile.Must().Contain("readonly double");
 
-  static (string Answer, string OtherFile) Once(TheSandboxWithTheFixtureSolution sandbox)
-  {
-    lock (Gate)
-      return _observed ??= Observe(sandbox);
-  }
+   static (string Answer, string OtherFile) Once(TheSandboxWithTheFixtureSolution sandbox)
+   {
+      lock(Gate)
+         return _observed ??= Observe(sandbox);
+   }
 
-  static (string Answer, string OtherFile) Observe(TheSandboxWithTheFixtureSolution sandbox)
-  {
-    var answer = sandbox.McpServer.CallTool("apply_suggestions", new
-    {
-      filePath = sandbox.PathOf("Shapes.Drawing/Captures/Ellipse.cs"),
-      inspectionIds = "PrimaryConstructorParameterCaptureDisallowed",
-      scope = "folder"
-    });
-    var other = sandbox.PathOf("Shapes.Drawing/Captures/Rectangle.cs");
-    var deadline = DateTime.UtcNow + HowLongSavingMayTake;
-    while (!File.ReadAllText(other).Contains("readonly double") && DateTime.UtcNow < deadline)
-      Thread.Sleep(250);
-    return (answer, File.ReadAllText(other));
-  }
+   static (string Answer, string OtherFile) Observe(TheSandboxWithTheFixtureSolution sandbox)
+   {
+      var answer = sandbox.McpServer.CallTool("apply_suggestions",
+                                              new
+                                              {
+                                                 filePath = sandbox.PathOf("Shapes.Drawing/Captures/Ellipse.cs"),
+                                                 inspectionIds = "PrimaryConstructorParameterCaptureDisallowed",
+                                                 scope = "folder"
+                                              });
+      var other = sandbox.PathOf("Shapes.Drawing/Captures/Rectangle.cs");
+      var deadline = DateTime.UtcNow + HowLongSavingMayTake;
+      while(!File.ReadAllText(other).Contains("readonly double") && DateTime.UtcNow < deadline)
+         Thread.Sleep(250);
+      return (answer, File.ReadAllText(other));
+   }
 }

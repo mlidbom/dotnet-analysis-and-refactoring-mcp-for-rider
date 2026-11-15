@@ -6,16 +6,16 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment;
 /// </summary>
 public static class RepositoryRoot
 {
-  public static string Folder { get; } = FindAbove(AppContext.BaseDirectory);
+   public static string Folder { get; } = FindAbove(AppContext.BaseDirectory);
 
-  /// <summary>
-  ///   The solution file's name without its extension, which starts the title of a Rider window that has it open.
-  /// </summary>
-  public static string SolutionName { get; } = Path.GetFileNameWithoutExtension(Directory.GetFiles(Folder, "*.sln").Single());
+   /// <summary>
+   ///   The solution file's name without its extension, which starts the title of a Rider window that has it open.
+   /// </summary>
+   public static string SolutionName { get; } = Path.GetFileNameWithoutExtension(Directory.GetFiles(Folder, "*.sln").Single());
 
-  static string FindAbove(string folder) =>
-    Directory.Exists(Path.Combine(folder, "rider-plugin")) && Directory.GetFiles(folder, "*.sln").Length == 1
-      ? folder
-      : FindAbove(Directory.GetParent(folder)?.FullName
+   static string FindAbove(string folder) =>
+      Directory.Exists(Path.Combine(folder, "rider-plugin")) && Directory.GetFiles(folder, "*.sln").Length == 1
+         ? folder
+         : FindAbove(Directory.GetParent(folder)?.FullName
                   ?? throw new InvalidOperationException($"No repository root above {AppContext.BaseDirectory}: the tools run from their build output inside the repository."));
 }

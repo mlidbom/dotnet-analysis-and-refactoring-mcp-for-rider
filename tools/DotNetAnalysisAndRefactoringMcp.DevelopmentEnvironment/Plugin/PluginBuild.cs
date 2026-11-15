@@ -11,62 +11,64 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
 /// </summary>
 public sealed class PluginBuild
 {
-  const string Host = "DotNetAnalysisAndRefactoringMcp";
-  const string Tools = "DotNetAnalysisAndRefactoringMcp.Tools";
+   const string Host = "DotNetAnalysisAndRefactoringMcp";
+   const string Tools = "DotNetAnalysisAndRefactoringMcp.Tools";
 
-  readonly string _repositoryRoot;
+   readonly string _repositoryRoot;
 
-  PluginBuild(string repositoryRoot) => _repositoryRoot = repositoryRoot;
+   PluginBuild(string repositoryRoot) => _repositoryRoot = repositoryRoot;
 
-  /// <summary>Builds the host and the tools in Release and the frontend jar, and returns the result.</summary>
-  public static PluginBuild FromTheWorkingTree(RiderInstallation rider)
-  {
-    var build = new PluginBuild(RepositoryRoot.Folder);
-    build.BuildTheBackend();
-    build.BuildTheFrontendJar(rider);
-    return build;
-  }
+   /// <summary>Builds the host and the tools in Release and the frontend jar, and returns the result.</summary>
+   public static PluginBuild FromTheWorkingTree(RiderInstallation rider)
+   {
+      var build = new PluginBuild(RepositoryRoot.Folder);
+      build.BuildTheBackend();
+      build.BuildTheFrontendJar(rider);
+      return build;
+   }
 
-  /// <summary>The host's files, each with the subfolder of the plugin folder it goes in.</summary>
-  public IEnumerable<(string Subfolder, string File)> HostFiles =>
-  [
-    ("dotnet", HostAssembly),
-    ("dotnet", Path.ChangeExtension(HostAssembly, ".pdb")),
-    ("lib", FrontendJar)
-  ];
+   /// <summary>The host's files, each with the subfolder of the plugin folder it goes in.</summary>
+   public IEnumerable<(string Subfolder, string File)> HostFiles =>
+   [
+      ("dotnet", HostAssembly),
+      ("dotnet", Path.ChangeExtension(HostAssembly, ".pdb")),
+      ("lib", FrontendJar)
+   ];
 
-  /// <summary>The tools assembly and its symbols.</summary>
-  public IEnumerable<string> ToolsFiles => [ToolsAssembly, Path.ChangeExtension(ToolsAssembly, ".pdb")];
+   /// <summary>The tools assembly and its symbols.</summary>
+   public IEnumerable<string> ToolsFiles => [ToolsAssembly, Path.ChangeExtension(ToolsAssembly, ".pdb")];
 
-  /// <summary>What tells this build's host from others, as the host computes it: the SHA-256 of its assembly.</summary>
-  public string HostIdentity => IdentityOf(HostAssembly);
+   /// <summary>What tells this build's host from others, as the host computes it: the SHA-256 of its assembly.</summary>
+   public string HostIdentity => IdentityOf(HostAssembly);
 
-  /// <summary>The SHA-256 of a host assembly, in lowercase hexadecimal: <c>ToolsBuildFolder.HostIdentity</c> in the host.</summary>
-  public static string IdentityOf(string hostAssembly) => Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(hostAssembly)));
+   /// <summary>The SHA-256 of a host assembly, in lowercase hexadecimal: <c>ToolsBuildFolder.HostIdentity</c> in the host.</summary>
+   public static string IdentityOf(string hostAssembly) => Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(hostAssembly)));
 
-  /// <summary>
-  ///   The jar <c>composedJar</c> builds, whose descriptor Gradle stamps with the version, the compatibility range and
-  ///   the change notes. Its name carries the version; the <c>-base</c> and <c>-instrumented</c> jars beside it are steps
-  ///   on the way.
-  /// </summary>
-  string FrontendJar =>
-    Directory.GetFiles(Path.Combine(_repositoryRoot, "rider-plugin", "build", "libs"), Host + "-*.jar")
-             .Where(it => !it.EndsWith("-base.jar", StringComparison.Ordinal) && !it.EndsWith("-instrumented.jar", StringComparison.Ordinal))
-             .OrderByDescending(File.GetLastWriteTimeUtc)
-             .First();
+   /// <summary>
+   ///   The jar <c>composedJar</c> builds, whose descriptor Gradle stamps with the version, the compatibility range and
+   ///   the change notes. Its name carries the version; the <c>-base</c> and <c>-instrumented</c> jars beside it are steps
+   ///   on the way.
+   /// </summary>
+   string FrontendJar =>
+      Directory.GetFiles(Path.Combine(_repositoryRoot, "rider-plugin", "build", "libs"), Host + "-*.jar")
+               .Where(it => !it.EndsWith("-base.jar", StringComparison.Ordinal) && !it.EndsWith("-instrumented.jar", StringComparison.Ordinal))
+               .OrderByDescending(File.GetLastWriteTimeUtc)
+               .First();
 
-  string HostAssembly => Path.Combine(_repositoryRoot, "src", Host, "bin", "Release", "net472", Host + ".dll");
-  string ToolsAssembly => Path.Combine(_repositoryRoot, "src", Tools, "bin", "Release", "net472", Tools + ".dll");
+   string HostAssembly => Path.Combine(_repositoryRoot, "src", Host, "bin", "Release", "net472", Host + ".dll");
+   string ToolsAssembly => Path.Combine(_repositoryRoot, "src", Tools, "bin", "Release", "net472", Tools + ".dll");
 
-  /// <remarks>The tools project references the host's, so building it builds both.</remarks>
-  void BuildTheBackend() =>
-    ExternalCommand.Run("dotnet", ["build", Path.Combine("src", Tools, Tools + ".csproj"), "-c", "Release", "-v", "quiet", "-nologo"], _repositoryRoot);
+   /// <remarks>The tools project references the host's, so building it builds both.</remarks>
+   void BuildTheBackend() =>
+      ExternalCommand.Run("dotnet", ["build", Path.Combine("src", Tools, Tools + ".csproj"), "-c", "Release", "-v", "quiet", "-nologo"], _repositoryRoot);
 
-  /// <remarks>
-  ///   No daemon: one would outlive the build holding the caller's output, and a caller that reads that output to its end,
-  ///   such as <c>dotnet test | grep</c>, waited until the daemon went (2026-11-15). Gradle runs only when the host changed.
-  /// </remarks>
-  void BuildTheFrontendJar(RiderInstallation rider) =>
-    ExternalCommand.Run(Path.Combine(_repositoryRoot, "rider-plugin", "gradlew.bat"), ["composedJar", "--quiet", "--no-daemon"], Path.Combine(_repositoryRoot, "rider-plugin"),
-                        new Dictionary<string, string> { ["JAVA_HOME"] = rider.BundledJavaRuntime });
+   /// <remarks>
+   ///   No daemon: one would outlive the build holding the caller's output, and a caller that reads that output to its end,
+   ///   such as <c>dotnet test | grep</c>, waited until the daemon went (2026-11-15). Gradle runs only when the host changed.
+   /// </remarks>
+   void BuildTheFrontendJar(RiderInstallation rider) =>
+      ExternalCommand.Run(Path.Combine(_repositoryRoot, "rider-plugin", "gradlew.bat"),
+                          ["composedJar", "--quiet", "--no-daemon"],
+                          Path.Combine(_repositoryRoot, "rider-plugin"),
+                          new Dictionary<string, string> { ["JAVA_HOME"] = rider.BundledJavaRuntime });
 }
