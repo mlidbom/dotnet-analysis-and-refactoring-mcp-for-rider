@@ -7,16 +7,12 @@ using System.Threading.Tasks;
 using DotNetAnalysisAndRefactoringMcp.Threading;
 using JetBrains.Application;
 using JetBrains.Application.Threading;
-using JetBrains.Application.Threading.Tasks;
 using JetBrains.DocumentManagers.impl;
 using JetBrains.DocumentModel;
 using JetBrains.DocumentModel.Storage;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
-using JetBrains.Rd.Tasks;
-using JetBrains.ReSharper.Feature.Services.Protocol;
 using JetBrains.ReSharper.Psi;
-using JetBrains.Rider.Model;
 using JetBrains.Util;
 using JetBrains.Util.Logging;
 
@@ -45,8 +41,6 @@ namespace DotNetAnalysisAndRefactoringMcp.Disk;
 public sealed class DiskSync
 {
    static readonly ILogger Log = Logger.GetLogger<DiskSync>();
-
-   static readonly TimeSpan RefreshTimeout = TimeSpan.FromSeconds(5);
 
    // A tab open in an editor reloads at the frontend's pace: 0.2 s to 9 s measured. Waiting beats a stale answer.
    static readonly TimeSpan ReloadTimeout = TimeSpan.FromSeconds(10);
@@ -93,7 +87,7 @@ public sealed class DiskSync
                   .ToList();
 
       if(rescan.Count > 0)
-         await Refresh(lifetime, rescan);
+         await new Rescans(_solution, _locks).Request(lifetime, rescan);
 
       var waited = stale.Concat(absent.Where(named.Contains)).ToList();
       var after = waited.Count > 0 ? await WaitForReload(execution, waited) : DiskState.Clean;
@@ -168,37 +162,6 @@ public sealed class DiskSync
             return state;
 
          await Task.Delay(ReloadPoll);
-      }
-   }
-
-   /// <summary>
-   ///   Asks Rider's frontend to rescan paths. It queues them (debounced by 200 ms) and returns; new files reach the
-   ///   project model some time after.
-   /// </summary>
-   /// <remarks>
-   ///   Without a frontend (or when it does not answer in time) this is a no-op, and the check that follows still
-   ///   reports what stayed stale.
-   /// </remarks>
-   async Task Refresh(Lifetime lifetime, IReadOnlyCollection<string> paths)
-   {
-      try
-      {
-         var refresh = _locks.Tasks.StartNew(lifetime,
-                                             Scheduling.MainGuard,
-                                             () =>
-                                             {
-                                                var request = RefreshRequests.New(paths);
-
-                                                return _solution.GetProtocolSolution().GetFileSystemModel().RefreshPaths.Start(lifetime, request).AsTask();
-                                             });
-
-         // WhenAny hands back a faulted task without throwing; await it to see why.
-         if(await Task.WhenAny(refresh, Task.Delay(RefreshTimeout)) == refresh)
-            await refresh;
-      }
-      catch(Exception exception) when(exception is not OperationCanceledException)
-      {
-         Log.Warn(exception, ExceptionOrigin.Algorithmic, "DotNetAnalysisAndRefactoringMcp could not ask Rider to rescan changed files");
       }
    }
 
