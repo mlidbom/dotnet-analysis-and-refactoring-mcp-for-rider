@@ -15,6 +15,15 @@ the Marketplace, which needs Magnus's word.
 The development tools: `dotnet run --project tools/DotNetAnalysisAndRefactoringMcp.DevelopmentTools -- <command>`; with
 no command they list the commands.
 
+## The host stays minimal: whatever can live in the tools does
+
+A host change costs Magnus a restart of every Rider he has open, and Rider can't reload the host while it runs (tried
+2026-11-15, see `dev_docs/swappable-tools.md`). So code goes in the tools unless it can't. The host keeps only what has
+to outlive a swap, such as the HTTP listener, the file watcher and the state they hold, and what ReSharper holds on to,
+such as the daemon collector's process type. Logic about such state goes in the tools, behind an interface the host
+defines. When a change seems to need the host, look for the way to make it in the tools first; when it truly needs
+the host, say so, and batch it with others. Magnus, 2026-11-15: a design guideline "to remember and abide by".
+
 ## Test every build in the sandbox Rider before it goes anywhere else
 
 The everyday Riders, Magnus's, run the build that every session on the machine uses, this one included. A broken build
