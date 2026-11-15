@@ -381,8 +381,8 @@ tests/FixtureSolution/                 # the solution the specifications open th
 ## Building & Installing
 
 `cd rider-plugin && ./gradlew buildPlugin` builds the plugin zip, .NET part included. On Magnus's machine, use the
-development tools to install and deploy (see `.claude/rules/developing-the-plugin.md`): they test in the sandbox Rider
-and deploy tools builds that take effect without a restart.
+development tools to install and deploy (see `.claude/rules/02-universal-local/developing-the-plugin.md`): they test
+in the sandbox Rider and deploy tools builds that take effect without a restart.
 
 Installing into a running Rider: move the old files aside or delete them first, never copy over them in place. A
 running backend has the DLL mapped, and copying over it corrupted the mapped image and crashed the backend ("Bad IL
