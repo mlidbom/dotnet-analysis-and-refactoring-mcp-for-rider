@@ -10,14 +10,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
    the unsaved result, and a file moved on disk under them would lose it. ReSharper's Move to Folder refactoring may
    do it inside the model.
 
-## Swapping the tools without a restart
-
-See `dev_docs/swappable-tools.md`.
-
-1. **Faster specification runs when only the tools changed:** swap the build into the running sandbox instead of
-   restarting it with a fresh copy of the fixture solution.
-
-
 ## Known bugs
 
 - **A save that waited 10 s for nothing:** in one specification run (2026-11-15), the second move of
@@ -50,9 +42,17 @@ See `dev_docs/swappable-tools.md`.
 - **Build against the SDK of the Rider version Magnus runs, and drop older ones,** once the fork is renamed: no more
   reflection to bridge versions, and an API change becomes a compile error instead of a run-time failure such as
   issue #8's `MethodAccessException`.
-- **An agent Rider:** a second Rider, separate from Magnus's, serving every session's code intelligence. A change to
-  the host would need no restart of his IDE (tools builds need none already), and a broken build couldn't hang it. Costs memory and a second index of each
-  solution.
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence
   with Rider closed, in cloud sessions and in CI. Uncertain: the plugin makes some calls only Rider's frontend
   answers, such as the file rescans in `Disk/RefreshRequests.cs`.
+
+## Decided against
+
+- **An agent Rider,** a Rider of its own per solution for the agents, so that a host change needs no restart of
+  Magnus's (2026-11-15). He has five or six Riders open: one more for each would cost a lot of processor time and memory,
+  be a hassle to handle, and break his workflow. That the agent works in the window he works in, and sees what he sees,
+  is worth more.
+- **Specification runs without restarting the sandbox,** when only the tools changed (2026-11-15). Measured: a run is
+  67 s, and stopping and starting the sandbox, with the fresh copy's restore, about 20 s of it. It would add a second
+  way to run, and weaken the check that ReSharper keeps nothing of the tools build that first ran each feature, which
+  takes a fresh process.
