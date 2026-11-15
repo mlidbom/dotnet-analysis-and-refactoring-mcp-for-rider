@@ -199,7 +199,7 @@ public sealed class ReloadProjectsTool : IMcpAsyncTool
       readonly IThreadShared<Projects> _projects;
       readonly TaskCompletionSource<bool> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-      public ProjectsLoad(IEnumerable<IProjectMark> projects) => _projects = IThreadShared.New(new Projects([.. projects]));
+      public ProjectsLoad(IEnumerable<IProjectMark> projects) => _projects = ThreadShared.New(new Projects([.. projects]));
 
       public Task Done => _done.Task;
 

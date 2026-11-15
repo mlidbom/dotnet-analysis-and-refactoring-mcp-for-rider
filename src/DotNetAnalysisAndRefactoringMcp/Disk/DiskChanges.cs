@@ -45,7 +45,7 @@ public sealed class DiskChanges : IDisposable
                                                            "Logs",
                                                         };
 
-   readonly IThreadShared<Watched> _watched = IThreadShared.New(new Watched());
+   readonly IThreadShared<Watched> _watched = ThreadShared.New(new Watched());
 
    public int Count => _watched.Locked(it => it.Overflowed ? it.Paths.Count + 1 : it.Paths.Count);
 

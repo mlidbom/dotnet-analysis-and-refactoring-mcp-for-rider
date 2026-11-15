@@ -46,7 +46,7 @@ public sealed class SwappableTools
    readonly ILogger _logger;
    readonly string _host;
    readonly IReadOnlyList<ToolsBuildFolder> _folders;
-   readonly IThreadShared<Builds> _builds = IThreadShared.New(new Builds());
+   readonly IThreadShared<Builds> _builds = ThreadShared.New(new Builds());
 
    public SwappableTools(Lifetime lifetime, ILogger logger)
    {

@@ -55,7 +55,7 @@ public sealed class DiskSync
    // Files compared with disk per call; past it (a branch switch), the rest are only rescanned.
    const int MaxChecked = 500;
 
-   readonly IThreadShared<Settled> _settled = IThreadShared.New(new Settled());
+   readonly IThreadShared<Settled> _settled = ThreadShared.New(new Settled());
    readonly ISolution _solution;
    readonly IShellLocks _locks;
    readonly DiskChanges _changes;

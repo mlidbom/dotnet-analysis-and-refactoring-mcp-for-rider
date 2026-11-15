@@ -18,7 +18,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Swapping;
 /// </remarks>
 sealed class LoadedToolsBuild
 {
-   readonly IThreadShared<Calls> _calls = IThreadShared.New(new Calls());
+   readonly IThreadShared<Calls> _calls = ThreadShared.New(new Calls());
    CollectibleLoadContext _context;
    IMcpToolsEntryPoint _entryPoint;
 

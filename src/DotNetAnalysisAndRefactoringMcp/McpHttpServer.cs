@@ -18,10 +18,10 @@ public class McpHttpServer
 {
    volatile HttpListener _listener;
    readonly ILogger _logger;
-   readonly IThreadShared<Registrations> _registrations = IThreadShared.New(new Registrations());
+   readonly IThreadShared<Registrations> _registrations = ThreadShared.New(new Registrations());
    readonly string _sessionId;
    readonly Func<string> _instructions;
-   readonly IThreadShared<List<ServerEventStream>> _eventStreams = IThreadShared.New(new List<ServerEventStream>());
+   readonly IThreadShared<List<ServerEventStream>> _eventStreams = ThreadShared.New(new List<ServerEventStream>());
    Thread _listenerThread;
    volatile bool _running;
 
@@ -1095,7 +1095,7 @@ internal sealed class ServerEventStream
 {
    readonly IThreadShared<StreamWriter> _writer;
 
-   public ServerEventStream(StreamWriter writer) => _writer = IThreadShared.New(writer);
+   public ServerEventStream(StreamWriter writer) => _writer = ThreadShared.New(writer);
 
    /// <summary>False when the client has gone, which fails the write in one of these ways.</summary>
    public bool TrySend(string text) =>
