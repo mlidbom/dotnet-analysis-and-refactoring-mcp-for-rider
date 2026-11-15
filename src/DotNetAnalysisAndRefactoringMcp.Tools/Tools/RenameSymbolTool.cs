@@ -142,8 +142,6 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
 
          var languageType = RenameUtil.GetPsiLanguageTypeOrKnownLanguage(declaredElement);
          var renameHelper = workflow.LanguageSpecific[languageType];
-         if(renameHelper == null)
-            return new { error = $"Rename is not supported for this symbol's language.", oldName, newName };
 
          // Build the options model. NOTE: the RenameDataModel constructor mutates this
          // model (it sets HasUI=true, RenameDerived=true, ChangeTextOccurrences from
@@ -152,7 +150,7 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
          var model = renameHelper.GetOptionsModel(declaredElement, null, lifetime);
 
          var dataModel = new RenameDataModel(
-                            new[] { declaredElement },
+                            [declaredElement],
                             null,
                             RenameFilesOption.NothingToRename,
                             lifetime,
@@ -183,52 +181,40 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
          // change cookie, which rolls back on dispose so none of the edits Execute() makes
          // are ever persisted — while the conflict/affected-file analysis we capture from the
          // (now discarded) tree mutation remains valid for reporting.
-         using(var transaction = dryRun
-                                    ? PsiTransactionCookie.CreateTemporaryChangeCookie(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol")
-                                    : PsiTransactionCookie.CreateAutoCommitCookieWithCachesUpdate(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol"))
+         using var transaction = dryRun
+                                 ? PsiTransactionCookie.CreateTemporaryChangeCookie(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol")
+                                 : PsiTransactionCookie.CreateAutoCommitCookieWithCachesUpdate(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol");
+
+         // Build atomic renames AND search the solution for usages (populates the
+         // references store the atomic renames consume). NameHasChanged ensures the load
+         // is not short-circuited.
+         dataModel.NameHasChanged = true;
+         dataModel.LoadBaseRenames(NullProgressIndicator.Create(), workflow, forceReload: true);
+
+         if(dataModel.AllRenames.Renames.Count == 0)
          {
-            // Build atomic renames AND search the solution for usages (populates the
-            // references store the atomic renames consume). NameHasChanged ensures the load
-            // is not short-circuited.
-            dataModel.NameHasChanged = true;
-            dataModel.LoadBaseRenames(NullProgressIndicator.Create(), workflow, forceReload: true);
+            transaction.Rollback();
+            return new { error = $"No applicable renames were produced for '{oldName}'.", oldName, newName };
+         }
 
-            if(dataModel.AllRenames.Renames.Count == 0)
-            {
-               transaction.Rollback();
-               return new { error = $"No applicable renames were produced for '{oldName}'.", oldName, newName };
-            }
+         var refactoring = new RenameRefactoring(workflow, _solution, driver);
 
-            var refactoring = new RenameRefactoring(workflow, _solution, driver);
+         // Execute the rename. RenameRefactoring.Execute performs cold conflict search
+         // (recorded in the driver) and then the actual declaration/usage rewrites.
+         bool executed = refactoring.Execute(NullProgressIndicator.Create());
 
-            // Execute the rename. RenameRefactoring.Execute performs cold conflict search
-            // (recorded in the driver) and then the actual declaration/usage rewrites.
-            bool executed = refactoring.Execute(NullProgressIndicator.Create());
+         // What ReSharper fails to read costs only that conflict's value, and the answer says so.
+         var unreadable = new SkippedElements();
+         var conflicts = ExtractConflicts(driver, unreadable);
+         var changedFiles = ChangedFiles(psiServices.Transactions.Current);
 
-            // What ReSharper fails to read costs only that conflict's value, and the answer says so.
-            var unreadable = new SkippedElements();
-            var conflicts = ExtractConflicts(driver, unreadable);
-            var changedFiles = ChangedFiles(psiServices.Transactions.Current);
-
-            if(dryRun)
-            {
-               // The temporary change cookie rolls back on Dispose, discarding all edits.
-               return new
-                      {
-                         applied = false,
-                         dryRun = true,
-                         oldName,
-                         newName,
-                         conflicts,
-                         changedFiles,
-                         skipped = unreadable.Line
-                      };
-            }
-
-            // The auto-commit cookie commits on Dispose, persisting the rename.
+         if(dryRun)
+         {
+            // The temporary change cookie rolls back on Dispose, discarding all edits.
             return new
                    {
-                      applied = executed,
+                      applied = false,
+                      dryRun = true,
                       oldName,
                       newName,
                       conflicts,
@@ -236,6 +222,17 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
                       skipped = unreadable.Line
                    };
          }
+
+         // The auto-commit cookie commits on Dispose, persisting the rename.
+         return new
+                {
+                   applied = executed,
+                   oldName,
+                   newName,
+                   conflicts,
+                   changedFiles,
+                   skipped = unreadable.Line
+                };
       }
       finally
       {
@@ -270,13 +267,14 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
    ///   interface's method with implementations in four projects listed only the interface's file and the callers'.
    /// </remarks>
    static List<object> ChangedFiles(IPsiTransaction transaction) =>
-      transaction.AffectedFiles
-                 .Select(it => it.GetLocation().FullPath)
-                 .Where(it => it.Length > 0)
-                 .Distinct()
-                 .OrderBy(it => it, StringComparer.Ordinal)
-                 .Select(it => (object)new { file = it, fileName = Path.GetFileName(it) })
-                 .ToList();
+   [
+      .. transaction.AffectedFiles
+                    .Select(it => it.GetLocation().FullPath)
+                    .Where(it => it.Length > 0)
+                    .Distinct()
+                    .OrderBy(it => it, StringComparer.Ordinal)
+                    .Select(it => (object)new { file = it, fileName = Path.GetFileName(it) })
+   ];
 
    /// <summary>
    /// Headless rename workflow: the base <c>DataModel</c> setter is <c>protected</c> and the
