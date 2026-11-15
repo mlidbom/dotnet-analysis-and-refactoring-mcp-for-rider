@@ -81,6 +81,7 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       if(refusal != null)
          return new { error = refusal };
 
+      var indexingAsTheWorkBegan = _solution.IsIndexing;
       var result = await (_tool switch
                             {
                                IMcpAsyncTool asyncTool => asyncTool.ExecuteAsync(arguments, execution),
@@ -88,7 +89,7 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
                                _                       => execution.Read(() => _tool.Execute(arguments)),
                             }).ConfigureAwait(false);
 
-      return WithNotes(result, Notes(disk, requested));
+      return WithNotes(result, Notes(disk, requested, indexingAsTheWorkBegan));
    }
 
    Task<object> WriteAsync(JObject arguments, Lifetime lifetime) =>
@@ -134,7 +135,12 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
            + "\nSave or revert unsaved edits in Rider, or re-run in a few seconds.";
    }
 
-   List<string> Notes(DiskReport disk, IReadOnlyList<string> requested)
+   /// <param name="indexingAsTheWorkBegan">
+   ///   Whether ReSharper was indexing as the tool's work began, after the disk sync: what the tool read may then be
+   ///   incomplete. Not as it ended: an edit's own changes, or a dry run's rolling them back, set ReSharper indexing the
+   ///   files it changed, and every edit tool's answer had the note (2026-11-15).
+   /// </param>
+   List<string> Notes(DiskReport disk, IReadOnlyList<string> requested, bool indexingAsTheWorkBegan)
    {
       var notes = new List<string>();
       if(disk.Stale.Count > 0)
@@ -145,7 +151,7 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       if(absent.Count > 0)
          notes.Add($"note: {Listed(absent)} {(absent.Count == 1 ? "is" : "are")} on disk but in no project yet");
 
-      if(_solution.IsIndexing)
+      if(indexingAsTheWorkBegan)
          notes.Add("(index still building — results may be incomplete)");
 
       notes.AddRange(_solution.BuildNotes);

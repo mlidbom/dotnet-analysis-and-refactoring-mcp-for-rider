@@ -13,4 +13,10 @@ public class When_previewing_a_rename(TheSandboxWithTheFixtureSolution sandbox)
    [XF] public void it_lists_the_file_that_declares_it() => _answer.Must().Contain("Circle.cs");
    [XF] public void and_the_file_that_uses_it() => _answer.Must().Contain("Drawing.cs");
    [XF] public void it_changes_nothing_on_disk() => File.ReadAllText(_sandbox.PathOf("Shapes/Circle.cs")).Must().Contain("class Circle");
+
+   /// <summary>
+   ///   Rolling the rename back sets ReSharper indexing the files it changed, and the answer said the index was still
+   ///   building, of an indexed solution (2026-11-15).
+   /// </summary>
+   [XF] public void it_does_not_say_the_index_is_still_building() => _answer.Must().NotContain("index still building");
 }

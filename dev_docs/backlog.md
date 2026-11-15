@@ -38,12 +38,6 @@ See `dev_docs/swappable-tools.md`.
   solution would do the same. `apply_suggestions` now says how many files a fix changed, and why none may have changed.
   A fix: re-run the analysis, `SolutionAnalysisManager.ReanalyzeAll()`, which takes minutes on a large solution, so
   only when asked, such as a `reanalyze` argument to `inspect_code`.
-- A `move_type_to_namespace` dry run answered with the host's "(index still building — results may be incomplete)",
-  probably because rolling back its temporary transaction updates the caches. `/health` said idle right after.
-  - It isn't only dry runs: in JAStudio on 2026-11-15, every one of about 60 `rename_symbol` and
-    `move_type_to_namespace` answers over two hours ended with it, the applied ones too, while `inspect_code` in
-    between said solution-wide analysis was complete. Every result was complete, by build and grep. As it stands the
-    note says nothing, and teaches agents to ignore it.
 - A `rename_symbol` dry run of `IMcpTool.Execute` listed 2 changed files, `IMcpTool.cs` and `ToolCall.cs`, while about
   25 tools implement it. Unconfirmed: the answer also had the "index still building" note above, so it may be that, the
   changed-files list under-reporting, or the rename not following the implementations. Found by the shared-rules

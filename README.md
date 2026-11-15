@@ -80,7 +80,7 @@ Results are concatenated with `=== [N/total] label ===` separators. Shared optio
 {"solutions":[{"name":"TPS.All","path":"/…/TPS.All.sln","indexing":false,"pendingDiskChanges":0}],"indexing":false,"pendingDiskChanges":0}
 ```
 
-While indexing is in progress, tool results end with `(index still building — results may be incomplete)`. The `initialize` response carries a short usage guide in `instructions`.
+When a call's work begins while ReSharper is indexing, its result ends with `(index still building — results may be incomplete)`. The `initialize` response carries a short usage guide in `instructions`.
 
 ## Installation
 
