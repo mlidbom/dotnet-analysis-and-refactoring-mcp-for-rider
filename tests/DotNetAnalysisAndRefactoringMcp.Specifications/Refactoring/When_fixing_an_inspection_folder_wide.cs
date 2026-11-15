@@ -20,7 +20,9 @@ public class When_fixing_an_inspection_folder_wide(TheSandboxWithTheFixtureSolut
 
    [XF] public void it_says_it_applied_the_fix_in_the_folder() => _the.Answer.Must().Contain("each in the file's folder");
 
-   [XF] public void it_fixes_the_other_file_in_the_folder_too() => _the.OtherFile.Must().Contain("readonly double");
+   [XF] public void it_says_how_many_files_it_changed() => _the.Answer.Must().Contain("changed 2 files");
+
+   [XF] public void it_fixes_the_other_file_in_the_folder_too()=> _the.OtherFile.Must().Contain("readonly double");
 
    static (string Answer, string OtherFile) Once(TheSandboxWithTheFixtureSolution sandbox)
    {

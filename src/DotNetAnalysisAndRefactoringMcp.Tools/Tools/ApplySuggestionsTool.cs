@@ -4,8 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using JetBrains.Application;
+using JetBrains.Application.Changes;
 using JetBrains.Application.Threading;
 using JetBrains.Application.Progress;
+using JetBrains.DocumentModel;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Feature.Services.Bulbs;
 using JetBrains.ReSharper.Feature.Services.Daemon;
@@ -217,12 +219,11 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
                   pass.TypeName = typeName;
                   try
                   {
-                     scoped.ExecuteAction(_solution,
-                                          ScopeOf(sourceFile, scopeName),
-                                          info.Highlighting,
-                                          NullProgressIndicator.Create());
-                     pass.Applied = $"{inspectionId ?? "(no id)"} — \"{text}\"";
+                     var fixScope = ScopeOf(sourceFile, scopeName);
+                     var documents = DocumentStamps.Of(fixScope);
+                     scoped.ExecuteAction(_solution, fixScope, info.Highlighting, NullProgressIndicator.Create());
                      _solution.GetPsiServices().Caches.Update();
+                     pass.Applied = $"{inspectionId ?? "(no id)"} — \"{text}\": {Changed(documents.ChangedCount, scopeName)}";
                   }
                   catch(Exception exception)
                   {
@@ -382,6 +383,41 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
          "solution" when projectFile != null                    => new SolutionScope(_solution, projectFile, _ => true),
          _                                                      => new SourceFileScope(sourceFile)
       };
+   }
+
+   /// <summary>
+   ///   How many files a fix changed. None at a wider scope is the trap Rider's own Fix in solution has too: the fix
+   ///   skips every file in which solution-wide analysis found no such issue, and those results lag a change of
+   ///   settings (seen 2026-11-15: after a new .editorconfig made <c>private</c> redundant, every file was skipped,
+   ///   the one the fix was found in too).
+   /// </summary>
+   static string Changed(int files, string scopeName) =>
+      files switch
+      {
+         0 when scopeName != "file" => "changed no file. A fix in a wider scope skips the files in which Rider's " +
+                                       "solution-wide analysis found no such issue, and those results lag a change " +
+                                       "of settings, such as an .editorconfig: scope 'file', with filePaths, works meanwhile",
+         0 => "changed no file",
+         1 => "changed 1 file",
+         _ => $"changed {files} files"
+      };
+
+   /// <summary>The modification stamps of a scope's documents, to tell how many of them a fix changed.</summary>
+   sealed class DocumentStamps
+   {
+      readonly List<(IDocument Document, ModificationStamp Stamp)> _before;
+
+      DocumentStamps(List<(IDocument Document, ModificationStamp Stamp)> before) => _before = before;
+
+      public static DocumentStamps Of(Scope scope)
+      {
+         var before = new List<(IDocument Document, ModificationStamp Stamp)>();
+         foreach(var file in scope.GetSourceFilesToProcess(NullProgressIndicator.Create()))
+            before.Add((file.Document, file.Document.LastModificationStamp));
+         return new DocumentStamps(before);
+      }
+
+      public int ChangedCount => _before.Count(it => !it.Document.LastModificationStamp.Equals(it.Stamp));
    }
 
    static object FormatResult(string filePath, string scopeName, List<string> applied, HashSet<string> skipped, List<string> errors)

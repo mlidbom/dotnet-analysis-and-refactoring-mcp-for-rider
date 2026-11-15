@@ -13,12 +13,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
    while later, so an agent that builds at once builds the old text (the move specification waits for the save). The
    protocol has an `RdSaveAllRequest` (Rider's `RdRequests`), which may be the way to ask the frontend to save.
 
-## Code style
-
-The host's files (`src/DotNetAnalysisAndRefactoringMcp/`) still have upstream's style: reformatting them changes the
-host's build, which takes a Rider restart. Format them, as `format_file` and `apply_suggestions` with
-`ArrangeTypeMemberModifiers,ArrangeNamespaceBody` did the rest on 2026-11-15, with the host's next real change.
-
 ## Swapping the tools without a restart
 
 See `dev_docs/swappable-tools.md`.
@@ -35,12 +29,14 @@ See `dev_docs/swappable-tools.md`.
   a parameter by the position of its declaration renamed its `<paramref>` too. Unknown what differed; note how it was
   called if it happens again.
 
-- `apply_suggestions` at `scope` folder, project or solution changes nothing for the code-style fixes
-  (`ArrangeTypeMemberModifiers`, `ArrangeNamespaceBody`, seen 2026-11-15), yet answers that it applied them. At scope
-  file they work, and `RedundantUsingDirective` works at every scope. Probably their fix-in-scope runs code cleanup over
-  the scope, which ours doesn't drive. Whatever the cause, the answer should say when a fix changed no file.
-- `inspect_code` with solution-wide analysis reports that analysis's stored results, which lag a change of settings:
-  after `.editorconfig` made `private` redundant, `get_diagnostics` flagged it at once, `inspect_code` not yet.
+- Solution-wide analysis's stored results lag a change of settings, and two tools read them: `inspect_code`, and
+  `apply_suggestions` at a wider scope, whose fix skips the files in which those results show no such issue
+  (`ScopedActionExecutor`, when `MakeUseOfSolutionAnalysisResultsInScopedIntentions` is on, as by default). After a new
+  `.editorconfig` made `private` redundant (2026-11-15), `get_diagnostics` flagged it at once, `inspect_code` reported
+  none 20 minutes later, and a fix in the solution changed no file, not even the one it was found in. Rider's own Fix in
+  solution would do the same. `apply_suggestions` now says how many files a fix changed, and why none may have changed.
+  A fix: re-run the analysis, `SolutionAnalysisManager.ReanalyzeAll()`, which takes minutes on a large solution, so
+  only when asked, such as a `reanalyze` argument to `inspect_code`.
 - A `move_type_to_namespace` dry run answered with the host's "(index still building — results may be incomplete)",
   probably because rolling back its temporary transaction updates the caches. `/health` said idle right after.
 
