@@ -13,6 +13,15 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
    while later, so an agent that builds at once builds the old text (the move specification waits for the save). The
    protocol has an `RdSaveAllRequest` (Rider's `RdRequests`), which may be the way to ask the frontend to save.
 
+## With the host's next change
+
+A host change takes a Rider restart, so what needs only one waits for a change that needs one anyway:
+
+- The empty catches in `McpHttpServer` (`catch {}` around `_listener.Stop()` and six more): each either has a reason,
+  written beside it, or goes, by the defensive-coding rule. Found with the session importing the shared rules
+  (2026-11-15).
+- Four redundant name qualifiers in `McpHttpServer`, which `inspect_code` lists.
+
 ## Swapping the tools without a restart
 
 See `dev_docs/swappable-tools.md`.

@@ -39,6 +39,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
       public string TypeName;
       public string Applied;
       public string Error;
+      public string Unreadable;
       public readonly HashSet<string> Skipped = new();
    }
 
@@ -165,6 +166,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
       var applied = new List<string>();
       var skipped = new HashSet<string>();
       var errors = new List<string>();
+      var unreadable = new List<string>();
       var handledTypes = new HashSet<string>();
 
       for(var iteration = 0; iteration < MaxFixTypesPerFile; iteration++)
@@ -173,6 +175,8 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
          skipped.UnionWith(pass.Skipped);
          if(pass.Error != null)
             errors.Add(pass.Error);
+         if(pass.Unreadable != null && !unreadable.Contains(pass.Unreadable))
+            unreadable.Add(pass.Unreadable);
          if(pass.TypeName == null)
             break;
 
@@ -181,7 +185,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
             applied.Add(pass.Applied);
       }
 
-      return FormatResult(filePath, scopeName, applied, skipped, errors);
+      return FormatResult(filePath, scopeName, applied, skipped, errors, unreadable);
 
       ReadAndWriteScope.ReadResult<Pass> Prepare(ReadAndWriteScope scope)
       {
@@ -192,6 +196,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
          var settingsManager = _solution.GetComponent<HighlightingSettingsManager>();
          var quickFixTable = _solution.GetComponent<QuickFixTable>();
          var pass = new Pass();
+         var unreadableFixes = new SkippedElements();
          foreach(var info in DaemonHighlightingCollector.Collect(_solution, sourceFile))
          {
             Interruption.Current.CheckAndThrow();
@@ -199,7 +204,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
             if(!Matches(inspectionId, idFilter, applyAll))
                continue;
 
-            foreach(var instance in EnumerateFixes(quickFixTable, info))
+            foreach(var instance in EnumerateFixes(quickFixTable, info, unreadableFixes))
             {
                if(instance.QuickFix is not IModernManualScopedAction scoped)
                {
@@ -213,6 +218,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
                   continue;
 
                var text = FixText(instance);
+               pass.Unreadable = unreadableFixes.Line;
                return scope.MainReadAction(() =>
                {
                   // Scoped actions manage their own writes and may run analysis between transactions.
@@ -235,6 +241,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
             }
          }
 
+         pass.Unreadable = unreadableFixes.Line;
          return scope.Value(pass);
       }
    }
@@ -248,7 +255,8 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
 
       var settingsManager = _solution.GetComponent<HighlightingSettingsManager>();
       var quickFixTable = _solution.GetComponent<QuickFixTable>();
-      var ids = ApplicableIds(sourceFile, settingsManager, quickFixTable);
+      var unreadable = new SkippedElements();
+      var ids = ApplicableIds(sourceFile, settingsManager, quickFixTable, unreadable);
 
       var sb = new StringBuilder();
       sb.Append(filePath).AppendLine(" — specify 'inspectionIds' or pass all=true.");
@@ -262,6 +270,8 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
          sb.AppendLine().AppendLine("no applicable (scoped) suggestions found.");
       }
 
+      if(unreadable.Line != null)
+         sb.AppendLine().AppendLine(unreadable.Line);
       return sb.ToString().TrimEnd();
    }
 
@@ -275,13 +285,14 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
    {
       var wouldApply = new List<string>();
       var seenTypes = new HashSet<string>();
+      var unreadable = new SkippedElements();
       foreach(var info in DaemonHighlightingCollector.Collect(_solution, sourceFile))
       {
          var inspectionId = GetInspectionId(settingsManager, info.Highlighting);
          if(!Matches(inspectionId, idFilter, applyAll))
             continue;
 
-         foreach(var instance in EnumerateFixes(quickFixTable, info))
+         foreach(var instance in EnumerateFixes(quickFixTable, info, unreadable))
          {
             if(!(instance.QuickFix is IModernManualScopedAction))
                continue;
@@ -291,20 +302,26 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
          }
       }
 
-      if(wouldApply.Count == 0)
-         return $"{filePath} — dry run: nothing to apply";
-
       var sb = new StringBuilder();
-      sb.Append(filePath).Append(" — dry run: would apply ").Append(wouldApply.Count).AppendLine(" fix type(s):");
-      foreach(var entry in wouldApply)
-         sb.Append("  ").AppendLine(entry);
+      if(wouldApply.Count == 0)
+         sb.Append(filePath).AppendLine(" — dry run: nothing to apply");
+      else
+      {
+         sb.Append(filePath).Append(" — dry run: would apply ").Append(wouldApply.Count).AppendLine(" fix type(s):");
+         foreach(var entry in wouldApply)
+            sb.Append("  ").AppendLine(entry);
+      }
+
+      if(unreadable.Line != null)
+         sb.AppendLine(unreadable.Line);
       return sb.ToString().TrimEnd();
    }
 
    HashSet<string> ApplicableIds(
       IPsiSourceFile sourceFile,
       HighlightingSettingsManager settingsManager,
-      QuickFixTable quickFixTable)
+      QuickFixTable quickFixTable,
+      SkippedElements unreadable)
    {
       var ids = new HashSet<string>();
       foreach(var info in DaemonHighlightingCollector.Collect(_solution, sourceFile))
@@ -312,7 +329,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
          var inspectionId = GetInspectionId(settingsManager, info.Highlighting);
          if(inspectionId == null)
             continue;
-         foreach(var instance in EnumerateFixes(quickFixTable, info))
+         foreach(var instance in EnumerateFixes(quickFixTable, info, unreadable))
          {
             if(instance.QuickFix is IModernManualScopedAction)
             {
@@ -325,20 +342,19 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
       return ids;
    }
 
-   static IEnumerable<QuickFixInstance> EnumerateFixes(QuickFixTable quickFixTable, HighlightingInfo info)
+   /// <summary>
+   ///   The quick-fixes ReSharper offers for a highlighting. A fix whose availability check throws costs only that
+   ///   highlighting's fixes, and the answer names it: the other highlightings' fixes go on.
+   /// </summary>
+   static List<QuickFixInstance> EnumerateFixes(QuickFixTable quickFixTable, HighlightingInfo info, SkippedElements unreadable)
    {
+      var fixes = new List<QuickFixInstance>();
       if(info?.Highlighting == null)
-         return Enumerable.Empty<QuickFixInstance>();
-      try
-      {
-         var instances = quickFixTable.EnumerateAvailableQuickFixes(info);
-         return instances == null ? Enumerable.Empty<QuickFixInstance>() : instances.Where(i => i?.QuickFix != null).ToList();
-      }
-      catch(Exception exception) when(exception is not OperationCanceledException)
-      {
-         // A fix's availability check can throw on unusual highlightings — treat as no fixes.
-         return Enumerable.Empty<QuickFixInstance>();
-      }
+         return fixes;
+      unreadable.Guard(() => $"the fixes of {info.Highlighting.GetType().Name}",
+                       () => fixes.AddRange(quickFixTable.EnumerateAvailableQuickFixes(info)?.Where(it => it?.QuickFix != null)
+                                            ?? Enumerable.Empty<QuickFixInstance>()));
+      return fixes;
    }
 
    // Configurable inspection id (e.g. "ConvertToPrimaryConstructor"), or null if the highlighting has none.
@@ -420,7 +436,8 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
       public int ChangedCount => _before.Count(it => !it.Document.LastModificationStamp.Equals(it.Stamp));
    }
 
-   static object FormatResult(string filePath, string scopeName, List<string> applied, HashSet<string> skipped, List<string> errors)
+   static object FormatResult(string filePath, string scopeName, List<string> applied, HashSet<string> skipped, List<string> errors,
+                              List<string> unreadable)
    {
       var sb = new StringBuilder();
       sb.Append(filePath).Append(" — applied ").Append(applied.Count).Append(" fix type(s)");
@@ -448,6 +465,9 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
          foreach(var error in errors)
             sb.Append("  ").AppendLine(error);
       }
+
+      foreach(var line in unreadable)
+         sb.AppendLine().AppendLine(line);
 
       return sb.ToString().TrimEnd();
    }
