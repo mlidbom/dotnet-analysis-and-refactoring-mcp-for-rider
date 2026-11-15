@@ -1,12 +1,11 @@
 using Newtonsoft.Json.Linq;
 
-namespace DotNetAnalysisAndRefactoringMcp.Tools
+namespace DotNetAnalysisAndRefactoringMcp.Tools;
+
+public interface IMcpTool
 {
-    public interface IMcpTool
-    {
-        string Name { get; }
-        string Description { get; }
-        object InputSchema { get; }
-        object Execute(JObject arguments);
-    }
+   string Name { get; }
+   string Description { get; }
+   object InputSchema { get; }
+   object Execute(JObject arguments);
 }

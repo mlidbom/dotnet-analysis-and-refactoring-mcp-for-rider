@@ -15,37 +15,37 @@ namespace DotNetAnalysisAndRefactoringMcp.Swapping;
 /// </remarks>
 sealed class CollectibleLoadContext
 {
-  static readonly Type LoadContextType =
-    typeof(object).Assembly.GetType("System.Runtime.Loader.AssemblyLoadContext", throwOnError: true);
+   static readonly Type LoadContextType =
+      typeof(object).Assembly.GetType("System.Runtime.Loader.AssemblyLoadContext", throwOnError: true);
 
-  static readonly MethodInfo LoadFromStreamMethod = LoadContextType.GetMethod("LoadFromStream", [typeof(Stream), typeof(Stream)]);
-  static readonly MethodInfo UnloadMethod = LoadContextType.GetMethod("Unload", Type.EmptyTypes);
+   static readonly MethodInfo LoadFromStreamMethod = LoadContextType.GetMethod("LoadFromStream", [typeof(Stream), typeof(Stream)]);
+   static readonly MethodInfo UnloadMethod = LoadContextType.GetMethod("Unload", Type.EmptyTypes);
 
-  object _context;
+   object _context;
 
-  public CollectibleLoadContext(string name) => _context = Activator.CreateInstance(LoadContextType, name, true);
+   public CollectibleLoadContext(string name) => _context = Activator.CreateInstance(LoadContextType, name, true);
 
-  /// <summary>
-  ///   Loads an assembly from its bytes, with its symbols for line numbers in stack traces. From bytes, not the file:
-  ///   a file loaded from stays locked until the context is freed, and old builds should be free to delete.
-  /// </summary>
-  public Assembly Load(string assemblyFile)
-  {
-    var symbolsFile = Path.ChangeExtension(assemblyFile, ".pdb");
-    using var assembly = new MemoryStream(File.ReadAllBytes(assemblyFile));
-    using var symbols = File.Exists(symbolsFile) ? new MemoryStream(File.ReadAllBytes(symbolsFile)) : null;
-    return (Assembly)LoadFromStreamMethod.Invoke(_context, [assembly, symbols]);
-  }
+   /// <summary>
+   ///   Loads an assembly from its bytes, with its symbols for line numbers in stack traces. From bytes, not the file:
+   ///   a file loaded from stays locked until the context is freed, and old builds should be free to delete.
+   /// </summary>
+   public Assembly Load(string assemblyFile)
+   {
+      var symbolsFile = Path.ChangeExtension(assemblyFile, ".pdb");
+      using var assembly = new MemoryStream(File.ReadAllBytes(assemblyFile));
+      using var symbols = File.Exists(symbolsFile) ? new MemoryStream(File.ReadAllBytes(symbolsFile)) : null;
+      return (Assembly)LoadFromStreamMethod.Invoke(_context, [assembly, symbols]);
+   }
 
-  /// <summary>
-  ///   Starts unloading, and returns a weak reference to the context, which the garbage collector clears once the
-  ///   context and what it loaded have been freed.
-  /// </summary>
-  public WeakReference Unload()
-  {
-    var context = _context;
-    _context = null;
-    UnloadMethod.Invoke(context, null);
-    return new WeakReference(context);
-  }
+   /// <summary>
+   ///   Starts unloading, and returns a weak reference to the context, which the garbage collector clears once the
+   ///   context and what it loaded have been freed.
+   /// </summary>
+   public WeakReference Unload()
+   {
+      var context = _context;
+      _context = null;
+      UnloadMethod.Invoke(context, null);
+      return new WeakReference(context);
+   }
 }

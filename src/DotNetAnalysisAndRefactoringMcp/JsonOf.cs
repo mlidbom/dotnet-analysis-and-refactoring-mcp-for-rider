@@ -18,25 +18,25 @@ namespace DotNetAnalysisAndRefactoringMcp;
 /// </remarks>
 public static class JsonOf
 {
-  public static JToken Value(object value) =>
-    value switch
-    {
-      null => JValue.CreateNull(),
-      JToken token => token,
-      string or bool or char or DateTime or DateTimeOffset or Guid or TimeSpan or Uri or decimal or double or float => new JValue(value),
-      // An enum's type code is its underlying integer's: Newtonsoft.Json writes enums as numbers too.
-      IConvertible when IsInteger(Type.GetTypeCode(value.GetType())) => new JValue(Convert.ToInt64(value)),
-      IDictionary dictionary => new JObject(dictionary.Keys.Cast<object>().Select(key => new JProperty(key.ToString(), Value(dictionary[key])))),
-      IEnumerable items => new JArray(items.Cast<object>().Select(Value)),
-      _ => new JObject(value.GetType()
-                            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                            .Where(property => property.CanRead && property.GetIndexParameters().Length == 0)
-                            .Select(property => new JProperty(property.Name, Value(property.GetValue(value)))))
-    };
+   public static JToken Value(object value) =>
+      value switch
+      {
+         null                                                                                                          => JValue.CreateNull(),
+         JToken token                                                                                                  => token,
+         string or bool or char or DateTime or DateTimeOffset or Guid or TimeSpan or Uri or decimal or double or float => new JValue(value),
+         // An enum's type code is its underlying integer's: Newtonsoft.Json writes enums as numbers too.
+         IConvertible when IsInteger(Type.GetTypeCode(value.GetType()))                                                => new JValue(Convert.ToInt64(value)),
+         IDictionary dictionary                                                                                        => new JObject(dictionary.Keys.Cast<object>().Select(key => new JProperty(key.ToString(), Value(dictionary[key])))),
+         IEnumerable items                                                                                             => new JArray(items.Cast<object>().Select(Value)),
+         _ => new JObject(value.GetType()
+                               .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                               .Where(property => property.CanRead && property.GetIndexParameters().Length == 0)
+                               .Select(property => new JProperty(property.Name, Value(property.GetValue(value)))))
+      };
 
-  /// <summary>A tool's answer as the text a caller gets: text as it is, anything else as indented JSON.</summary>
-  public static string Text(object answer) => answer as string ?? Value(answer).ToString(Newtonsoft.Json.Formatting.Indented);
+   /// <summary>A tool's answer as the text a caller gets: text as it is, anything else as indented JSON.</summary>
+   public static string Text(object answer) => answer as string ?? Value(answer).ToString(Newtonsoft.Json.Formatting.Indented);
 
-  static bool IsInteger(TypeCode code) => code is TypeCode.SByte or TypeCode.Byte or TypeCode.Int16 or TypeCode.UInt16
-                                               or TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64;
+   static bool IsInteger(TypeCode code) => code is TypeCode.SByte or TypeCode.Byte or TypeCode.Int16 or TypeCode.UInt16
+                                                   or TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64;
 }

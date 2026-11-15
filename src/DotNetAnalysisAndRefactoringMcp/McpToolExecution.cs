@@ -6,48 +6,51 @@ using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
 
-namespace DotNetAnalysisAndRefactoringMcp
-{
-  /// <summary>
-  ///   Runs interruptible PSI reads and optional main-thread continuations against committed documents.
-  /// </summary>
-  public sealed class McpToolExecution
-  {
-    private readonly Lifetime _lifetime;
-    private readonly IShellLocks _locks;
-    private readonly IReadConstraint _committed;
+namespace DotNetAnalysisAndRefactoringMcp;
 
-    public McpToolExecution(Lifetime lifetime, IShellLocks locks, ISolution solution)
-    {
+/// <summary>
+///   Runs interruptible PSI reads and optional main-thread continuations against committed documents.
+/// </summary>
+public sealed class McpToolExecution
+{
+   readonly Lifetime _lifetime;
+   readonly IShellLocks _locks;
+   readonly IReadConstraint _committed;
+
+   public McpToolExecution(Lifetime lifetime, IShellLocks locks, ISolution solution)
+   {
       _lifetime = lifetime;
       _locks = locks;
       // Not `new AllDocumentsAreCommittedReadConstraint(...)`: that class is internal from Rider 2026.3 on.
       _committed = solution.GetPsiServices().Files.AllDocumentsAreCommittedConstraint;
-    }
+   }
 
-    /// <remarks>
-    ///   The callback may be retried when IDE writes interrupt it; it must have no side effects.
-    /// </remarks>
-    public Task<T> Read<T>(Func<T> read) =>
-      _locks.StartConstrainedReadActionAsync(_lifetime, _committed, () =>
-      {
-        var result = read();
-        Interruption.Current.CheckAndThrow();
+   /// <remarks>
+   ///   The callback may be retried when IDE writes interrupt it; it must have no side effects.
+   /// </remarks>
+   public Task<T> Read<T>(Func<T> read) =>
+      _locks.StartConstrainedReadActionAsync(_lifetime,
+                                             _committed,
+                                             () =>
+                                             {
+                                                var result = read();
+                                                Interruption.Current.CheckAndThrow();
 
-        return result;
-      });
+                                                return result;
+                                             });
 
-    /// <remarks>
-    ///   Prepare may be retried. The SDK reruns it if another write invalidates its main-thread continuation.
-    ///   Only the continuation may modify the model.
-    /// </remarks>
-    public Task<T> ReadThenMain<T>(Func<ReadAndWriteScope, ReadAndWriteScope.ReadResult<T>> prepare) =>
-      _locks.StartConstrainedReadAndMainThreadActionAsync(_lifetime, _committed, scope =>
-      {
-        var result = prepare(scope);
-        Interruption.Current.CheckAndThrow();
+   /// <remarks>
+   ///   Prepare may be retried. The SDK reruns it if another write invalidates its main-thread continuation.
+   ///   Only the continuation may modify the model.
+   /// </remarks>
+   public Task<T> ReadThenMain<T>(Func<ReadAndWriteScope, ReadAndWriteScope.ReadResult<T>> prepare) =>
+      _locks.StartConstrainedReadAndMainThreadActionAsync(_lifetime,
+                                                          _committed,
+                                                          scope =>
+                                                          {
+                                                             var result = prepare(scope);
+                                                             Interruption.Current.CheckAndThrow();
 
-        return result;
-      });
-  }
+                                                             return result;
+                                                          });
 }
