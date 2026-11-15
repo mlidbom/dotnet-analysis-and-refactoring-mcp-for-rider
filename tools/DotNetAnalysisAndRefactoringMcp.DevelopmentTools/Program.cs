@@ -20,6 +20,10 @@ static class Program
                           sandbox install             Builds the working tree and puts it in the sandbox: only the tools,
                                                       served from the next call, unless the host changed; then the plugin,
                                                       restarting the sandbox if it runs
+                          peer start [<solution>]     Starts the second sandbox Rider, the first one's peer, opens the
+                                                      solution, waits until the first's MCP server lists it indexed
+                          peer stop                   Closes the peer
+                          peer status                 Whether the peer runs, where its windows are
                           everyday deploy             Builds the working tree and deploys it to the everyday Riders: the
                                                       tools, which every one of them serves from its next call, and the
                                                       plugin if the host changed, which takes effect when they restart
@@ -33,6 +37,7 @@ static class Program
    {
       var rider = RiderInstallation.OfThisUser();
       var sandbox = new SandboxRider(rider);
+      var peer = SandboxRider.ThePeer(rider);
       var everyday = new EverydayRider(rider);
 
       switch(arguments)
@@ -56,6 +61,18 @@ static class Program
             Console.WriteLine(sandbox.Install(PluginBuild.FromTheWorkingTree(rider))
                                  ? "Installed the plugin in the sandbox: the host changed."
                                  : "Deployed the tools to the sandbox: it serves them from its next call.");
+            break;
+         case ["peer", "start"]:
+            peer.Start();
+            break;
+         case ["peer", "start", var peersSolution]:
+            peer.Start(Path.GetFullPath(peersSolution));
+            break;
+         case ["peer", "stop"]:
+            peer.Stop();
+            break;
+         case ["peer", "status"]:
+            foreach(var line in peer.Status()) Console.WriteLine(line);
             break;
          case ["everyday", "deploy"]:
             Deploy(everyday, sandbox, PluginBuild.FromTheWorkingTree(rider));

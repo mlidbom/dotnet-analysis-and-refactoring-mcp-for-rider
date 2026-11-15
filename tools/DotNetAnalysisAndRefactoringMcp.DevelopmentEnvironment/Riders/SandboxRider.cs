@@ -13,7 +13,8 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Riders;
 /// <remarks>
 ///   Its folders are under <c>%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcpSandbox</c>, outside the repository, so the everyday Rider,
 ///   which has the repository open, doesn't watch its caches change. Rider's launcher reads the folders from the
-///   properties file that the <c>RIDER_PROPERTIES</c> environment variable names.
+///   properties file that the <c>RIDER_PROPERTIES</c> environment variable names.<br/>
+///   <see cref="ThePeer"/> is a second sandbox, beside it, for what needs two Riders.
 /// </remarks>
 public sealed class SandboxRider
 {
@@ -25,19 +26,47 @@ public sealed class SandboxRider
 
    static readonly HttpClient HealthClient = new() { Timeout = TimeSpan.FromSeconds(5) };
 
-   readonly RiderInstallation _rider;
-   readonly string _root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DotNetAnalysisAndRefactoringMcpSandbox");
+   const string FolderName = "DotNetAnalysisAndRefactoringMcpSandbox";
 
-   public SandboxRider(RiderInstallation rider) => _rider = rider;
+   readonly RiderInstallation _rider;
+   readonly string _root;
+   readonly int _windowSlot;
+
+   public SandboxRider(RiderInstallation rider) : this(rider, FolderName, windowSlot: 0, "The sandbox Rider") {}
+
+   SandboxRider(RiderInstallation rider, string folderName, int windowSlot, string name)
+   {
+      _rider = rider;
+      Name = name;
+      _root = Path.Combine(LocalApplicationData, folderName);
+      _windowSlot = windowSlot;
+   }
+
+   /// <summary>
+   ///   A second sandbox, with folders of its own beside the first's, which runs as the first one's peer: its MCP server
+   ///   takes the next free port after <see cref="McpPort"/> and registers its solutions with the first's, which
+   ///   forwards their calls. It serves the first sandbox's <see cref="Tools"/>, and its windows go beside the first's.
+   /// </summary>
+   /// <remarks>
+   ///   Beside the first sandbox's folder, not in it: a solution in the first sandbox is then picked out by a segment of
+   ///   its path, <c>DotNetAnalysisAndRefactoringMcpSandbox</c>, that the peer's path doesn't have.
+   /// </remarks>
+   public static SandboxRider ThePeer(RiderInstallation rider) => new(rider, FolderName + "Peer", windowSlot: 1, "The peer sandbox Rider");
+
+   /// <summary>Which sandbox it is, as its messages name it, at the start of a sentence.</summary>
+   public string Name { get; }
+
+   static string LocalApplicationData => Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
    /// <summary>The plugin as installed in the sandbox. A build installed while it runs takes effect when it restarts.</summary>
    public InstalledPlugin Plugin => new(PluginsFolder, Path.Combine(_root, "replaced-builds"));
 
    /// <summary>
    ///   The tools builds the sandbox's host serves, the newest built against it, instead of the everyday Riders' ones: the
-   ///   sandbox starts with the host's <c>DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS</c> naming this folder.
+   ///   sandbox starts with the host's <c>DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS</c> naming this folder. The first
+   ///   sandbox's folder, which <see cref="ThePeer"/> serves too, as the everyday Riders share theirs.
    /// </summary>
-   public ToolsBuilds Tools => new(Path.Combine(_root, "tools"));
+   public ToolsBuilds Tools => new(Path.Combine(LocalApplicationData, FolderName, "tools"));
 
    /// <summary>
    ///   Puts <paramref name="build"/> in the sandbox. Only its tools if the sandbox has its host already, which it serves
@@ -46,20 +75,24 @@ public sealed class SandboxRider
    /// </summary>
    public bool Install(PluginBuild build)
    {
-      var installsThePlugin = !Plugin.HasTheHostOf(build);
-      if(installsThePlugin)
-      {
-         var wasRunning = IsRunning;
-         Stop();
-         Plugin.Install(build);
-         Tools.Deploy(build);
-         if(wasRunning) Start();
-      } else
-      {
-         Tools.Deploy(build);
-      }
-
+      var installsThePlugin = InstallTheHostOf(build);
+      Tools.Deploy(build);
       return installsThePlugin;
+   }
+
+   /// <summary>
+   ///   Installs the plugin of <paramref name="build"/> unless the sandbox has its host already, restarting the sandbox if
+   ///   it runs; returns whether it installed it. All that <see cref="ThePeer"/> needs, as it serves the tools deployed to
+   ///   the first sandbox.
+   /// </summary>
+   public bool InstallTheHostOf(PluginBuild build)
+   {
+      if(Plugin.HasTheHostOf(build)) return false;
+      var wasRunning = IsRunning;
+      Stop();
+      Plugin.Install(build);
+      if(wasRunning) Start();
+      return true;
    }
 
    /// <summary>Where solutions to open in the sandbox go. The sandbox trusts everything under it.</summary>
@@ -76,7 +109,8 @@ public sealed class SandboxRider
 
    /// <summary>
    ///   Starts the sandbox unless it's running, and places its windows. Given a <paramref name="solution"/>, it opens it,
-   ///   and returns once the plugin's MCP server answers with the solution loaded and indexed.
+   ///   and returns once the plugin's MCP server on <see cref="McpPort"/> answers with the solution loaded and indexed:
+   ///   for <see cref="ThePeer"/>, the first sandbox's, which the peer's registers its solutions with.
    /// </summary>
    /// <remarks>The plugin's MCP server listens only while a solution is open, so without one there is nothing to wait for.</remarks>
    public void Start(string? solution = null)
@@ -92,12 +126,12 @@ public sealed class SandboxRider
          Launch(solution); // A second launch hands the solution to the running sandbox and exits.
       }
 
-      var running = RunningProcess() ?? throw new InvalidOperationException("The sandbox Rider exited while starting. See its logs in " + Path.Combine(_root, "log"));
-      WaitUntil(() => FramesOf(running).Count > 0, HowLongStartingMayTake, "the sandbox Rider to show a window");
+      var running = RunningProcess() ?? throw new InvalidOperationException($"{Name} exited while starting. See its logs in " + Path.Combine(_root, "log"));
+      WaitUntil(() => FramesOf(running).Count > 0, HowLongStartingMayTake, $"{Name} to show a window");
       PlaceWindows();
       if(solution is null || !HasThePluginInstalled) return;
 
-      WaitUntil(() => TheMcpServerHasIndexed(solution), HowLongStartingMayTake, $"the sandbox's MCP server to answer with {solution} loaded and indexed");
+      WaitUntil(() => TheMcpServerHasIndexed(solution), HowLongStartingMayTake, $"the MCP server on port {McpPort} to answer with {solution} loaded and indexed");
       PlaceWindows(); // The solution's own window has replaced Rider Home by now.
    }
 
@@ -113,7 +147,7 @@ public sealed class SandboxRider
                    return running.WaitForExit(TimeSpan.FromSeconds(5));
                 },
                 HowLongStoppingMayTake,
-                "the sandbox Rider to exit");
+                $"{Name} to exit");
       File.Delete(ProcessFile);
    }
 
@@ -123,11 +157,11 @@ public sealed class SandboxRider
    /// </summary>
    public IReadOnlyList<string> Status()
    {
-      if(RunningProcess() is not {} running) return ["The sandbox Rider isn't running."];
+      if(RunningProcess() is not {} running) return [$"{Name} isn't running."];
 
       return ScreenThread.Run(() => (IReadOnlyList<string>)
                               [
-                                 $"The sandbox Rider runs as process {running.Id}.",
+                                 $"{Name} runs as process {running.Id}.",
                                  .. FramesOf(running).Select(it => "  sandbox window: " + it.Description),
                                  "  development Rider window: " + (SandboxWindowPlacement.TheDevelopmentRiderWindow(running.Id)?.Description ?? "none open"),
                                  "  MCP health: " + (HasThePluginInstalled ? TheMcpServersHealth() ?? "nothing listens on port " + McpPort : "the plugin isn't installed")
@@ -137,8 +171,8 @@ public sealed class SandboxRider
    /// <summary>Puts the sandbox's windows where <see cref="SandboxWindowPlacement"/> says.</summary>
    public void PlaceWindows()
    {
-      var running = RunningProcess() ?? throw new InvalidOperationException("The sandbox Rider isn't running.");
-      SandboxWindowPlacement.Apply(FramesOf(running), running.Id);
+      var running = RunningProcess() ?? throw new InvalidOperationException($"{Name} isn't running.");
+      SandboxWindowPlacement.Apply(FramesOf(running), running.Id, _windowSlot);
    }
 
    /// <remarks>
@@ -186,9 +220,10 @@ public sealed class SandboxRider
    {
       if(TheMcpServersHealth() is not {} health) return false;
       using var document = JsonDocument.Parse(health);
+      // A peer that doesn't answer is listed without "indexing", as unreachable.
       return document.RootElement.GetProperty("solutions").EnumerateArray()
                      .Any(it => string.Equals(it.GetProperty("path").GetString(), solution, StringComparison.OrdinalIgnoreCase)
-                             && !it.GetProperty("indexing").GetBoolean());
+                             && it.TryGetProperty("indexing", out var indexing) && !indexing.GetBoolean());
    }
 
    /// <summary>What the plugin's <c>/health</c> endpoint answers, or null while nothing listens on the port.</summary>

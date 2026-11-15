@@ -5,7 +5,7 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Screen;
 
 /// <summary>
 ///   Where the <see cref="Riders.SandboxRider"/>'s windows go: with the Rider the plugin is developed in, on its
-///   virtual desktop, but on another monitor, small and in the bottom-left corner.
+///   virtual desktop, but on another monitor, small and in the bottom-left corner; the peer's beside them.
 /// </summary>
 /// <remarks>
 ///   Magnus, 2026-11-14: on the desktop of the Rider Claude develops in, on the monitor that Rider isn't on, and
@@ -17,16 +17,18 @@ static class SandboxWindowPlacement
    const int Width = 1400;
    const int Height = 900;
 
-   public static void Apply(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId) =>
-      ScreenThread.Run(() => ApplyOnThisThread(sandboxWindows, sandboxProcessId));
+   /// <param name="slot">Which sandbox's windows: 0 for the first, in the corner, 1 for the peer's, to the right of them.</param>
+   public static void Apply(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId, int slot) =>
+      ScreenThread.Run(() => ApplyOnThisThread(sandboxWindows, sandboxProcessId, slot));
 
-   static void ApplyOnThisThread(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId)
+   static void ApplyOnThisThread(IEnumerable<TopLevelWindow> sandboxWindows, int sandboxProcessId, int slot)
    {
       var developmentRider = TheDevelopmentRiderWindow(sandboxProcessId);
       var monitor = Monitor.All().FirstOrDefault(it => developmentRider is null || !it.IsTheSameAs(developmentRider.Monitor))
                  ?? Monitor.All()[0];
       var workArea = monitor.WorkArea;
-      var bounds = new RECT(workArea.left, workArea.bottom - Height, workArea.left + Width, workArea.bottom);
+      var left = workArea.left + slot * Width;
+      var bounds = new RECT(left, workArea.bottom - Height, left + Width, workArea.bottom);
 
       foreach(var window in sandboxWindows)
       {
