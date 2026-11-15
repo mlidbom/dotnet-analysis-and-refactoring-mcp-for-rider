@@ -90,6 +90,7 @@ public sealed class SwappableTools
    {
       return _builds.Locked(it => new JObject
                                   {
+                                     ["host"] = _host,
                                      ["build"] = it.Current?.Name,
                                      ["folder"] = Path.GetDirectoryName(it.Current?.Folder),
                                      ["beingFreed"] = new JArray(it.BeingFreed),

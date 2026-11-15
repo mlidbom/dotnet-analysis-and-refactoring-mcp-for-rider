@@ -99,6 +99,16 @@ context of its own, calls it, and unloads the previous one. In the sandbox, Ride
   plugin too, with a solution that has no file. Registered, it made "Multiple solutions are open" of every call that
   names no file, whenever it got the primary port first. The host now skips solutions without a file.
 
+- **Rider can't reload the host while it runs: a host change needs a restart** (tried in the sandbox, 2026-11-15).
+  IntelliJ's dynamic plugins reload a plugin whose files change in the plugins folder, with
+  `idea.auto.reload.plugins=true`. With `require-restart` taken out of `plugin.xml`, Rider logged "Detected plugin .jar
+  file change", unloaded the plugin and loaded it again, in under a second: the JVM part, which is only
+  `plugin.xml`. The .NET backend went on as it was: the same process, the same host (`/health`'s `tools.host`, the
+  hash tools builds are matched to), the same MCP session id. The backend reads its plugins' packages only at its
+  startup (`AdditionalDeployedPackages` in the backend log). So `require-restart="true"` is the truth, and stays:
+  without it, an update from the Marketplace would reload the JVM part and leave the old host serving, its tools
+  folder replaced under it. A host change costs a restart less often only if the host changes less often.
+
 ## Not done yet
 
 - **Whether every MCP client acts on `notifications/tools/list_changed`** is the client's business. The specifications
