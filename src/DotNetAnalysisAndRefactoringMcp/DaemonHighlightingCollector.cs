@@ -184,14 +184,16 @@ public static class DaemonHighlightingCollector
 public sealed class CollectedHighlightings(IReadOnlyList<HighlightingInfo> highlightings, string incomplete)
    : IReadOnlyList<HighlightingInfo>
 {
+   readonly IReadOnlyList<HighlightingInfo> _highlightings = highlightings;
+
    /// <summary>Why the list may be missing some, such as a stage that threw; <c>null</c> when the run was whole.</summary>
    public string Incomplete { get; } = incomplete;
 
-   public int Count => highlightings.Count;
+   public int Count => _highlightings.Count;
 
-   public HighlightingInfo this[int index] => highlightings[index];
+   public HighlightingInfo this[int index] => _highlightings[index];
 
-   public IEnumerator<HighlightingInfo> GetEnumerator() => highlightings.GetEnumerator();
+   public IEnumerator<HighlightingInfo> GetEnumerator() => _highlightings.GetEnumerator();
 
    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }
