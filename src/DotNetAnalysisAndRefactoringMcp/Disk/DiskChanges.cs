@@ -89,6 +89,7 @@ public sealed class DiskChanges : IDisposable
       }
       catch(Exception exception)
       {
+         // Not retried: each root is watched once (backlog). The log says what it costs.
          Log.Warn(exception, ExceptionOrigin.Algorithmic, $"DotNetAnalysisAndRefactoringMcp cannot watch '{root}'; only files named by a call will be checked");
       }
    }

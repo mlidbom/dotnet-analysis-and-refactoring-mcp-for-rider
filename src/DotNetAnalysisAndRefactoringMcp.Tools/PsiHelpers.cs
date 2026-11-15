@@ -679,27 +679,21 @@ public static class PsiHelpers
    /// </summary>
    static string IdentifierAt(IPsiSourceFile sourceFile, int line, int column)
    {
-      try
-      {
-         var document = sourceFile.Document;
-         var coords = new DocumentCoords((Int32<DocLine>)(line - 1), (Int32<DocColumn>)(column - 1));
-         var offset = document.GetOffsetByCoords(coords);
-         var text = document.GetText();
-
-         var start = offset;
-         while(start > 0 && IsIdentifierChar(text[start - 1]))
-            start--;
-
-         var end = offset;
-         while(end < text.Length && IsIdentifierChar(text[end]))
-            end++;
-
-         return end > start ? text.Substring(start, end - start) : null;
-      }
-      catch(Exception exception) when(exception is not OperationCanceledException)
-      {
+      var document = sourceFile.Document;
+      var (offset, positionError) = DocumentPositions.OffsetOf(document, line, column);
+      if(positionError != null)
          return null;
-      }
+
+      var text = document.GetText();
+      var start = offset;
+      while(start > 0 && IsIdentifierChar(text[start - 1]))
+         start--;
+
+      var end = offset;
+      while(end < text.Length && IsIdentifierChar(text[end]))
+         end++;
+
+      return end > start ? text.Substring(start, end - start) : null;
 
       static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c == '_';
    }

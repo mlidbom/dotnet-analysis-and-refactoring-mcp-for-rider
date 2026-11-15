@@ -77,30 +77,12 @@ public class ListQuickFixesTool : IMcpTool
       if(document == null)
          return new { error = "Could not get document for file" };
 
-      // Resolve the document offset for the requested position.
-      int positionOffset;
-      try
-      {
-         var docLine = (Int32<DocLine>)(line - 1);
-         var docColumn = (Int32<DocColumn>)(column - 1);
-         positionOffset = document.GetOffsetByCoords(new DocumentCoords(docLine, docColumn));
-      }
-      catch(Exception e) when(e is not OperationCanceledException)
-      {
-         return new { error = $"Invalid position {line}:{column}: {e.Message}" };
-      }
+      var (positionOffset, positionError) = DocumentPositions.OffsetOf(document, line, column);
+      if(positionError != null)
+         return new { error = positionError };
 
-      IContextBoundSettingsStore settings;
-      QuickFixTable quickFixTable;
-      try
-      {
-         settings = sourceFile.GetSettingsStoreWithEditorConfig(_solution);
-         quickFixTable = _solution.GetComponent<QuickFixTable>();
-      }
-      catch(Exception e) when(e is not OperationCanceledException)
-      {
-         return new { error = $"Failed to initialize daemon settings/components: {e.Message}" };
-      }
+      var settings = sourceFile.GetSettingsStoreWithEditorConfig(_solution);
+      var quickFixTable = _solution.GetComponent<QuickFixTable>();
 
       // Drive the real ReSharper daemon engine headlessly over this file via the shared collector
       // (DaemonProcessBase.DoHighlighting orchestration). We are already on the R# main thread under a
@@ -121,9 +103,11 @@ public class ListQuickFixesTool : IMcpTool
          atPosition.Add(info);
       }
 
-      // Enumerate the available quick-fixes for each covering highlighting and shape the result.
+      // Enumerate the available quick-fixes for each covering highlighting and shape the result. A fix ReSharper fails
+      // to read costs only itself, and the answer lists it.
       var fixes = new List<Dictionary<string, object>>();
       var seenFixes = new HashSet<string>();
+      var unreadable = new SkippedElements();
 
       foreach(var highlightingInfo in atPosition)
       {
@@ -134,16 +118,8 @@ public class ListQuickFixesTool : IMcpTool
 
          // QuickFixTable.EnumerateAvailableQuickFixes only requires read access and yields
          // QuickFixInstances for quick-fixes that reported IsAvailable() == true.
-         IEnumerable<QuickFixInstance> instances;
-         try
-         {
-            instances = quickFixTable.EnumerateAvailableQuickFixes(highlightingInfo);
-         }
-         catch(Exception exception) when(exception is not OperationCanceledException)
-         {
-            continue;
-         }
-
+         var instances = unreadable.Read(() => $"the quick-fixes of {highlightingType}",
+                                         () => quickFixTable.EnumerateAvailableQuickFixes(highlightingInfo)?.ToList());
          if(instances == null) continue;
 
          foreach(var instance in instances)
@@ -157,31 +133,14 @@ public class ListQuickFixesTool : IMcpTool
             // Each quick-fix expands to one or more bulb actions. Use the stable
             // IQuickFix.CreateBulbItems() interface method; QuickFixInstance.CreateActionInstances
             // is an unstable internal API whose signature differs across Rider builds.
-            List<JetBrains.ReSharper.Feature.Services.Intentions.IntentionAction> bulbItems;
-            try
-            {
-               bulbItems = instance.QuickFix.CreateBulbItems()?.ToList();
-            }
-            catch(Exception exception) when(exception is not OperationCanceledException)
-            {
-               continue;
-            }
-
+            var bulbItems = unreadable.Read(() => $"the bulb items of {quickFixType}", () => instance.QuickFix.CreateBulbItems()?.ToList());
             if(bulbItems == null) continue;
 
             foreach(var bulbItem in bulbItems)
             {
                if(bulbItem == null) continue;
 
-               string text = null;
-               try
-               {
-                  text = bulbItem.BulbAction?.Text;
-               }
-               catch(Exception exception) when(exception is not OperationCanceledException)
-               {
-                  // Some bulb actions compute Text lazily and may throw; skip the text.
-               }
+               var text = unreadable.Read(() => $"the text of {quickFixType}", () => bulbItem.BulbAction?.Text);
 
                // Deduplicate identical fixes (same highlighting + fix type + text).
                var dedupKey = $"{highlightingType}|{quickFixType}|{text}";
@@ -210,12 +169,13 @@ public class ListQuickFixesTool : IMcpTool
                       ["fixes"] = ordered
                    };
 
-      // Runtime unknown: daemon stages may not emit highlightings headlessly. Be explicit so the
-      // caller can distinguish "no fixes here" from "the daemon produced nothing".
+      if(collected.Incomplete != null)
+         result["incomplete"] = collected.Incomplete;
+      if(unreadable.Line != null)
+         result["skipped"] = unreadable.Line;
+
       if(collected.Count == 0)
-         result["note"] =
-            "No highlightings were produced by the daemon stages for this file. " +
-            "This can happen when inspection stages do not run headlessly outside an editor session.";
+         result["note"] = "The daemon's stages produced no highlightings for this file.";
       else if(atPosition.Count == 0)
          result["note"] =
             $"{collected.Count} highlighting(s) were produced for this file but none cover {line}:{column}.";

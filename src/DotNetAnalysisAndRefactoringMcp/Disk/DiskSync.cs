@@ -256,7 +256,12 @@ public sealed class DiskSync
    }
 
    /// <remarks>
-   ///   Line endings and a byte order mark are representation, not content: Rider may normalize either.
+   ///   <para>Line endings and a byte order mark are representation, not content: Rider may normalize either.</para>
+   ///   <para>
+   ///     A file that can't be read, such as one another process is writing, can't be shown to match, so it counts
+   ///     as differing: the stale path then waits for it, and edit tools are refused while it stays unreadable. Until
+   ///     2026-11-15 it counted as matching, and an edit went ahead on what may have been Rider's old copy.
+   ///   </para>
    /// </remarks>
    static bool SameText(string document, string file)
    {
@@ -266,7 +271,7 @@ public sealed class DiskSync
       }
       catch(IOException)
       {
-         return true;
+         return false;
       }
    }
 

@@ -157,7 +157,7 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
       var text = new StringBuilder();
       text.Append($"{scope}: {files.Count} files checked, {withErrors} with errors, {errors} errors");
       if(failing.Count > withErrors)
-         text.Append($", {failing.Count - withErrors} could not be checked");
+         text.Append($", {failing.Count - withErrors} could not be wholly checked");
 
       if(outside.Count > 0)
       {
@@ -314,7 +314,8 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
       readonly Dictionary<string, int> _inspectionFailures = new Dictionary<string, int>();
       string _failure;
 
-      public bool Failed => _failure != null || Errors.Any();
+      /// <summary>Whether the file is worth showing in changed mode: it has errors, or wasn't wholly checked.</summary>
+      public bool Failed => _failure != null || Errors.Any() || _inspectionFailures.Count > 0;
 
       public IEnumerable<DiagnosticEntry> Errors => _entries.Where(x => x.Severity == "error");
 

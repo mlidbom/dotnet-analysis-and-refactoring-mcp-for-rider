@@ -83,28 +83,13 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
          return new { error = "Could not get document for file" };
 
       // ----- compute the offset for the position -----
-      int offset;
-      try
-      {
-         var docLine = (Int32<DocLine>)(line - 1);
-         var docColumn = (Int32<DocColumn>)(column - 1);
-         offset = document.GetOffsetByCoords(new DocumentCoords(docLine, docColumn));
-      }
-      catch(Exception ex) when(ex is not OperationCanceledException)
-      {
-         return new { error = $"Could not resolve position {line}:{column}: {ex.Message}" };
-      }
+      var (offset, positionError) = DocumentPositions.OffsetOf(document, line, column);
+      if(positionError != null)
+         return new { error = positionError };
 
       // ----- gather candidate fixes -----
-      List<Candidate> candidates;
-      try
-      {
-         candidates = CollectCandidates(sourceFile, document, offset);
-      }
-      catch(Exception ex) when(ex is not OperationCanceledException)
-      {
-         return new { error = $"Failed to collect quick-fixes: {ex.Message}" };
-      }
+      var unreadable = new SkippedElements();
+      var (candidates, incomplete) = CollectCandidates(sourceFile, offset, unreadable);
 
       if(candidates.Count == 0)
       {
@@ -112,9 +97,9 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
                 {
                    applied = false,
                    file = filePath,
-                   reason = "No quick-fixes are available at this position. The file may not have " +
-                            "been analyzed yet (open it in the editor so the daemon computes highlightings), " +
-                            "or there is no issue here.",
+                   reason = "No quick-fixes are available at this position.",
+                   incomplete,
+                   skipped = unreadable.Line,
                    available = Array.Empty<object>()
                 };
       }
@@ -142,6 +127,8 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
                       applied = false,
                       file = filePath,
                       reason = $"No available fix matches fixId '{fixId}'.",
+                      incomplete,
+                      skipped = unreadable.Line,
                       available
                    };
       } else if(hasIndex)
@@ -183,15 +170,16 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
    /// is empty in that case). Each covering <see cref="HighlightingInfo"/> is mapped to its available
    /// quick-fixes via <see cref="QuickFixTable"/>; one candidate is produced per bulb action.
    /// </summary>
-   List<Candidate> CollectCandidates(IPsiSourceFile sourceFile, IDocument document, int offset)
+   /// <summary>
+   ///   The bulb actions of the quick-fixes at <paramref name="offset"/>, and why the daemon's list may be incomplete.
+   ///   A fix ReSharper fails to read costs only itself, and goes in <paramref name="unreadable"/>.
+   /// </summary>
+   (List<Candidate> Candidates, string Incomplete) CollectCandidates(IPsiSourceFile sourceFile, int offset, SkippedElements unreadable)
    {
       var result = new List<Candidate>();
       var seen = new HashSet<string>();
 
       var quickFixTable = _solution.GetComponent<QuickFixTable>();
-      if(quickFixTable == null)
-         return result;
-
       var collected = DaemonHighlightingCollector.Collect(_solution, sourceFile);
 
       foreach(var highlightingInfo in collected)
@@ -203,19 +191,10 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
          if(!range.IsValid()) continue;
          if(offset < range.StartOffset.Offset || offset > range.EndOffset.Offset) continue;
 
-         IEnumerable<QuickFixInstance> fixInstances;
-         try
-         {
-            fixInstances = quickFixTable.EnumerateAvailableQuickFixes(highlightingInfo);
-         }
-         catch(Exception exception) when(exception is not OperationCanceledException)
-         {
-            continue;
-         }
-
-         if(fixInstances == null) continue;
-
          var highlightingId = highlightingInfo.Highlighting.GetType().Name;
+         var fixInstances = unreadable.Read(() => $"the quick-fixes of {highlightingId}",
+                                            () => quickFixTable.EnumerateAvailableQuickFixes(highlightingInfo)?.ToList());
+         if(fixInstances == null) continue;
 
          foreach(var fixInstance in fixInstances)
          {
@@ -228,16 +207,7 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
             // interface method. QuickFixInstance.CreateActionInstances is an unstable internal API
             // whose signature differs across Rider builds; CreateBulbItems yields the same
             // IntentionAction items it wraps.
-            List<IntentionAction> bulbItems;
-            try
-            {
-               bulbItems = fixInstance.QuickFix.CreateBulbItems()?.ToList();
-            }
-            catch(Exception exception) when(exception is not OperationCanceledException)
-            {
-               continue;
-            }
-
+            var bulbItems = unreadable.Read(() => $"the bulb items of {fixTypeName}", () => fixInstance.QuickFix.CreateBulbItems()?.ToList());
             if(bulbItems == null) continue;
 
             foreach(var bulbItem in bulbItems)
@@ -245,7 +215,7 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
                var bulbAction = bulbItem?.BulbAction;
                if(bulbAction == null) continue;
 
-               var text = SafeText(bulbItem, bulbAction);
+               var text = unreadable.Read(() => $"the text of {fixTypeName}", () => TextOf(bulbItem, bulbAction));
                if(string.IsNullOrEmpty(text)) continue;
 
                // De-dup identical fixes coming from overlapping highlightings.
@@ -263,7 +233,7 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
          }
       }
 
-      return result;
+      return (result, collected.Incomplete);
    }
 
    object ApplyFix(
@@ -273,44 +243,22 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
       string filePath,
       List<object> available)
    {
-      // Reuse an already-open text control for this document if there is one; otherwise
-      // create a synthetic, short-lived control. Either way we never block: a failure to
-      // obtain a control results in a graceful "requires interactive editor" response.
-      ITextControl textControl = null;
+      // Reuse an already-open text control for this document if there is one; otherwise create a synthetic,
+      // short-lived control. What throws, here or in the fix, reaches the host's boundary, which answers with the
+      // error and logs it.
+      ITextControl textControl;
       LifetimeDefinition syntheticLifetime = null;
       var usedSyntheticControl = false;
 
       try
       {
-         textControl = TryGetOpenTextControl(document);
+         textControl = OpenTextControlOf(document);
 
          if(textControl == null)
          {
-            try
-            {
-               var tcManager = _solution.GetComponent<ITextControlManager>();
-               if(tcManager != null)
-               {
-                  syntheticLifetime = Lifetime.Define(
-                     _solution.GetSolutionLifetimes().MaximumLifetime,
-                     "DotNetAnalysisAndRefactoringMcp.ApplyQuickFix");
-                  textControl = tcManager.CreateTextControl(syntheticLifetime.Lifetime, document);
-                  usedSyntheticControl = textControl != null;
-               }
-            }
-            catch(Exception ex)
-            {
-               return new
-                      {
-                         applied = false,
-                         fixId = chosen.FixTypeName,
-                         text = chosen.Text,
-                         file = filePath,
-                         reason = "requires interactive editor / not supported headless: " +
-                                  $"could not create a text control ({ex.Message})",
-                         available
-                      };
-            }
+            syntheticLifetime = Lifetime.Define(_solution.GetSolutionLifetimes().MaximumLifetime, "DotNetAnalysisAndRefactoringMcp.ApplyQuickFix");
+            textControl = _solution.GetComponent<ITextControlManager>().CreateTextControl(syntheticLifetime.Lifetime, document);
+            usedSyntheticControl = textControl != null;
          }
 
          if(textControl == null)
@@ -325,30 +273,13 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
                    };
 
          // Snapshot the document text so we can report whether the file actually changed.
-         var before = SafeGetText(document);
+         var before = document.GetText();
 
-         try
-         {
-            // The bulb action owns its write transactions.
-            chosen.BulbAction.Execute(_solution, textControl);
-         }
-         catch(Exception ex)
-         {
-            return new
-                   {
-                      applied = false,
-                      fixId = chosen.FixTypeName,
-                      text = chosen.Text,
-                      file = filePath,
-                      reason = "requires interactive editor / not supported headless: " +
-                               $"the fix could not run ({ex.GetType().Name}: {ex.Message})",
-                      available
-                   };
-         }
+         // The bulb action owns its write transactions.
+         chosen.BulbAction.Execute(_solution, textControl);
 
-         var after = SafeGetText(document);
          var changedFiles = new List<string>();
-         if(before == null || after == null || !string.Equals(before, after, StringComparison.Ordinal))
+         if(!string.Equals(before, document.GetText(), StringComparison.Ordinal))
             changedFiles.Add(filePath);
 
          return new
@@ -364,10 +295,7 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
       finally
       {
          // Always tear down a synthetic control's lifetime; never leave it dangling.
-         try { syntheticLifetime?.Terminate(); }
-         catch
-         { /* best effort */
-         }
+         syntheticLifetime?.Terminate();
       }
    }
 
@@ -375,64 +303,12 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
    /// Finds an already-open text control whose document is the one we are fixing. Avoids
    /// opening editor tabs and is the safest source of a usable control.
    /// </summary>
-   ITextControl TryGetOpenTextControl(IDocument document)
-   {
-      try
-      {
-         var tcManager = _solution.GetComponent<ITextControlManager>();
-         if(tcManager == null) return null;
+   ITextControl OpenTextControlOf(IDocument document) =>
+      _solution.GetComponent<ITextControlManager>().TextControls.FirstOrDefault(it => it != null && ReferenceEquals(it.Document, document));
 
-         foreach(var tc in tcManager.TextControls)
-         {
-            if(tc != null && ReferenceEquals(tc.Document, document))
-               return tc;
-         }
-      }
-      catch
-      {
-         // ignore — fall back to synthetic control
-      }
-
-      return null;
-   }
-
-   static string SafeText(IntentionAction intentionAction, IBulbAction bulbAction)
-   {
-      try
-      {
-         var rich = intentionAction.RichText;
-         if(rich != null)
-         {
-            var t = rich.Text;
-            if(!string.IsNullOrEmpty(t)) return t;
-         }
-      }
-      catch
-      {
-         // fall through to bulb action text
-      }
-
-      try
-      {
-         return bulbAction.Text;
-      }
-      catch
-      {
-         return null;
-      }
-   }
-
-   static string SafeGetText(IDocument document)
-   {
-      try
-      {
-         return document.GetText();
-      }
-      catch
-      {
-         return null;
-      }
-   }
+   /// <summary>The intention's rich text, as the bulb menu shows it, or else the bulb action's.</summary>
+   static string TextOf(IntentionAction intentionAction, IBulbAction bulbAction) =>
+      intentionAction.RichText?.Text is { Length: > 0 } rich ? rich : bulbAction.Text;
 
    class Candidate
    {

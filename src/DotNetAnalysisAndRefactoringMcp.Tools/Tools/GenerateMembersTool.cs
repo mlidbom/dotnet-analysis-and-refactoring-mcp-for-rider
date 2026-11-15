@@ -107,37 +107,24 @@ public class GenerateMembersTool : IMcpWriteTool, IMcpEditTool
 
       var targetName = PsiHelpers.GetQualifiedName(typeElement);
 
-      // Every failure is reported as a structured error so nothing can throw out of Execute()
-      // and surface as an opaque JSON-RPC 500 — or worse, leave the write lock in a bad state.
-      try
+      // A failure reaches the host's boundary, which answers with the error and logs it.
+      switch(normalizedKind)
       {
-         switch(normalizedKind)
-         {
-            case "constructor":
-               return GenerateConstructor(typeElement, targetName, kindArg, arguments["memberNames"]);
-            case "equality-members":
-               return GenerateEqualityMembers(typeElement, targetName, kindArg, arguments["memberNames"]);
-            default:
-               // implement-interface / override-members: gracefully unsupported.
-               return new
-                      {
-                         error = $"'{kindArg}' is not yet supported. " +
-                                 "generate_members currently supports 'constructor' and 'equality-members' " +
-                                 "(implemented with low-level PSI). Signature mapping for interface/override " +
-                                 "members is not implemented to avoid generating incorrect code.",
-                         target = targetName,
-                         kind = kindArg
-                      };
-         }
-      }
-      catch(Exception ex)
-      {
-         return new
-                {
-                   error = $"generate_members failed: {ex.Message}",
-                   target = targetName,
-                   kind = kindArg
-                };
+         case "constructor":
+            return GenerateConstructor(typeElement, targetName, kindArg, arguments["memberNames"]);
+         case "equality-members":
+            return GenerateEqualityMembers(typeElement, targetName, kindArg, arguments["memberNames"]);
+         default:
+            // implement-interface / override-members: gracefully unsupported.
+            return new
+                   {
+                      error = $"'{kindArg}' is not yet supported. " +
+                              "generate_members currently supports 'constructor' and 'equality-members' " +
+                              "(implemented with low-level PSI). Signature mapping for interface/override " +
+                              "members is not implemented to avoid generating incorrect code.",
+                      target = targetName,
+                      kind = kindArg
+                   };
       }
    }
 

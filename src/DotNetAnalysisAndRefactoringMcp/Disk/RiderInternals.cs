@@ -33,7 +33,9 @@ public static class RiderInternals
       }
       catch(TargetInvocationException exception) when(exception.InnerException != null)
       {
-         throw exception.InnerException;
+         // Rider's own exception, with its own stack: what reflection wrapped is what failed.
+         System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+         throw;
       }
    }
 

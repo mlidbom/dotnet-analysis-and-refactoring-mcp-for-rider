@@ -58,7 +58,7 @@ public static class GitChanges
       }
       catch(System.ComponentModel.Win32Exception exception)
       {
-         throw new InvalidOperationException($"git is not available: {exception.Message}");
+         throw new InvalidOperationException($"git is not available: {exception.Message}", exception);
       }
    }
 

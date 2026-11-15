@@ -40,6 +40,10 @@ See `dev_docs/swappable-tools.md`.
 - A `move_type_to_namespace` dry run answered with the host's "(index still building — results may be incomplete)",
   probably because rolling back its temporary transaction updates the caches. `/health` said idle right after.
 
+- A directory `DiskChanges` fails to watch is never tried again: each is watched once, so edits under it are noticed
+  only in files a call names. Retrying each call would log the failure each call; retrying with a backoff would
+  do it. Seen in no log yet (the catch audit, 2026-11-15).
+
 ## Bigger ideas
 
 - **Build against the SDK of the Rider version Magnus runs, and drop older ones,** once the fork is renamed: no more

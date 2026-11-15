@@ -197,13 +197,14 @@ public class GetSymbolInfoTool : IMcpTool
          sb.Append("remarks: ").AppendLine(remarks);
    }
 
+   /// <remarks>The NRE is ReSharper's, observed for some static methods: their doc is then read from the source.</remarks>
    static XmlNode TryGetXmlDoc(IDeclaredElement declaredElement)
    {
       try
       {
          return declaredElement.GetXMLDoc(true);
       }
-      catch(Exception)
+      catch(NullReferenceException)
       {
          return null;
       }
@@ -259,9 +260,10 @@ public class GetSymbolInfoTool : IMcpTool
                    root.Element("summary")?.Value?.Trim(),
                    root.Element("remarks")?.Value?.Trim());
       }
-      catch(Exception)
+      catch(XmlException)
       {
-         return default;
+         // A doc comment that isn't well-formed XML, such as one with a bare '<': its text as written, and saying so.
+         return (string.Join(" ", docLines).Trim() + " [the doc comment isn't well-formed XML]", null);
       }
    }
 

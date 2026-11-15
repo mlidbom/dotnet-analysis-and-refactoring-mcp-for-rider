@@ -62,6 +62,24 @@ public sealed class SkippedElements
       }
    }
 
+   /// <summary>
+   ///   Reads one value of an element, such as a highlighting's message: what ReSharper failed to read is the default,
+   ///   and is listed in <see cref="Line"/>, so the element is still reported, without that value.
+   /// </summary>
+   public T? Read<T>(Func<string> label, Func<T> read)
+   {
+      try
+      {
+         return read();
+      }
+      catch(Exception exception) when(exception is not OperationCanceledException)
+      {
+         Interruption.Current.CheckAndThrow();
+         Skip(label, exception);
+         return default;
+      }
+   }
+
    void Skip(Func<string> label, Exception exception)
    {
       var name = SafeLabel(label);

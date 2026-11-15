@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using DotNetAnalysisAndRefactoringMcp.Protocol;
 using DotNetAnalysisAndRefactoringMcp.Swapping;
+using DotNetAnalysisAndRefactoringMcp.Tools;
 
 namespace DotNetAnalysisAndRefactoringMcp;
 
@@ -53,7 +54,7 @@ public class McpShellComponent : IDisposable
                _logger.Info($"MCP peer server started on port {tryPort} (primary on {basePort})");
 
             // Watchdog: periodically verify the server is responsive
-            var watchdog = new Timer(_ => WatchdogPing(),
+            var watchdog = new Timer(_ => Watchdog(),
                                      null,
                                      TimeSpan.FromSeconds(60),
                                      TimeSpan.FromSeconds(30));
@@ -61,8 +62,9 @@ public class McpShellComponent : IDisposable
 
             break;
          }
-         catch(Exception ex)
+         catch(HttpListenerException ex)
          {
+            // The port is taken, by another Rider's server or anything else: the next one is tried.
             tryServer.Stop();
             if(attempt == MaxPortAttempts - 1)
                _logger.Error(ex, $"Failed to bind any port in range {basePort}-{tryPort} for MCP server");
@@ -169,7 +171,8 @@ public class McpShellComponent : IDisposable
       }
       catch(Exception ex)
       {
-         _logger.Warn($"Failed to register with primary MCP server: {ex.Message}");
+         // The primary may have gone, which its watchdog's takeover handles; until then the primary lacks this solution.
+         ToolFailure.Logged(ex, "registering with the primary MCP server");
       }
    }
 
@@ -192,7 +195,8 @@ public class McpShellComponent : IDisposable
       }
       catch(Exception ex)
       {
-         _logger.Warn($"Failed to deregister from primary MCP server: {ex.Message}");
+         // As registering: the primary may have gone.
+         ToolFailure.Logged(ex, "deregistering from the primary MCP server");
       }
    }
 
@@ -235,10 +239,23 @@ public class McpShellComponent : IDisposable
       {
          PingServer(_server.Port);
       }
-      catch(Exception ex)
+      catch(Exception ex) when(ex is WebException or IOException)
       {
          _logger.Warn($"MCP server health check failed: {ex.Message} — triggering restart");
          _server.Restart();
+      }
+   }
+
+   /// <summary>The watchdog timer's callback: a thread entry, where anything that escapes ends Rider's backend.</summary>
+   void Watchdog()
+   {
+      try
+      {
+         WatchdogPing();
+      }
+      catch(Exception exception)
+      {
+         ToolFailure.Logged(exception, "the MCP server's watchdog");
       }
    }
 
@@ -254,7 +271,7 @@ public class McpShellComponent : IDisposable
          PingServer(_primaryPort);
          // Primary is alive — stay as peer
       }
-      catch
+      catch(Exception unreachable) when(unreachable is WebException or IOException)
       {
          // Primary is unreachable — try to take over
          _logger.Info($"Primary on port {_primaryPort} is unreachable — attempting to take over");
@@ -278,7 +295,8 @@ public class McpShellComponent : IDisposable
          }
          catch(Exception ex)
          {
-            _logger.Warn($"Failed to take over primary port {_primaryPort}: {ex.Message}");
+            // This Rider stays a peer, and the watchdog tries again in 30 s.
+            ToolFailure.Logged(ex, $"taking over the primary port {_primaryPort}");
          }
       }
    }

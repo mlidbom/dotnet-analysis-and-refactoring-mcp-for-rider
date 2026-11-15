@@ -24,6 +24,11 @@ plugin is a fork of.
 
 ### Fixed
 
+- Failures are reported, not hidden. `get_diagnostics`, `list_quick_fixes`, `apply_quick_fix` and `apply_suggestions` answered an empty or partial list when ReSharper failed to read a highlighting or a fix, or a daemon stage failed; they now say what was skipped, and when the list may be incomplete. `apply_quick_fix`, `complete_at` and `generate_members` answered a failure as an ordinary result; it is now an error, logged
+- An edit tool went ahead on a file it couldn't read from disk, such as one another process was writing, as if Rider's copy matched it; such a file now counts as differing, and edits wait for it
+- `/health` read as ready when a solution's own health check failed; such a solution now counts as not ready, and says why
+- The primary server dropped a peer Rider whose call was slow or answered an HTTP error; it now drops one only when nothing listens on its port
+- A line or column outside the file is answered with what's out of range, by every tool that takes a position
 - `search_symbol` finds a type by its qualified name, `Shapes.Circle` or `System.IO.MemoryStream`, and a member through a qualified type, `Shapes.IShape.Area`; a qualified name was taken for `Type.Member` and found nothing
 - `get_symbol_info`'s member listing says each member's access, `private`, `public` and so on: a compiled type's listing holds its private members too, and nothing told them apart
 - `get_call_hierarchy` on an implementation finds the callers that call it through its interface or base member, and says which member each was found through; it found none before

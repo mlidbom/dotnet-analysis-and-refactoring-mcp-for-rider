@@ -26,62 +26,45 @@ namespace DotNetAnalysisAndRefactoringMcp;
 public static class DaemonHighlightingCollector
 {
    /// <summary>
-   /// Runs the real ReSharper daemon inspection stages over a single source file (synchronously,
-   /// in-process, headlessly) and returns every collected <see cref="HighlightingInfo"/>.
-   /// Returns an empty list (never null) if the daemon could not be driven for this file.
+   ///   Runs the real ReSharper daemon inspection stages over a single source file (synchronously, in-process,
+   ///   headlessly) and returns every collected <see cref="HighlightingInfo"/>. A daemon that can't be set up for
+   ///   the file throws, so the tool answers with the error. A stage that throws ends the run with what was collected
+   ///   so far, marked <see cref="CollectedHighlightings.Incomplete"/>.
    /// </summary>
+   /// <remarks>
+   ///   Until 2026-11-15 every failure gave an empty or a partial list without a word, and get_diagnostics answered
+   ///   "0 diagnostics" and blamed stages that don't run headlessly.
+   /// </remarks>
    /// <param name="solution">The current solution (used to resolve daemon components).</param>
    /// <param name="sourceFile">The file to analyze.</param>
    /// <param name="settings">
    /// The settings store to drive the daemon with. When null, the per-file editor-config-aware store is
    /// resolved via <c>sourceFile.GetSettingsStoreWithEditorConfig(solution)</c>.
    /// </param>
-   public static IList<HighlightingInfo> Collect(
+   public static CollectedHighlightings Collect(
       ISolution solution,
       IPsiSourceFile sourceFile,
       IContextBoundSettingsStore settings = null)
    {
-      if(solution == null || sourceFile == null)
-         return new List<HighlightingInfo>();
-
-      if(settings == null)
-      {
-         try
-         {
-            settings = sourceFile.GetSettingsStoreWithEditorConfig(solution);
-         }
-         catch(Exception exception) when(exception is not OperationCanceledException)
-         {
-            return new List<HighlightingInfo>();
-         }
-      }
+      settings ??= sourceFile.GetSettingsStoreWithEditorConfig(solution);
 
       if(solution.GetComponent<IShellLocks>().IsWriteLockHeld())
          throw new InvalidOperationException("Daemon analysis must not run under a write lock.");
 
-      CollectingDaemonProcess process;
-      try
-      {
-         process = new CollectingDaemonProcess(sourceFile, settings);
-      }
-      catch(Exception exception) when(exception is not OperationCanceledException)
-      {
-         // Base ctor can throw (missing read access, file not analyzable). Degrade gracefully.
-         return new List<HighlightingInfo>();
-      }
-
+      var process = new CollectingDaemonProcess(sourceFile, settings);
+      string incomplete = null;
       try
       {
          process.RunHeadless();
-         Interruption.Current.CheckAndThrow();
       }
       catch(Exception exception) when(exception is not OperationCanceledException)
       {
-         // A misbehaving stage must not crash the host: return whatever was collected so far.
+         // One unit of the run: the stages before it still answer, and the answer says the list is incomplete.
+         incomplete = $"a daemon stage failed, so the list may be incomplete: {exception.GetType().Name}: {exception.Message}";
       }
 
-      // Defensive copy so callers never depend on the live process instance.
-      return new List<HighlightingInfo>(process.Collected);
+      Interruption.Current.CheckAndThrow();
+      return new CollectedHighlightings(new List<HighlightingInfo>(process.Collected), incomplete);
    }
 
    /// <summary>
@@ -93,39 +76,26 @@ public static class DaemonHighlightingCollector
    /// This is the accurate ground truth, unlike <c>QuickFixTable.CouldHavePopupQuickFix(IHighlighting)</c>,
    /// which is an unreliable false-negative headless (it can report no fix even when fixes exist).
    /// </para>
-   /// <para>
-   /// Must be called under a read lock with committed documents. Returns <c>false</c> on non-cancellation failures
-   /// so one bad highlighting cannot break a whole diagnostics response.
-   /// </para>
+   /// <para>Must be called under a read lock with committed documents.</para>
    /// </summary>
    /// <param name="solution">The current solution (used to resolve the <see cref="QuickFixTable"/> component).</param>
    /// <param name="info">The highlighting to test for available quick-fixes.</param>
    public static bool HasQuickFix(ISolution solution, HighlightingInfo info)
    {
-      if(solution == null || info?.Highlighting == null)
+      if(info?.Highlighting == null)
          return false;
 
-      try
+      var instances = solution.GetComponent<QuickFixTable>().EnumerateAvailableQuickFixes(info);
+      if(instances == null)
+         return false;
+
+      foreach(var instance in instances)
       {
-         var quickFixTable = solution.GetComponent<QuickFixTable>();
-         var instances = quickFixTable.EnumerateAvailableQuickFixes(info);
-         if(instances == null)
-            return false;
-
-         foreach(var instance in instances)
-         {
-            if(instance?.QuickFix != null)
-               return true;
-         }
-
-         return false;
+         if(instance?.QuickFix != null)
+            return true;
       }
-      catch(Exception exception) when(exception is not OperationCanceledException)
-      {
-         // EnumerateAvailableQuickFixes can throw for synthetic/unanalyzable highlightings;
-         // treat any failure as "no fix" rather than failing the whole response.
-         return false;
-      }
+
+      return false;
    }
 
    /// <summary>
@@ -208,4 +178,20 @@ public static class DaemonHighlightingCollector
          bool analysisSupported,
          DaemonProcessKind processKind) {}
    }
+}
+
+/// <summary>The highlightings of one daemon run over a file.</summary>
+public sealed class CollectedHighlightings(IReadOnlyList<HighlightingInfo> highlightings, string incomplete)
+   : IReadOnlyList<HighlightingInfo>
+{
+   /// <summary>Why the list may be missing some, such as a stage that threw; <c>null</c> when the run was whole.</summary>
+   public string Incomplete { get; } = incomplete;
+
+   public int Count => highlightings.Count;
+
+   public HighlightingInfo this[int index] => highlightings[index];
+
+   public IEnumerator<HighlightingInfo> GetEnumerator() => highlightings.GetEnumerator();
+
+   System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }

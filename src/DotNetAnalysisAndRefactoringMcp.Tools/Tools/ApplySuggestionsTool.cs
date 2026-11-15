@@ -231,9 +231,10 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
                      _solution.GetPsiServices().Caches.Update();
                      pass.Applied = $"{inspectionId ?? "(no id)"} — \"{text}\": {Changed(documents.ChangedCount, scopeName)}";
                   }
-                  catch(Exception exception)
+                  catch(Exception exception) when(exception is not OperationCanceledException)
                   {
-                     pass.Error = $"{inspectionId ?? "(no id)"}: {exception.Message}";
+                     // One unit of the batch: this fix type's failure is in the answer, and the next fix type runs.
+                     pass.Error = $"{inspectionId ?? "(no id)"}: {exception.GetType().Name}: {exception.Message}";
                   }
 
                   return pass;
@@ -353,7 +354,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
          return fixes;
       unreadable.Guard(() => $"the fixes of {info.Highlighting.GetType().Name}",
                        () => fixes.AddRange(quickFixTable.EnumerateAvailableQuickFixes(info)?.Where(it => it?.QuickFix != null)
-                                            ?? Enumerable.Empty<QuickFixInstance>()));
+                                         ?? Enumerable.Empty<QuickFixInstance>()));
       return fixes;
    }
 
@@ -436,7 +437,11 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
       public int ChangedCount => _before.Count(it => !it.Document.LastModificationStamp.Equals(it.Stamp));
    }
 
-   static object FormatResult(string filePath, string scopeName, List<string> applied, HashSet<string> skipped, List<string> errors,
+   static object FormatResult(string filePath,
+                              string scopeName,
+                              List<string> applied,
+                              HashSet<string> skipped,
+                              List<string> errors,
                               List<string> unreadable)
    {
       var sb = new StringBuilder();

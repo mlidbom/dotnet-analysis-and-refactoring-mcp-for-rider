@@ -17,12 +17,10 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 /// <summary>
 /// Code completion suggestions at a position (LSP textDocument/completion parity).
 ///
-/// This tool is RISKY / best-effort. Driving code completion headlessly requires the R# main
-/// thread plus a live <see cref="ITextControl"/>; completion providers may legitimately return
-/// nothing outside of a real interactive typing session, and some of them assert on UI state we
-/// cannot fully reproduce here. The whole flow is therefore wrapped defensively: any failure (or
-/// an empty provider result) degrades gracefully to an empty item list with an explanatory note,
-/// and we never block forever — the surrounding HTTP worker abandons after 30s.
+/// Driving code completion headlessly requires the R# main thread plus a live <see cref="ITextControl"/>;
+/// completion providers may legitimately return nothing outside of a real interactive typing session. An empty
+/// result answers with a note; a failure reaches the host's boundary, which answers with the error and logs it
+/// (until 2026-11-15 every failure here was an empty list with the same note).
 ///
 /// This tool is logically READ-ONLY: it performs no PSI writes. It implements the write marker
 /// <see cref="IMcpSelfTransactingWriteTool"/> ONLY to obtain main-thread dispatch — in v0.8.0 the
@@ -79,107 +77,25 @@ public class CompleteAtTool : IMcpSelfTransactingWriteTool
       if(document == null)
          return new { error = $"No document available for file: {filePath}" };
 
-      // Translate 1-based line/column into a document offset (clamped defensively).
-      int offset;
-      try
+      var (offset, positionError) = DocumentPositions.OffsetOf(document, line, column);
+      if(positionError != null)
+         return new { error = positionError };
+
+      var textControlManager = _solution.GetComponent<ITextControlManager>();
+      var intellisenseManager = _solution.GetComponent<IntellisenseManager>();
+
+      // Scope the synthetic text control to a temporary lifetime so it is torn down as soon as we are done driving
+      // completion. Lifetime.Using runs synchronously on this (main) thread and terminates the lifetime on return.
+      return Lifetime.Using(lt =>
       {
-         var docLine = (Int32<DocLine>)(line - 1);
-         var docColumn = (Int32<DocColumn>)(column - 1);
-         var coords = new DocumentCoords(docLine, docColumn);
-         offset = document.GetOffsetByCoords(coords);
-      }
-      catch(Exception ex)
-      {
-         return new { error = $"Invalid position {line}:{column}: {ex.Message}" };
-      }
+         var textControl = textControlManager.CreateTextControl(lt, document);
+         if(textControl == null)
+            return ShapeResult(filePath, line, column, null, maxResults);
 
-      // From here on, completion may legitimately fail in headless conditions. Degrade
-      // gracefully to an empty list with a note rather than surfacing an exception.
-      var unavailable = new Dictionary<string, object>
-                        {
-                           ["file"] = filePath,
-                           ["line"] = line,
-                           ["column"] = column,
-                           ["items"] = new List<object>(),
-                           ["note"] = "completion unavailable headless / needs interactive session"
-                        };
-
-      try
-      {
-         ITextControlManager textControlManager;
-         IntellisenseManager intellisenseManager;
-         try
-         {
-            textControlManager = _solution.GetComponent<ITextControlManager>();
-            intellisenseManager = _solution.GetComponent<IntellisenseManager>();
-         }
-         catch(Exception ex)
-         {
-            unavailable["note"] = $"completion unavailable headless / needs interactive session ({ex.Message})";
-            return unavailable;
-         }
-
-         if(textControlManager == null || intellisenseManager == null)
-            return unavailable;
-
-         object result = null;
-
-         // Scope the synthetic text control to a temporary lifetime so it is torn down as soon
-         // as we are done driving completion. Lifetime.Using runs synchronously on this (main)
-         // thread and terminates the lifetime on return.
-         Lifetime.Using(lt =>
-         {
-            ITextControl textControl;
-            try
-            {
-               textControl = textControlManager.CreateTextControl(lt, document);
-            }
-            catch(Exception ex)
-            {
-               unavailable["note"] = $"completion unavailable headless / needs interactive session ({ex.Message})";
-               result = unavailable;
-               return;
-            }
-
-            if(textControl == null)
-            {
-               result = unavailable;
-               return;
-            }
-
-            try
-            {
-               textControl.Caret.MoveTo(offset, CaretVisualPlacement.DontScrollIfVisible);
-            }
-            catch
-            {
-               // Non-fatal: completion uses the caret position but a move failure should not crash.
-            }
-
-            ICodeCompletionResult completionResult;
-            try
-            {
-               var parameters = new CodeCompletionParameters(CodeCompletionType.BasicCompletion);
-               completionResult = intellisenseManager.GetCompletionResult(parameters, textControl);
-            }
-            catch(Exception ex)
-            {
-               unavailable["note"] = $"completion unavailable headless / needs interactive session ({ex.Message})";
-               result = unavailable;
-               return;
-            }
-
-            result = ShapeResult(filePath, line, column, completionResult, maxResults);
-         });
-
-         return result ?? unavailable;
-      }
-      catch(Exception ex)
-      {
-         // Absolute last-resort guard: never let an unexpected failure crash the host.
-         unavailable["note"] = $"completion unavailable headless / needs interactive session ({ex.Message})";
-         return unavailable;
-      }
+         textControl.Caret.MoveTo(offset, CaretVisualPlacement.DontScrollIfVisible);
+         var completionResult = intellisenseManager.GetCompletionResult(new CodeCompletionParameters(CodeCompletionType.BasicCompletion), textControl);
+         return ShapeResult(filePath, line, column, completionResult, maxResults);
+      });
    }
 
    /// <summary>
@@ -272,6 +188,7 @@ public class CompleteAtTool : IMcpSelfTransactingWriteTool
       int maxResults)
    {
       var items = new List<object>();
+      var unreadable = new SkippedElements();
 
       var lookupItems = completionResult?.LookupItems;
       if(lookupItems != null)
@@ -284,26 +201,12 @@ public class CompleteAtTool : IMcpSelfTransactingWriteTool
             var lookupItem = evaluated.LookupItem;
             if(lookupItem == null) continue;
 
-            string text = null;
-            string type = null;
-            string kind = null;
-
-            try { text = lookupItem.DisplayName?.Text; }
-            catch
-            { /* presentation may throw */
-            }
-
-            try { type = lookupItem.DisplayTypeName?.Text; }
-            catch
-            { /* optional */
-            }
-
-            try { kind = GetKind(lookupItem); }
-            catch
-            { /* optional */
-            }
-
+            // An item ReSharper fails to present costs only itself, or only its type or kind, and the answer says so.
+            var text = unreadable.Read(() => "a completion item's text", () => lookupItem.DisplayName?.Text);
             if(string.IsNullOrEmpty(text)) continue;
+
+            var type = unreadable.Read(() => $"the type of '{text}'", () => lookupItem.DisplayTypeName?.Text);
+            var kind = unreadable.Read(() => $"the kind of '{text}'", () => GetKind(lookupItem));
 
             var item = new Dictionary<string, object> { ["text"] = text };
             if(!string.IsNullOrEmpty(kind)) item["kind"] = kind;
@@ -320,6 +223,8 @@ public class CompleteAtTool : IMcpSelfTransactingWriteTool
                       ["items"] = items
                    };
 
+      if(unreadable.Line != null)
+         output["skipped"] = unreadable.Line;
       if(items.Count == 0)
          output["note"] = "completion unavailable headless / needs interactive session";
 

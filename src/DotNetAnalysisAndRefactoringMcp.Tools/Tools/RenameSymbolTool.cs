@@ -213,8 +213,10 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
             // (recorded in the driver) and then the actual declaration/usage rewrites.
             bool executed = refactoring.Execute(NullProgressIndicator.Create());
 
-            var conflicts = ExtractConflicts(driver);
-            var changedFiles = CollectChangedFiles(dataModel, declarationFiles);
+            // What ReSharper fails to read costs only that conflict's value or that rename's files, and the answer says so.
+            var unreadable = new SkippedElements();
+            var conflicts = ExtractConflicts(driver, unreadable);
+            var changedFiles = CollectChangedFiles(dataModel, declarationFiles, unreadable);
 
             if(dryRun)
             {
@@ -226,7 +228,8 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
                          oldName,
                          newName,
                          conflicts,
-                         changedFiles
+                         changedFiles,
+                         skipped = unreadable.Line
                       };
             }
 
@@ -237,7 +240,8 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
                       oldName,
                       newName,
                       conflicts,
-                      changedFiles
+                      changedFiles,
+                      skipped = unreadable.Line
                    };
          }
       }
@@ -247,7 +251,7 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
       }
    }
 
-   static List<object> ExtractConflicts(RefactoringDriverWithConflicts driver)
+   static List<object> ExtractConflicts(RefactoringDriverWithConflicts driver, SkippedElements unreadable)
    {
       var result = new List<object>();
       foreach(var conflict in driver.Conflicts)
@@ -255,61 +259,38 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
          if(conflict == null) continue;
          result.Add(new
                     {
-                       message = SafeDescription(conflict),
+                       message = unreadable.Read(() => "a conflict's description", () => conflict.Description),
                        severity = conflict.Severity.ToString(),
-                       isValid = SafeIsValid(conflict)
+                       isValid = unreadable.Read(() => "whether a conflict is valid", () => (bool?)conflict.IsValid)
                     });
       }
 
       return result;
    }
 
-   static string SafeDescription(IConflict conflict)
-   {
-      try { return conflict.Description; }
-      catch { return "(conflict description unavailable)"; }
-   }
-
-   static bool SafeIsValid(IConflict conflict)
-   {
-      try { return conflict.IsValid; }
-      catch { return false; }
-   }
-
    /// <summary>
    /// Reports the files affected by the rename. We combine the original declaration files
    /// with the source files of all references that were searched for the renamed elements.
    /// </summary>
-   static List<object> CollectChangedFiles(RenameDataModel dataModel, List<string> declarationFiles)
+   static List<object> CollectChangedFiles(RenameDataModel dataModel, List<string> declarationFiles, SkippedElements unreadable)
    {
       var files = new HashSet<string>(declarationFiles ?? new List<string>());
 
-      try
+      foreach(var atomic in dataModel.AllRenames.Renames)
       {
-         foreach(var atomic in dataModel.AllRenames.Renames)
-         {
-            var primary = atomic.PrimaryDeclaredElement;
-            if(primary == null) continue;
+         var primary = atomic.PrimaryDeclaredElement;
+         if(primary == null) continue;
 
-            try
-            {
-               foreach(var refsInFile in dataModel.GetGroupedElementReferences(primary))
-               {
-                  var path = refsInFile.SourceFile?.GetLocation().FullPath;
-                  if(!string.IsNullOrEmpty(path))
-                     files.Add(path);
-               }
-            }
-            catch
-            {
-               // Best-effort: a single atomic's reference enumeration failing should not
-               // sink the whole report.
-            }
-         }
-      }
-      catch
-      {
-         // Ignore — declaration files alone are still a useful answer.
+         unreadable.Guard(primary,
+                          () =>
+                          {
+                             foreach(var refsInFile in dataModel.GetGroupedElementReferences(primary))
+                             {
+                                var path = refsInFile.SourceFile?.GetLocation().FullPath;
+                                if(!string.IsNullOrEmpty(path))
+                                   files.Add(path);
+                             }
+                          });
       }
 
       return files

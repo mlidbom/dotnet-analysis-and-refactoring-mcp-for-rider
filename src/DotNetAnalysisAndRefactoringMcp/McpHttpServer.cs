@@ -152,7 +152,8 @@ public class McpHttpServer
          }
          catch(Exception ex)
          {
-            _logger.Error(ex, "Failed to restart MCP HTTP listener");
+            // A thread-pool thread: anything that escapes it ends Rider's backend. The watchdog's next ping retries.
+            ToolFailure.Logged(ex, "restarting the MCP HTTP listener");
          }
       });
    }
@@ -182,7 +183,7 @@ public class McpHttpServer
             if(!_running) break;
 
             consecutiveErrors++;
-            _logger.Error(ex, $"Error accepting HTTP connection (consecutive: {consecutiveErrors})");
+            ToolFailure.Logged(ex, $"accepting an HTTP connection ({consecutiveErrors} failures in a row)");
 
             if(consecutiveErrors >= 3)
             {
@@ -225,7 +226,7 @@ public class McpHttpServer
       }
       catch(Exception ex)
       {
-         _logger.Error(ex, "Failed to recover HttpListener");
+         ToolFailure.Logged(ex, "recovering the HttpListener");
          return false;
       }
    }
@@ -282,7 +283,8 @@ public class McpHttpServer
       }
       catch(Exception ex)
       {
-         _logger.Error(ex, "Error handling MCP request");
+         // A thread-pool thread: anything that escapes it ends Rider's backend. The client gets a 500.
+         ToolFailure.Logged(ex, "an MCP request");
          try
          {
             context.Response.StatusCode = 500;
@@ -464,7 +466,8 @@ public class McpHttpServer
       }
       catch(Exception exception)
       {
-         _logger.Warn($"No usage guide for the initialize response: {exception.Message}");
+         // Initialize still answers: without a tools build to serve, or one that fails, there's no guide to send.
+         ToolFailure.Logged(exception, "the usage guide for the initialize response");
          return null;
       }
    }
@@ -733,9 +736,10 @@ public class McpHttpServer
             return JsonConvert.DeserializeObject<JsonRpcResponse>(responseJson);
          }
       }
-      catch(WebException ex)
+      catch(WebException ex) when(ex.Status == WebExceptionStatus.ConnectFailure)
       {
-         // Peer is unreachable — remove stale registration
+         // Nothing listens on the peer's port: its Rider has gone. Until 2026-11-15 any WebException removed the peer,
+         // also a slow call's timeout or an HTTP error from a peer that was running.
          _registrations.Locked(it =>
          {
             var staleKey = it.Peers.FirstOrDefault(p => p.Value.Port == peerPort).Key;
@@ -751,7 +755,7 @@ public class McpHttpServer
       }
       catch(Exception ex)
       {
-         return ToolError(originalRequest, $"Error proxying to peer: {ex.Message}");
+         return ToolError(originalRequest, ToolFailure.Logged(ex, $"the call proxied to the peer on port {peerPort}"));
       }
    }
 
@@ -927,7 +931,7 @@ public class McpHttpServer
       var health = new JObject
                    {
                       ["solutions"] = new JArray(solutions),
-                      ["indexing"] = solutions.Any(x => x["indexing"]?.Value<bool>() == true),
+                      ["indexing"] = solutions.Any(x => x["indexing"]?.Value<bool>() == true || x["healthFailed"] != null),
                       ["pendingDiskChanges"] = solutions.Sum(x => x["pendingDiskChanges"]?.Value<int>() ?? 0)
                    };
 
@@ -947,7 +951,8 @@ public class McpHttpServer
       }
       catch(Exception ex)
       {
-         _logger.Warn($"DotNetAnalysisAndRefactoringMcp health of '{solution.Name}' failed: {ex.Message}");
+         // The solution's state is unknown, which must not read as ready: see HandleHealth.
+         health["healthFailed"] = ToolFailure.Logged(ex, $"the health of '{solution.Name}'");
       }
 
       return health;

@@ -88,106 +88,63 @@ public class GetDiagnosticsTool : IMcpTool
 
       // Resolve the document offset for position filtering, if requested.
       int? positionOffset = null;
-      if(hasPosition)
+      if(hasPosition && sourceFile.Document is {} document)
       {
-         var document = sourceFile.Document;
-         if(document != null)
-         {
-            var docLine = (Int32<DocLine>)(posLine - 1);
-            var docColumn = (Int32<DocColumn>)(posColumn - 1);
-            positionOffset = document.GetOffsetByCoords(new DocumentCoords(docLine, docColumn));
-         }
+         var (offset, positionError) = DocumentPositions.OffsetOf(document, posLine, posColumn);
+         if(positionError != null)
+            return new { error = positionError };
+         positionOffset = offset;
       }
 
-      IContextBoundSettingsStore settings;
-      HighlightingSettingsManager mgr;
-      try
-      {
-         settings = sourceFile.GetSettingsStoreWithEditorConfig(_solution);
-         mgr = _solution.GetComponent<HighlightingSettingsManager>();
-      }
-      catch(Exception e) when(e is not OperationCanceledException)
-      {
-         return new { error = $"Failed to initialize daemon settings/components: {e.Message}" };
-      }
+      var settings = sourceFile.GetSettingsStoreWithEditorConfig(_solution);
+      var mgr = _solution.GetComponent<HighlightingSettingsManager>();
 
       // Drive the real ReSharper daemon engine headlessly over this file via the shared collector
       // (DaemonProcessBase.DoHighlighting orchestration). We are already on the R# main thread under a
       // read lock with documents committed (see McpServerComponent), which is what the daemon requires.
       var collected = DaemonHighlightingCollector.Collect(_solution, sourceFile, settings);
 
-      // Shape the diagnostics.
+      // Shape the diagnostics. A highlighting ReSharper fails to read costs only itself, or only the value it failed
+      // on, and the answer lists it.
       var diagnostics = new List<Dictionary<string, object>>();
+      var unreadable = new SkippedElements();
       foreach(var info in collected)
       {
          var highlighting = info.Highlighting;
          if(highlighting == null) continue;
 
-         // Severity
-         Severity severity;
-         try
-         {
-            severity = mgr.GetSeverity(highlighting, sourceFile, _solution, settings);
-         }
-         catch(Exception exception) when(exception is not OperationCanceledException)
-         {
-            continue;
-         }
+         var name = highlighting.GetType().Name;
+         unreadable.Guard(() => name,
+                          () =>
+                          {
+                             var severity = mgr.GetSeverity(highlighting, sourceFile, _solution, settings);
+                             if(!Severities.AtLeast(severity, minSeverity)) return;
 
-         if(!Severities.AtLeast(severity, minSeverity)) continue;
+                             var range = info.Range;
+                             if(!range.IsValid()) return;
 
-         var range = info.Range;
-         if(!range.IsValid()) continue;
+                             // Position filtering (explain-error mode): keep only diagnostics covering the offset.
+                             if(positionOffset.HasValue && (positionOffset.Value < range.StartOffset.Offset || positionOffset.Value > range.EndOffset.Offset))
+                                return;
 
-         // Position filtering (explain-error mode): keep only diagnostics covering the offset.
-         if(positionOffset.HasValue)
-         {
-            var start = range.StartOffset.Offset;
-            var end = range.EndOffset.Offset;
-            if(positionOffset.Value < start || positionOffset.Value > end)
-               continue;
-         }
+                             var (startLine, startCol) = PsiHelpers.GetLineColumn(range.StartOffset);
+                             var (endLine, endCol) = PsiHelpers.GetLineColumn(range.EndOffset);
 
-         var (startLine, startCol) = PsiHelpers.GetLineColumn(range.StartOffset);
-         var (endLine, endCol) = PsiHelpers.GetLineColumn(range.EndOffset);
-
-         string inspectionId = null;
-         try
-         {
-            inspectionId = highlighting.GetConfigurableSeverityId();
-         }
-         catch(Exception exception) when(exception is not OperationCanceledException)
-         {
-            // Some highlightings have no configurable severity id.
-         }
-
-         // CouldHavePopupQuickFix(IHighlighting) is an unreliable false-negative headless: it reported
-         // no fix for a NotAccessedField.Local warning that list_quick_fixes found 3 real fixes for.
-         // Mirror list_quick_fixes exactly and ask the QuickFixTable to actually enumerate the fixes
-         // available for this highlighting (HasQuickFix swallows errors and returns false on failure).
-         bool hasQuickFix = DaemonHighlightingCollector.HasQuickFix(_solution, info);
-
-         string message = null;
-         try
-         {
-            message = highlighting.ToolTip ?? highlighting.ErrorStripeToolTip;
-         }
-         catch(Exception exception) when(exception is not OperationCanceledException)
-         {
-            // ToolTip can throw for some synthetic highlightings.
-         }
-
-         diagnostics.Add(new Dictionary<string, object>
-                         {
-                            ["inspectionId"] = inspectionId ?? highlighting.GetType().Name,
-                            ["severity"] = Severities.Name(severity),
-                            ["message"] = message,
-                            ["line"] = startLine,
-                            ["column"] = startCol,
-                            ["endLine"] = endLine,
-                            ["endColumn"] = endCol,
-                            ["hasQuickFix"] = hasQuickFix
-                         });
+                             // CouldHavePopupQuickFix(IHighlighting) is an unreliable false-negative headless: it reported no fix for
+                             // a NotAccessedField.Local warning that list_quick_fixes found 3 real fixes for. So the QuickFixTable
+                             // enumerates the fixes, as list_quick_fixes does.
+                             diagnostics.Add(new Dictionary<string, object>
+                                             {
+                                                ["inspectionId"] = highlighting.GetConfigurableSeverityId() ?? name,
+                                                ["severity"] = Severities.Name(severity),
+                                                ["message"] = unreadable.Read(() => $"the message of {name}", () => highlighting.ToolTip ?? highlighting.ErrorStripeToolTip),
+                                                ["line"] = startLine,
+                                                ["column"] = startCol,
+                                                ["endLine"] = endLine,
+                                                ["endColumn"] = endCol,
+                                                ["hasQuickFix"] = unreadable.Read(() => $"the quick-fixes of {name}", () => DaemonHighlightingCollector.HasQuickFix(_solution, info))
+                                             });
+                          });
       }
 
       // Stable, predictable ordering: by location.
@@ -203,12 +160,13 @@ public class GetDiagnosticsTool : IMcpTool
                       ["diagnostics"] = ordered
                    };
 
-      // Runtime unknown: daemon stages may not emit highlightings headlessly. Be explicit.
+      if(collected.Incomplete != null)
+         result["incomplete"] = collected.Incomplete;
+      if(unreadable.Line != null)
+         result["skipped"] = unreadable.Line;
+
       if(collected.Count == 0)
-         result["note"] =
-            "No highlightings were produced by the daemon stages for this file. " +
-            "This can happen when inspection stages do not run headlessly outside an editor session. " +
-            "Try get_file_errors for syntax errors and unresolved references.";
+         result["note"] = "The daemon's stages produced no highlightings for this file.";
       else if(ordered.Count == 0)
          result["note"] =
             $"{collected.Count} highlighting(s) were produced but none met the minimum severity " +
