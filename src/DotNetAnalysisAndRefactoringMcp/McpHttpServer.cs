@@ -9,6 +9,7 @@ using JetBrains.Util;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using DotNetAnalysisAndRefactoringMcp.Protocol;
+using DotNetAnalysisAndRefactoringMcp.Threading;
 using DotNetAnalysisAndRefactoringMcp.Tools;
 
 namespace DotNetAnalysisAndRefactoringMcp;
@@ -17,12 +18,10 @@ public class McpHttpServer
 {
    volatile HttpListener _listener;
    readonly ILogger _logger;
-   readonly object _lock = new object();
-   readonly Dictionary<string, SolutionRegistration> _solutions = new Dictionary<string, SolutionRegistration>();
-   readonly Dictionary<string, PeerRegistration> _peers = new Dictionary<string, PeerRegistration>();
+   readonly IThreadShared<Registrations> _registrations = IThreadShared.New(new Registrations());
    readonly string _sessionId;
    readonly Func<string> _instructions;
-   readonly List<ServerEventStream> _eventStreams = new List<ServerEventStream>();
+   readonly IThreadShared<List<ServerEventStream>> _eventStreams = IThreadShared.New(new List<ServerEventStream>());
    Thread _listenerThread;
    volatile bool _running;
 
@@ -48,33 +47,27 @@ public class McpHttpServer
                                 Func<string, JObject, string> callTool,
                                 Func<JObject> health)
    {
-      lock(_lock)
-      {
-         _solutions[solutionPath] = new SolutionRegistration
-                                    {
-                                       Name = solutionName,
-                                       Path = solutionPath,
-                                       ListTools = listTools,
-                                       CallTool = callTool,
-                                       Health = health
-                                    };
-      }
+      _registrations.Locked(it => it.Solutions[solutionPath] = new SolutionRegistration
+                                                               {
+                                                                  Name = solutionName,
+                                                                  Path = solutionPath,
+                                                                  ListTools = listTools,
+                                                                  CallTool = callTool,
+                                                                  Health = health
+                                                               });
    }
 
    public void UnregisterSolution(string solutionPath)
    {
-      lock(_lock)
-      {
-         _solutions.Remove(solutionPath);
-      }
+      _registrations.Locked(it => it.Solutions.Remove(solutionPath));
    }
 
    /// <summary>The solutions of this process.</summary>
-   internal List<SolutionRegistration> LocalSolutions()
-   {
-      lock(_lock)
-         return _solutions.Values.ToList();
-   }
+   internal List<SolutionRegistration> LocalSolutions() => Registered().Local;
+
+   /// <summary>The solutions registered now, this process's and the peers'.</summary>
+   (List<SolutionRegistration> Local, List<PeerRegistration> Peers) Registered() =>
+      _registrations.Locked(it => (it.Solutions.Values.ToList(), it.Peers.Values.ToList()));
 
    /// <summary>
    /// Tells every client with an event stream open (a GET) that the tool list changed, so that it lists the tools
@@ -83,9 +76,7 @@ public class McpHttpServer
    /// </summary>
    public void NotifyToolsChanged()
    {
-      List<ServerEventStream> streams;
-      lock(_eventStreams)
-         streams = _eventStreams.ToList();
+      var streams = _eventStreams.Locked(it => it.ToList());
 
       const string message = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/tools/list_changed\"}\n\n";
       var told = streams.Count(stream => stream.TrySend(message));
@@ -98,14 +89,8 @@ public class McpHttpServer
    /// </summary>
    public void TransferRegistrationsTo(McpHttpServer target)
    {
-      lock(_lock)
-      {
-         foreach(var kvp in _solutions)
-         {
-            var s = kvp.Value;
-            target.RegisterSolution(s.Name, s.Path, s.ListTools, s.CallTool, s.Health);
-         }
-      }
+      foreach(var s in Registered().Local)
+         target.RegisterSolution(s.Name, s.Path, s.ListTools, s.CallTool, s.Health);
    }
 
    public void Start()
@@ -121,17 +106,15 @@ public class McpHttpServer
       _logger.Info($"MCP server listening on http://127.0.0.1:{Port}/");
    }
 
+   /// <remarks>
+   ///   <c>Close</c>, not <c>Stop</c>: a listener whose <c>Start</c> failed, as when probing for a free port, is disposed
+   ///   already, and <c>Stop</c> then throws <c>ObjectDisposedException</c>. <c>Close</c> threw in no state measured on
+   ///   .NET 10 (2026-11-15): after a failed start, twice over, after a stop.
+   /// </remarks>
    public void Stop()
    {
       _running = false;
-      try
-      {
-         _listener.Stop();
-      }
-      catch(Exception)
-      {
-         // Ignore errors during shutdown
-      }
+      _listener.Close();
    }
 
    public void Restart()
@@ -142,10 +125,9 @@ public class McpHttpServer
          {
             _logger.Info("Restarting MCP HTTP listener...");
 
-            // Signal the listen loop to stop and tear down the old listener
+            // Signal the listen loop to stop and tear down the old listener (Close: see Stop)
             _running = false;
-            try { _listener.Stop(); }
-            catch {}
+            _listener.Close();
 
             // Wait for the old listener thread to actually exit (avoids two threads
             // calling GetContext on the same listener after _running goes back to true)
@@ -230,12 +212,7 @@ public class McpHttpServer
    {
       try
       {
-         try { _listener.Stop(); }
-         catch {}
-
-         try { _listener.Close(); }
-         catch {}
-
+         _listener.Close(); // see Stop
          Thread.Sleep(500);
 
          var newListener = new HttpListener();
@@ -311,9 +288,11 @@ public class McpHttpServer
             context.Response.StatusCode = 500;
             context.Response.Close();
          }
-         catch
+         catch(Exception answering)
          {
-            // Ignore
+            // A thread-pool thread: anything that escapes it ends Rider's backend. The failure is logged above, and
+            // answering it fails when the client has gone or the answer was begun already.
+            _logger.Verbose($"Couldn't answer 500 after '{ex.Message}': {answering.Message}");
          }
       }
    }
@@ -375,8 +354,7 @@ public class McpHttpServer
             if(!stream.TrySend(": connected\n\n"))
                return;
 
-            lock(_eventStreams)
-               _eventStreams.Add(stream);
+            _eventStreams.Locked(it => it.Add(stream));
 
             // Keep-alive loop until server stops or client disconnects
             while(_running)
@@ -387,18 +365,24 @@ public class McpHttpServer
             }
          }
       }
-      catch
+      catch(Exception exception)
       {
-         // Client disconnected or stream error — expected
+         // A thread-pool thread: anything that escapes it ends Rider's backend. A client that goes away ends its
+         // stream, and nothing waits for an answer: the log is where the failure is told.
+         _logger.Verbose($"An MCP event stream ended: {exception.Message}");
       }
       finally
       {
          if(stream != null)
-            lock(_eventStreams)
-               _eventStreams.Remove(stream);
-         try { context.Response.Close(); }
-         catch
-         { /* already closed */
+            _eventStreams.Locked(it => it.Remove(stream));
+         try
+         {
+            context.Response.Close();
+         }
+         catch(Exception closing)
+         {
+            // As above: on a thread-pool thread, and the client may have gone.
+            _logger.Verbose($"Closing an MCP event stream's response failed: {closing.Message}");
          }
       }
    }
@@ -488,14 +472,7 @@ public class McpHttpServer
    JsonRpcResponse HandleToolsList(JsonRpcRequest request)
    {
       var tools = new List<ToolDefinition>();
-      List<SolutionRegistration> local;
-      List<PeerRegistration> peers;
-
-      lock(_lock)
-      {
-         local = _solutions.Values.ToList();
-         peers = _peers.Values.ToList();
-      }
+      var (local, peers) = Registered();
 
       // Outside the lock: listing may load a new tools build first.
       // Collect unique tools across all local solutions (they serve the same build)
@@ -582,122 +559,118 @@ public class McpHttpServer
       var solutionName = arguments["solutionName"]?.ToString();
       arguments.Remove("solutionName");
 
-      // Resolve the target solution under lock, then execute outside lock
+      // Resolve the target solution from the solutions registered now, then call it
       Func<string, JObject, string> localCall = null;
       int peerPort = 0;
 
-      lock(_lock)
+      var (local, peers) = Registered();
+      var all = new List<SolutionTarget>();
+
+      foreach(var s in local)
+         all.Add(new SolutionTarget { Name = s.Name, Path = s.Path, IsLocal = true, CallTool = s.CallTool });
+
+      foreach(var p in peers)
+         all.Add(new SolutionTarget { Name = p.SolutionName, Path = p.SolutionPath, IsLocal = false, PeerPort = p.Port });
+
+      if(all.Count == 0)
+         return ToolError(request, "No solutions are currently open in Rider.");
+
+      SolutionTarget target;
+
+      if(solutionName != null)
       {
-         // Collect all known solutions (local + peers)
-         var all = new List<SolutionTarget>();
+         // 1. Try exact name or path match
+         var matches = all
+                      .Where(s => s.Name.Equals(solutionName, StringComparison.OrdinalIgnoreCase)
+                               || s.Path.Equals(solutionName, StringComparison.OrdinalIgnoreCase))
+                      .ToList();
 
-         foreach(var s in _solutions.Values)
-            all.Add(new SolutionTarget { Name = s.Name, Path = s.Path, IsLocal = true });
-
-         foreach(var p in _peers.Values)
-            all.Add(new SolutionTarget { Name = p.SolutionName, Path = p.SolutionPath, IsLocal = false, PeerPort = p.Port });
-
-         if(all.Count == 0)
-            return ToolError(request, "No solutions are currently open in Rider.");
-
-         SolutionTarget target;
-
-         if(solutionName != null)
+         // 2. If ambiguous or no match, try path-segment matching
+         if(matches.Count != 1)
          {
-            // 1. Try exact name or path match
-            var matches = all
-                         .Where(s => s.Name.Equals(solutionName, StringComparison.OrdinalIgnoreCase)
-                                  || s.Path.Equals(solutionName, StringComparison.OrdinalIgnoreCase))
-                         .ToList();
+            var segmentMatches = all
+                                .Where(s => PathContainsSegment(s.Path, solutionName))
+                                .ToList();
 
-            // 2. If ambiguous or no match, try path-segment matching
-            if(matches.Count != 1)
+            if(segmentMatches.Count == 1)
             {
-               var segmentMatches = all
-                                   .Where(s => PathContainsSegment(s.Path, solutionName))
-                                   .ToList();
-
-               if(segmentMatches.Count == 1)
-               {
-                  // Path-segment uniquely identifies a solution
-                  matches = segmentMatches;
-               } else if(matches.Count == 0 && segmentMatches.Count > 0)
-               {
-                  // No exact matches — use segment matches (may still be ambiguous)
-                  matches = segmentMatches;
-               }
-            }
-
-            if(matches.Count == 0)
+               // Path-segment uniquely identifies a solution
+               matches = segmentMatches;
+            } else if(matches.Count == 0 && segmentMatches.Count > 0)
             {
-               var available = string.Join(", ", all.Select(s => $"'{s.Name}'"));
-               return ToolError(request,
-                                $"Solution '{solutionName}' not found. Available solutions: {available}");
+               // No exact matches — use segment matches (may still be ambiguous)
+               matches = segmentMatches;
             }
+         }
 
-            if(matches.Count > 1)
-            {
-               var disambiguators = ComputeDisambiguators(
-                  all.Select(s => new NameAndPath { Name = s.Name, Path = s.Path }).ToList());
-               var available = string.Join("\n",
-                                           matches.Select(s =>
-                                           {
-                                              var hint = disambiguators.TryGetValue(s.Path, out var h) ? h : null;
-                                              var hintText = hint != null ? $" — use solutionName: \"{hint}\"" : "";
-                                              return $"  - {s.Name} ({s.Path}){hintText}";
-                                           }));
-               return ToolError(request,
-                                $"Ambiguous solution name '{solutionName}'. Matches:\n{available}");
-            }
-
-            target = matches[0];
-         } else if(all.Count == 1)
+         if(matches.Count == 0)
          {
-            target = all[0];
-         } else if(FileArguments.Of(arguments) is { Count: > 0 } paths)
-         {
-            // Pick the solution whose work tree holds the named files. For absolute paths the deepest tree wins
-            // (nested checkouts); a relative path found in several checkouts names none of them.
-            var holders = all
-                         .Where(s => paths.All(p => Holds(s.Path, p)))
-                         .OrderByDescending(s => SolutionDirectory(s.Path).Length)
-                         .ToList();
-
-            if(holders.Count > 1 && !paths.All(System.IO.Path.IsPathRooted))
-            {
-               var names = string.Join(", ", holders.Select(s => $"{s.Name} ({SolutionDirectory(s.Path)})"));
-               return ToolError(request,
-                                $"The relative path exists in several open solutions: {names}. Pass 'solutionName' or an absolute path.");
-            }
-
-            target = holders.FirstOrDefault();
-
-            if(target == null)
-            {
-               var open = string.Join(", ", all.Select(s => $"{s.Name} ({SolutionDirectory(s.Path)})"));
-               return ToolError(request,
-                                $"Path is outside open solutions: {open}. Pass 'solutionName' to pick one anyway.");
-            }
-         } else
-         {
-            var available = string.Join("\n",
-                                        all.Select(s => $"  - {s.Name} ({s.Path})"));
+            var available = string.Join(", ", all.Select(s => $"'{s.Name}'"));
             return ToolError(request,
-                             "Multiple solutions are open. Specify 'solutionName' in the arguments, "
-                           + "or pass a filePath that exists in only one of them.\n"
-                           + $"Available solutions:\n{available}");
+                             $"Solution '{solutionName}' not found. Available solutions: {available}");
          }
 
-         if(target.IsLocal)
+         if(matches.Count > 1)
          {
-            localCall = _solutions[target.Path].CallTool;
-         } else
-         {
-            peerPort = target.PeerPort;
+            var disambiguators = ComputeDisambiguators(
+               all.Select(s => new NameAndPath { Name = s.Name, Path = s.Path }).ToList());
+            var available = string.Join("\n",
+                                        matches.Select(s =>
+                                        {
+                                           var hint = disambiguators.TryGetValue(s.Path, out var h) ? h : null;
+                                           var hintText = hint != null ? $" — use solutionName: \"{hint}\"" : "";
+                                           return $"  - {s.Name} ({s.Path}){hintText}";
+                                        }));
+            return ToolError(request,
+                             $"Ambiguous solution name '{solutionName}'. Matches:\n{available}");
          }
+
+         target = matches[0];
+      } else if(all.Count == 1)
+      {
+         target = all[0];
+      } else if(FileArguments.Of(arguments) is { Count: > 0 } paths)
+      {
+         // Pick the solution whose work tree holds the named files. For absolute paths the deepest tree wins
+         // (nested checkouts); a relative path found in several checkouts names none of them.
+         var holders = all
+                      .Where(s => paths.All(p => Holds(s.Path, p)))
+                      .OrderByDescending(s => SolutionDirectory(s.Path).Length)
+                      .ToList();
+
+         if(holders.Count > 1 && !paths.All(Path.IsPathRooted))
+         {
+            var names = string.Join(", ", holders.Select(s => $"{s.Name} ({SolutionDirectory(s.Path)})"));
+            return ToolError(request,
+                             $"The relative path exists in several open solutions: {names}. Pass 'solutionName' or an absolute path.");
+         }
+
+         target = holders.FirstOrDefault();
+
+         if(target == null)
+         {
+            var open = string.Join(", ", all.Select(s => $"{s.Name} ({SolutionDirectory(s.Path)})"));
+            return ToolError(request,
+                             $"Path is outside open solutions: {open}. Pass 'solutionName' to pick one anyway.");
+         }
+      } else
+      {
+         var available = string.Join("\n",
+                                     all.Select(s => $"  - {s.Name} ({s.Path})"));
+         return ToolError(request,
+                          "Multiple solutions are open. Specify 'solutionName' in the arguments, "
+                        + "or pass a filePath that exists in only one of them.\n"
+                        + $"Available solutions:\n{available}");
       }
 
-      // Execute outside lock
+      if(target.IsLocal)
+      {
+         localCall = target.CallTool;
+      } else
+      {
+         peerPort = target.PeerPort;
+      }
+
       if(peerPort > 0)
          return ProxyToPeer(request, peerPort, toolName, arguments);
 
@@ -763,15 +736,15 @@ public class McpHttpServer
       catch(WebException ex)
       {
          // Peer is unreachable — remove stale registration
-         lock(_lock)
+         _registrations.Locked(it =>
          {
-            var staleKey = _peers.FirstOrDefault(p => p.Value.Port == peerPort).Key;
+            var staleKey = it.Peers.FirstOrDefault(p => p.Value.Port == peerPort).Key;
             if(staleKey != null)
             {
                _logger.Warn($"Removing unreachable peer on port {peerPort}");
-               _peers.Remove(staleKey);
+               it.Peers.Remove(staleKey);
             }
-         }
+         });
 
          return ToolError(originalRequest,
                           $"Solution is no longer available (peer on port {peerPort} is unreachable: {ex.Message})");
@@ -786,42 +759,40 @@ public class McpHttpServer
    {
       var solutionObjects = new JArray();
 
-      lock(_lock)
+      var (local, peers) = Registered();
+      var allEntries = new List<NameAndPath>();
+
+      foreach(var s in local)
+         allEntries.Add(new NameAndPath { Name = s.Name, Path = s.Path });
+      foreach(var p in peers)
+         allEntries.Add(new NameAndPath { Name = p.SolutionName, Path = p.SolutionPath });
+
+      var disambiguators = ComputeDisambiguators(allEntries);
+
+      foreach(var s in local)
       {
-         var allEntries = new List<NameAndPath>();
+         var obj = new JObject
+                   {
+                      ["name"] = s.Name,
+                      ["path"] = s.Path,
+                      ["toolCount"] = s.ListTools().Count
+                   };
+         if(disambiguators.TryGetValue(s.Path, out var hint))
+            obj["uniquePathSegment"] = hint;
+         solutionObjects.Add(obj);
+      }
 
-         foreach(var s in _solutions.Values)
-            allEntries.Add(new NameAndPath { Name = s.Name, Path = s.Path });
-         foreach(var p in _peers.Values)
-            allEntries.Add(new NameAndPath { Name = p.SolutionName, Path = p.SolutionPath });
-
-         var disambiguators = ComputeDisambiguators(allEntries);
-
-         foreach(var s in _solutions.Values)
-         {
-            var obj = new JObject
-                      {
-                         ["name"] = s.Name,
-                         ["path"] = s.Path,
-                         ["toolCount"] = s.ListTools().Count
-                      };
-            if(disambiguators.TryGetValue(s.Path, out var hint))
-               obj["uniquePathSegment"] = hint;
-            solutionObjects.Add(obj);
-         }
-
-         foreach(var p in _peers.Values)
-         {
-            var obj = new JObject
-                      {
-                         ["name"] = p.SolutionName,
-                         ["path"] = p.SolutionPath,
-                         ["toolCount"] = p.Tools.Count
-                      };
-            if(disambiguators.TryGetValue(p.SolutionPath, out var hint))
-               obj["uniquePathSegment"] = hint;
-            solutionObjects.Add(obj);
-         }
+      foreach(var p in peers)
+      {
+         var obj = new JObject
+                   {
+                      ["name"] = p.SolutionName,
+                      ["path"] = p.SolutionPath,
+                      ["toolCount"] = p.Tools.Count
+                   };
+         if(disambiguators.TryGetValue(p.SolutionPath, out var hint))
+            obj["uniquePathSegment"] = hint;
+         solutionObjects.Add(obj);
       }
 
       var result = new JObject
@@ -865,16 +836,13 @@ public class McpHttpServer
             }
          }
 
-         lock(_lock)
-         {
-            _peers[path] = new PeerRegistration
-                           {
-                              SolutionName = name,
-                              SolutionPath = path,
-                              Port = port,
-                              Tools = tools
-                           };
-         }
+         _registrations.Locked(it => it.Peers[path] = new PeerRegistration
+                                                      {
+                                                         SolutionName = name,
+                                                         SolutionPath = path,
+                                                         Port = port,
+                                                         Tools = tools
+                                                      });
 
          _logger.Info($"Registered peer solution '{name}' on port {port}");
 
@@ -895,10 +863,7 @@ public class McpHttpServer
 
       if(!string.IsNullOrEmpty(path))
       {
-         lock(_lock)
-         {
-            _peers.Remove(path);
-         }
+         _registrations.Locked(it => it.Peers.Remove(path));
 
          _logger.Info($"Deregistered peer solution at '{path}'");
       }
@@ -914,19 +879,17 @@ public class McpHttpServer
    {
       var solutions = new JArray();
 
-      lock(_lock)
-      {
-         foreach(var s in _solutions.Values)
-            solutions.Add(LocalHealth(s));
+      var (local, peers) = Registered();
+      foreach(var s in local)
+         solutions.Add(LocalHealth(s));
 
-         foreach(var p in _peers.Values)
-         {
-            solutions.Add(new JObject
-                          {
-                             ["name"] = p.SolutionName,
-                             ["path"] = p.SolutionPath
-                          });
-         }
+      foreach(var p in peers)
+      {
+         solutions.Add(new JObject
+                       {
+                          ["name"] = p.SolutionName,
+                          ["path"] = p.SolutionPath
+                       });
       }
 
       return new JsonRpcResponse
@@ -959,15 +922,8 @@ public class McpHttpServer
    /// </summary>
    void HandleHealth(HttpListenerContext context)
    {
-      List<JObject> local;
-      List<PeerRegistration> peers;
-      lock(_lock)
-      {
-         local = _solutions.Values.Select(LocalHealth).ToList();
-         peers = _peers.Values.ToList();
-      }
-
-      var solutions = local.Concat(peers.Select(PeerHealth)).ToList();
+      var (local, peers) = Registered();
+      var solutions = local.Select(LocalHealth).Concat(peers.Select(PeerHealth)).ToList();
       var health = new JObject
                    {
                       ["solutions"] = new JArray(solutions),
@@ -1028,25 +984,27 @@ public class McpHttpServer
                   .FirstOrDefault(x => x["path"]?.ToString() == peer.SolutionPath) ?? fallback;
          }
       }
-      catch(Exception)
+      catch(Exception exception)
       {
+         // Whatever the failure, the answer reports the peer as unreachable: that's the fallback.
+         _logger.Verbose($"The peer on port {peer.Port} didn't answer: {exception.Message}");
          return fallback;
       }
    }
 
    // The work tree, not the .sln's folder: a solution in Client/TPS still owns files under Shared/.
    static string SolutionDirectory(string solutionPath) =>
-      SolutionRoot.Of(System.IO.Path.GetDirectoryName(solutionPath)).Workspace ?? solutionPath;
+      SolutionRoot.Of(Path.GetDirectoryName(solutionPath)).Workspace ?? solutionPath;
 
    /// <summary>
    /// An absolute path is held by the work tree it lies under; a relative one by a solution it exists in.
    /// </summary>
    static bool Holds(string solutionPath, string path)
    {
-      if(System.IO.Path.IsPathRooted(path))
+      if(Path.IsPathRooted(path))
          return PathIsUnder(path, SolutionDirectory(solutionPath));
 
-      var absolute = SolutionRoot.Of(System.IO.Path.GetDirectoryName(solutionPath)).Absolute(path);
+      var absolute = SolutionRoot.Of(Path.GetDirectoryName(solutionPath)).Absolute(path);
 
       return absolute != null && (File.Exists(absolute) || Directory.Exists(absolute));
    }
@@ -1130,26 +1088,24 @@ public class McpHttpServer
 /// </summary>
 internal sealed class ServerEventStream
 {
-   readonly StreamWriter _writer;
+   readonly IThreadShared<StreamWriter> _writer;
 
-   public ServerEventStream(StreamWriter writer) => _writer = writer;
+   public ServerEventStream(StreamWriter writer) => _writer = IThreadShared.New(writer);
 
-   /// <summary>False when the client has gone.</summary>
-   public bool TrySend(string text)
-   {
-      lock(_writer)
+   /// <summary>False when the client has gone, which fails the write in one of these ways.</summary>
+   public bool TrySend(string text) =>
+      _writer.Locked(writer =>
       {
          try
          {
-            _writer.Write(text);
+            writer.Write(text);
             return true;
          }
-         catch
+         catch(Exception exception) when(exception is IOException or HttpListenerException or ObjectDisposedException)
          {
             return false;
          }
-      }
-   }
+      });
 }
 
 internal class SolutionRegistration
@@ -1175,6 +1131,14 @@ internal class SolutionTarget
    public string Path { get; set; }
    public bool IsLocal { get; set; }
    public int PeerPort { get; set; }
+   public Func<string, JObject, string> CallTool { get; set; }
+}
+
+/// <summary>The solutions the server routes calls to: this process's, and the peers' that registered with it.</summary>
+internal sealed class Registrations
+{
+   public readonly Dictionary<string, SolutionRegistration> Solutions = new();
+   public readonly Dictionary<string, PeerRegistration> Peers = new();
 }
 
 internal class NameAndPath

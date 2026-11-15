@@ -313,6 +313,7 @@ src/DotNetAnalysisAndRefactoringMcp/   # THE HOST: what Rider loads; a change he
   McpToolExecution.cs                  # Interruptible PSI reads and read-then-main-thread continuations
   JsonOf.cs                            # JSON of the tools' anonymous objects without Newtonsoft's type caches
   DaemonHighlightingCollector.cs       # Runs the daemon on a file; in the host because ReSharper keeps its type
+  Threading/                           # IThreadShared and ICriticalSection: Compze.Threading's names, the one raw lock
   Swapping/
     SwappableTools.cs                  # ShellComponent — which tools build is served; swaps; checks freed
     LoadedToolsBuild.cs                # One build in its own load context; counts calls; ToolsLease

@@ -10,16 +10,16 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Refactoring;
 ///   move_type_to_namespace gives such a file no using, and sometimes leaves the declaration where it was.
 /// </summary>
 /// <remarks>
-///   It changes files, so it moves the type once, for every fact: xUnit makes an instance per fact. Rider saves the
-///   changed documents a while after the move, so the files are read once they're saved.
+///   It changes files, so it moves the type once, for every fact: xUnit makes an instance per fact, and runs a class's
+///   facts one at a time. Rider saves the changed documents a while after the move, so the files are read once they're
+///   saved.
 /// </remarks>
 public class When_moving_a_type_to_another_namespace(TheSandboxWithTheFixtureSolution sandbox)
 {
    static readonly TimeSpan HowLongSavingMayTake = TimeSpan.FromSeconds(30);
-   static readonly object Gate = new();
    static Observed? _observed;
 
-   readonly Observed _the = Once(sandbox);
+   readonly Observed _the = _observed ??= Observe(sandbox);
 
    [XF] public void it_says_it_moved_it() => _the.Answer.Must().Contain("Moved Lengths from Shapes.Drawing.Moving to Shapes.Drawing.Units");
 
@@ -30,12 +30,6 @@ public class When_moving_a_type_to_another_namespace(TheSandboxWithTheFixtureSol
    [XF] public void and_has_no_errors() => _the.CallingFileErrors.Must().Contain("0 diagnostics");
 
    sealed record Observed(string Answer, string MovedFile, string CallingFile, string CallingFileErrors);
-
-   static Observed Once(TheSandboxWithTheFixtureSolution sandbox)
-   {
-      lock(Gate)
-         return _observed ??= Observe(sandbox);
-   }
 
    static Observed Observe(TheSandboxWithTheFixtureSolution sandbox)
    {

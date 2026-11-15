@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
+using DotNetAnalysisAndRefactoringMcp.Threading;
 using DotNetAnalysisAndRefactoringMcp.Tools;
 using JetBrains.ProjectModel;
 
@@ -17,12 +18,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Swapping;
 /// </remarks>
 sealed class LoadedToolsBuild
 {
-   readonly object _gate = new();
+   readonly IThreadShared<Calls> _calls = IThreadShared.New(new Calls());
    CollectibleLoadContext _context;
    IMcpToolsEntryPoint _entryPoint;
-   int _calls;
-   bool _retired;
-   Action<WeakReference> _whenUnloaded;
 
    LoadedToolsBuild(string folder, CollectibleLoadContext context, IMcpToolsEntryPoint entryPoint)
    {
@@ -58,18 +56,18 @@ sealed class LoadedToolsBuild
    /// <summary>Counts a call in, unless the build is retired.</summary>
    public bool TryEnter()
    {
-      lock(_gate)
+      return _calls.Locked(it =>
       {
-         if(_retired) return false;
-         _calls++;
+         if(it.Retired) return false;
+         it.InProgress++;
          return true;
-      }
+      });
    }
 
    /// <summary>Counts in one more call while one is counted in already, retired or not: the build can't have unloaded.</summary>
    public void EnterAgain()
    {
-      lock(_gate) _calls++;
+      _calls.Locked(it => it.InProgress++);
    }
 
    /// <summary>The tools for one call, which must be counted in.</summary>
@@ -81,9 +79,7 @@ sealed class LoadedToolsBuild
    /// <summary>Counts a call out, and unloads the build if it's retired and that was its last call.</summary>
    public void Exit()
    {
-      bool unload;
-      lock(_gate) unload = --_calls == 0 && _retired;
-      if(unload) Unload();
+      if(_calls.Locked(it => --it.InProgress == 0 && it.Retired)) Unload();
    }
 
    /// <summary>
@@ -92,13 +88,12 @@ sealed class LoadedToolsBuild
    /// </summary>
    public void Retire(Action<WeakReference> whenUnloaded)
    {
-      bool unload;
-      lock(_gate)
+      var unload = _calls.Locked(it =>
       {
-         _retired = true;
-         _whenUnloaded = whenUnloaded;
-         unload = _calls == 0;
-      }
+         it.Retired = true;
+         it.WhenUnloaded = whenUnloaded;
+         return it.InProgress == 0;
+      });
 
       if(unload) Unload();
    }
@@ -108,7 +103,15 @@ sealed class LoadedToolsBuild
       _entryPoint = null;
       var context = _context.Unload();
       _context = null;
-      _whenUnloaded(context);
+      _calls.Locked(it => it.WhenUnloaded)(context);
+   }
+
+   /// <summary>The calls the build serves, and whether it's retired: what the threads that serve calls share.</summary>
+   sealed class Calls
+   {
+      public int InProgress;
+      public bool Retired;
+      public Action<WeakReference> WhenUnloaded;
    }
 }
 

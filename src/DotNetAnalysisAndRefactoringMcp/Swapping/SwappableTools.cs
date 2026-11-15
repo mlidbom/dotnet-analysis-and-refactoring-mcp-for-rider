@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using DotNetAnalysisAndRefactoringMcp.Threading;
 using JetBrains.Application;
 using JetBrains.Application.Parts;
 using JetBrains.Lifetimes;
@@ -45,12 +46,7 @@ public sealed class SwappableTools
    readonly ILogger _logger;
    readonly string _host;
    readonly IReadOnlyList<ToolsBuildFolder> _folders;
-   readonly object _gate = new();
-   readonly List<string> _beingFreed = [];
-   readonly List<string> _notFreed = [];
-   LoadedToolsBuild _current;
-   string _failedBuild;
-   string _failure;
+   readonly IThreadShared<Builds> _builds = IThreadShared.New(new Builds());
 
    public SwappableTools(Lifetime lifetime, ILogger logger)
    {
@@ -92,29 +88,28 @@ public sealed class SwappableTools
    /// <summary>The build served, the builds swapped out and not freed yet, and a build that failed to load.</summary>
    public JObject Status()
    {
-      lock(_gate)
-         return new JObject
-                {
-                   ["build"] = _current?.Name,
-                   ["folder"] = Path.GetDirectoryName(_current?.Folder),
-                   ["beingFreed"] = new JArray(_beingFreed),
-                   ["notFreed"] = new JArray(_notFreed),
-                   ["failedToLoad"] = _failedBuild is null ? null : new JObject { ["build"] = Path.GetFileName(_failedBuild), ["error"] = _failure }
-                };
+      return _builds.Locked(it => new JObject
+                                  {
+                                     ["build"] = it.Current?.Name,
+                                     ["folder"] = Path.GetDirectoryName(it.Current?.Folder),
+                                     ["beingFreed"] = new JArray(it.BeingFreed),
+                                     ["notFreed"] = new JArray(it.NotFreed),
+                                     ["failedToLoad"] = it.FailedBuild is null ? null : new JObject { ["build"] = Path.GetFileName(it.FailedBuild), ["error"] = it.Failure }
+                                  });
    }
 
    /// <summary>What a caller should know about the builds: one that failed to load, and ones that weren't freed.</summary>
    public IReadOnlyList<string> Notes()
    {
-      lock(_gate)
+      return _builds.Locked(it =>
       {
          var notes = new List<string>();
-         if(_failedBuild is not null)
-            notes.Add($"note: the newest tools build, {Path.GetFileName(_failedBuild)}, failed to load ({_failure}); answered by {_current?.Name}");
-         if(_notFreed.Count > 0)
-            notes.Add($"note: tools builds swapped out but never freed, whose memory Rider keeps until it restarts: {string.Join(", ", _notFreed)}");
-         return notes;
-      }
+         if(it.FailedBuild is not null)
+            notes.Add($"note: the newest tools build, {Path.GetFileName(it.FailedBuild)}, failed to load ({it.Failure}); answered by {it.Current?.Name}");
+         if(it.NotFreed.Count > 0)
+            notes.Add($"note: tools builds swapped out but never freed, whose memory Rider keeps until it restarts: {string.Join(", ", it.NotFreed)}");
+         return (IReadOnlyList<string>)notes;
+      });
    }
 
    /// <summary>Swaps in a new build if there is one. A failure to load is in <see cref="Status"/> and the notes already.</summary>
@@ -130,45 +125,43 @@ public sealed class SwappableTools
       }
    }
 
-   LoadedToolsBuild CurrentBuild()
-   {
-      lock(_gate)
+   LoadedToolsBuild CurrentBuild() =>
+      _builds.Locked(it =>
       {
          var newest = _folders.Select(folder => folder.NewestBuildFor(_host)).FirstOrDefault(build => build is not null);
-         if(newest is null && _current is null)
-            throw new InvalidOperationException($"There is no tools build for this build of the host in {string.Join(" or ", _folders.Select(it => it.Path))}.");
+         if(newest is null && it.Current is null)
+            throw new InvalidOperationException($"There is no tools build for this build of the host in {string.Join(" or ", _folders.Select(folder => folder.Path))}.");
 
-         if(newest is null || newest == _current?.Folder || newest == _failedBuild)
-            return _current ?? throw new InvalidOperationException($"The tools build {_failedBuild} failed to load: {_failure}");
+         if(newest is null || newest == it.Current?.Folder || newest == it.FailedBuild)
+            return it.Current ?? throw new InvalidOperationException($"The tools build {it.FailedBuild} failed to load: {it.Failure}");
 
          try
          {
-            SwapTo(LoadedToolsBuild.Load(newest));
+            SwapTo(it, LoadedToolsBuild.Load(newest));
          }
          catch(Exception exception)
          {
-            _failedBuild = newest;
-            _failure = $"{exception.GetType().Name}: {exception.Message}";
+            it.FailedBuild = newest;
+            it.Failure = $"{exception.GetType().Name}: {exception.Message}";
             _logger.Warn($"DotNetAnalysisAndRefactoringMcp: the tools build {newest} failed to load: {exception}");
-            if(_current is null) throw new InvalidOperationException($"The tools build {newest} failed to load: {_failure}");
+            if(it.Current is null) throw new InvalidOperationException($"The tools build {newest} failed to load: {it.Failure}");
          }
 
-         return _current;
-      }
-   }
+         return it.Current;
+      });
 
-   void SwapTo(LoadedToolsBuild build)
+   void SwapTo(Builds builds, LoadedToolsBuild build)
    {
-      var previous = _current;
-      _current = build;
-      _failedBuild = null;
-      _failure = null;
+      var previous = builds.Current;
+      builds.Current = build;
+      builds.FailedBuild = null;
+      builds.Failure = null;
       _logger.Info($"DotNetAnalysisAndRefactoringMcp: serving the tools build {build.Folder}");
       Task.Run(RaiseSwapped);
       if(previous is null) return;
 
       var name = previous.Name;
-      _beingFreed.Add(name);
+      builds.BeingFreed.Add(name);
       previous.Retire(context => WaitUntilFreed(name, context));
    }
 
@@ -199,17 +192,27 @@ public sealed class SwappableTools
             GC.Collect();
             if(context.IsAlive) continue;
 
-            lock(_gate) _beingFreed.Remove(build);
+            _builds.Locked(it => it.BeingFreed.Remove(build));
             _logger.Info($"DotNetAnalysisAndRefactoringMcp: the tools build {build} was freed");
             return;
          }
 
-         lock(_gate)
+         _builds.Locked(it =>
          {
-            _beingFreed.Remove(build);
-            _notFreed.Add(build);
-         }
+            it.BeingFreed.Remove(build);
+            it.NotFreed.Add(build);
+         });
 
          _logger.Warn($"DotNetAnalysisAndRefactoringMcp: the tools build {build} was not freed after it was swapped out: something keeps one of its objects or types");
       });
+
+   /// <summary>The build served, the builds swapped out and not freed yet, and the newest build if it failed to load.</summary>
+   sealed class Builds
+   {
+      public LoadedToolsBuild Current;
+      public string FailedBuild;
+      public string Failure;
+      public readonly List<string> BeingFreed = [];
+      public readonly List<string> NotFreed = [];
+   }
 }

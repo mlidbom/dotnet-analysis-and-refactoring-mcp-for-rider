@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using DotNetAnalysisAndRefactoringMcp.Threading;
 using JetBrains.Util;
 using JetBrains.Util.Logging;
 
@@ -44,33 +45,25 @@ public sealed class DiskChanges : IDisposable
                                                            "Logs",
                                                         };
 
-   readonly object _lock = new object();
-   readonly List<FileSystemWatcher> _watchers = new List<FileSystemWatcher>();
-   readonly List<string> _roots = new List<string>();
-   readonly HashSet<string> _paths = new HashSet<string>(StringComparer.Ordinal);
-   bool _overflowed;
+   readonly IThreadShared<Watched> _watched = IThreadShared.New(new Watched());
 
-   public int Count
-   {
-      get
-      {
-         lock(_lock)
-            return _overflowed ? _paths.Count + 1 : _paths.Count;
-      }
-   }
+   public int Count => _watched.Locked(it => it.Overflowed ? it.Paths.Count + 1 : it.Paths.Count);
 
    /// <summary>
    ///   Starts watching <paramref name="root"/> recursively, unless a watched root already covers it.
    /// </summary>
    public void Watch(string root)
    {
-      lock(_lock)
+      var isNew = _watched.Locked(it =>
       {
-         if(!Directory.Exists(root) || _roots.Any(x => Covers(x, root)))
-            return;
+         if(!Directory.Exists(root) || it.Roots.Any(x => Covers(x, root)))
+            return false;
 
-         _roots.Add(root);
-      }
+         it.Roots.Add(root);
+         return true;
+      });
+      if(!isNew)
+         return;
 
       try
       {
@@ -92,8 +85,7 @@ public sealed class DiskChanges : IDisposable
          watcher.Error += (_, e) => Safely(() => Overflow(e.GetException()));
          watcher.EnableRaisingEvents = true;
 
-         lock(_lock)
-            _watchers.Add(watcher);
+         _watched.Locked(it => it.Watchers.Add(watcher));
       }
       catch(Exception exception)
       {
@@ -106,25 +98,25 @@ public sealed class DiskChanges : IDisposable
    /// </summary>
    public DiskChangeSet Take()
    {
-      lock(_lock)
+      return _watched.Locked(it =>
       {
-         var set = new DiskChangeSet(_paths.ToList(), _overflowed ? _roots.ToList() : new List<string>());
-         _paths.Clear();
-         _overflowed = false;
+         var set = new DiskChangeSet(it.Paths.ToList(), it.Overflowed ? it.Roots.ToList() : new List<string>());
+         it.Paths.Clear();
+         it.Overflowed = false;
 
          return set;
-      }
+      });
    }
 
    public void Dispose()
    {
-      lock(_lock)
+      _watched.Locked(it =>
       {
-         foreach(var watcher in _watchers)
+         foreach(var watcher in it.Watchers)
             watcher.Dispose();
 
-         _watchers.Clear();
-      }
+         it.Watchers.Clear();
+      });
    }
 
    void Safely(Action handle)
@@ -151,15 +143,13 @@ public sealed class DiskChanges : IDisposable
       if(!Extensions.Contains(Path.GetExtension(path)) || IsIgnored(root, path))
          return;
 
-      lock(_lock)
-         _paths.Add(path);
+      _watched.Locked(it => it.Paths.Add(path));
    }
 
    void Overflow(Exception exception)
    {
       Log.Warn(exception, ExceptionOrigin.Algorithmic, "DotNetAnalysisAndRefactoringMcp lost file change events; the next call refreshes the watched roots");
-      lock(_lock)
-         _overflowed = true;
+      _watched.Locked(it => it.Overflowed = true);
    }
 
    static bool IsIgnored(string root, string path)
@@ -177,6 +167,18 @@ public sealed class DiskChanges : IDisposable
 
       return string.Equals(root, path, StringComparison.OrdinalIgnoreCase)
           || path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+   }
+
+   /// <summary>
+   ///   What the watchers' threads and the calls share: the watched roots and their watchers, the files changed since
+   ///   last taken, and whether events were lost.
+   /// </summary>
+   sealed class Watched
+   {
+      public readonly List<FileSystemWatcher> Watchers = [];
+      public readonly List<string> Roots = [];
+      public readonly HashSet<string> Paths = new(StringComparer.Ordinal);
+      public bool Overflowed;
    }
 }
 

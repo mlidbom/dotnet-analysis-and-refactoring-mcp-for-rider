@@ -13,26 +13,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
    while later, so an agent that builds at once builds the old text (the move specification waits for the save). The
    protocol has an `RdSaveAllRequest` (Rider's `RdRequests`), which may be the way to ask the frontend to save.
 
-## With the host's next change
-
-A host change takes a Rider restart, so what needs only one waits for a change that needs one anyway:
-
-- The empty catches in `McpHttpServer` (`catch {}` around `_listener.Stop()` and six more): each either has a reason,
-  written beside it, or goes, by the defensive-coding rule. Found with the session importing the shared rules
-  (2026-11-15).
-- Four redundant name qualifiers in `McpHttpServer`, which `inspect_code` lists.
-- **One type for thread-shared state instead of 39 raw `lock`s** (Magnus, 2026-11-15). Each class's lock-guarded
-  fields become one state object that a small host type hands out only inside its lock. Its names and shape are
-  Compze's, so that replacing it later changes the usings and the construction, not the call sites:
-  `IThreadShared.New(state)`, and `Locked(it => …)` both to read and to change (Compze's `IShared` has no separate
-  Read and Update). The names are Magnus's to check.
-  The classes: `McpHttpServer`, `DiskChanges`, `DiskSync`, `LoadedToolsBuild`, `SwappableTools`, and
-  `ReloadProjectsTool` in the tools. The raw lock is then in one place, its implementation. That place breaks the
-  locking rule, since the plugin can't reference Compze, and its comment says that Magnus approved it. A `todo:`
-  beside it: replace the type with Compze.Threading once the plugin can reference it. That takes Rider's backend on a
-  .NET that Compze targets (Rider 2026.3 runs .NET 10, Compze .NET 11), a plugin SDK that compiles plugins for it (both
-  SDKs we use have build targets for net472 only), and the same of every Rider the plugin still supports.
-
 ## Swapping the tools without a restart
 
 See `dev_docs/swappable-tools.md`.

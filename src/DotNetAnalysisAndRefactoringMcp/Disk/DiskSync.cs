@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using DotNetAnalysisAndRefactoringMcp.Threading;
 using JetBrains.Application;
 using JetBrains.Application.Threading;
 using JetBrains.Application.Threading.Tasks;
@@ -54,12 +55,10 @@ public sealed class DiskSync
    // Files compared with disk per call; past it (a branch switch), the rest are only rescanned.
    const int MaxChecked = 500;
 
-   readonly object _lock = new object();
+   readonly IThreadShared<Settled> _settled = IThreadShared.New(new Settled());
    readonly ISolution _solution;
    readonly IShellLocks _locks;
    readonly DiskChanges _changes;
-   readonly Dictionary<string, DateTime> _stale = new Dictionary<string, DateTime>(StringComparer.Ordinal);
-   readonly Dictionary<string, DateTime> _absent = new Dictionary<string, DateTime>(StringComparer.Ordinal);
    bool _watchesProjects;
 
    public DiskSync(ISolution solution, IShellLocks locks, DiskChanges changes)
@@ -69,14 +68,7 @@ public sealed class DiskSync
       _changes = changes;
    }
 
-   public int Pending
-   {
-      get
-      {
-         lock(_lock)
-            return _changes.Count + _stale.Count;
-      }
-   }
+   public int Pending => _changes.Count + _settled.Locked(it => it.Stale.Count);
 
    /// <param name="named">Absolute paths of the files the call names.</param>
    public async Task<DiskReport> Run(Lifetime lifetime, McpToolExecution execution, IReadOnlyCollection<string> named)
@@ -88,11 +80,11 @@ public sealed class DiskSync
       var unverified = changes.Files.Where(x => !suspects.Contains(x)).ToList();
       var before = await execution.Read(() => Check(suspects));
 
-      var stale = before.Stale.Where(x => IsUnsettled(_stale, x)).ToList();
+      var stale = before.Stale.Where(x => IsUnsettled(it => it.Stale, x)).ToList();
       if(stale.Count > 0)
          await Reconcile(lifetime, stale);
 
-      var absent = before.Absent.Where(x => IsUnsettled(_absent, x)).ToList();
+      var absent = before.Absent.Where(x => IsUnsettled(it => it.Absent, x)).ToList();
       var rescan = stale
                   .Concat(absent)
                   .Concat(absent.Select(Path.GetDirectoryName))
@@ -112,11 +104,7 @@ public sealed class DiskSync
       return new DiskReport(state.Stale, state.Absent.Where(named.Contains).ToList());
    }
 
-   IReadOnlyList<string> Known()
-   {
-      lock(_lock)
-         return _stale.Keys.ToList();
-   }
+   IReadOnlyList<string> Known() => _settled.Locked(it => it.Stale.Keys.ToList());
 
    async Task WatchProjects(McpToolExecution execution)
    {
@@ -246,28 +234,25 @@ public sealed class DiskSync
    ///   Whether a file is worth a reload and a wait: it was not left in <paramref name="settled"/> by an earlier
    ///   call, or it changed on disk since.
    /// </summary>
-   bool IsUnsettled(Dictionary<string, DateTime> settled, string file)
-   {
-      lock(_lock)
-         return !settled.TryGetValue(file, out var time) || time != DiskTime(file);
-   }
+   bool IsUnsettled(Func<Settled, Dictionary<string, DateTime>> settled, string file) =>
+      _settled.Locked(it => !settled(it).TryGetValue(file, out var time) || time != DiskTime(file));
 
    void Remember(IEnumerable<string> checkedFiles, DiskState state)
    {
-      lock(_lock)
+      _settled.Locked(it =>
       {
          foreach(var file in checkedFiles)
          {
-            _stale.Remove(file);
-            _absent.Remove(file);
+            it.Stale.Remove(file);
+            it.Absent.Remove(file);
          }
 
          foreach(var file in state.Stale)
-            _stale[file] = DiskTime(file);
+            it.Stale[file] = DiskTime(file);
 
          foreach(var file in state.Absent)
-            _absent[file] = DiskTime(file);
-      }
+            it.Absent[file] = DiskTime(file);
+      });
    }
 
    /// <remarks>
@@ -293,6 +278,16 @@ public sealed class DiskSync
 
    static VirtualFileSystemPath Parse(string path) =>
       VirtualFileSystemPath.Parse(path, InteractionContext.SolutionContext);
+
+   /// <summary>
+   ///   Files found stale or absent, and their disk times then: a file still so after the wait isn't waited on
+   ///   again until its disk time changes. Shared by the calls in progress.
+   /// </summary>
+   sealed class Settled
+   {
+      public readonly Dictionary<string, DateTime> Stale = new(StringComparer.Ordinal);
+      public readonly Dictionary<string, DateTime> Absent = new(StringComparer.Ordinal);
+   }
 }
 
 /// <summary>

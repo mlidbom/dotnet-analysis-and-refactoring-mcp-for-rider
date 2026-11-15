@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DotNetAnalysisAndRefactoringMcp.Threading;
 using JetBrains.Application.Components;
 using JetBrains.Application.Threading.Tasks;
 using JetBrains.Lifetimes;
@@ -195,21 +196,20 @@ public sealed class ReloadProjectsTool : IMcpAsyncTool
    /// </summary>
    sealed class ProjectsLoad
    {
-      readonly HashSet<IProjectMark> _waitingFor;
-      readonly HashSet<IProjectMark> _loading = [];
+      readonly IThreadShared<Projects> _projects;
       readonly TaskCompletionSource<bool> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-      public ProjectsLoad(IEnumerable<IProjectMark> projects) => _waitingFor = [.. projects];
+      public ProjectsLoad(IEnumerable<IProjectMark> projects) => _projects = IThreadShared.New(new Projects([.. projects]));
 
       public Task Done => _done.Task;
 
       public void Started(ICollection<IProjectMark> projects)
       {
-         lock(_waitingFor)
+         _projects.Locked(it =>
          {
-            _loading.Clear();
-            _loading.UnionWith(projects.Where(_waitingFor.Contains));
-         }
+            it.Loading.Clear();
+            it.Loading.UnionWith(projects.Where(it.WaitingFor.Contains));
+         });
       }
 
       /// <remarks>
@@ -219,12 +219,19 @@ public sealed class ReloadProjectsTool : IMcpAsyncTool
       /// <param name="_">Nothing: what a <c>SimpleSignal</c> hands its subscribers.</param>
       public void Finished(bool _)
       {
-         lock(_waitingFor)
+         _projects.Locked(it =>
          {
-            _waitingFor.ExceptWith(_loading);
-            _loading.Clear();
-            if(_waitingFor.Count == 0) _done.TrySetResult(true);
-         }
+            it.WaitingFor.ExceptWith(it.Loading);
+            it.Loading.Clear();
+            if(it.WaitingFor.Count == 0) _done.TrySetResult(true);
+         });
+      }
+
+      /// <summary>The projects not loaded yet, and those the load in progress started on: what Rider's load signals share.</summary>
+      sealed class Projects(HashSet<IProjectMark> waitingFor)
+      {
+         public readonly HashSet<IProjectMark> WaitingFor = waitingFor;
+         public readonly HashSet<IProjectMark> Loading = [];
       }
    }
 }
