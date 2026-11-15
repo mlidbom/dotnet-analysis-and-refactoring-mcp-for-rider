@@ -37,7 +37,9 @@ public class FindUsagesTool : IMcpTool
       "Default output is rg-shaped: usages grouped by file (paths relative to the solution root), one " +
       "'line: code' row each. mode 'files' lists files with counts; mode 'grouped' groups by project. " +
       "Narrow with 'pathPrefix' and 'excludeTests'. " +
-      "Pass multiple symbols via the 'symbols' array to search for several in one call.";
+      "Pass multiple symbols via the 'symbols' array to search for several in one call. " +
+      "On an implementation or override, it also finds the calls made through the interface or base member, when that " +
+      "member is declared in the solution; a compiled one, such as IDisposable.Dispose, is named in the answer, to ask about by name.";
 
    public object InputSchema => new
                                 {

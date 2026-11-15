@@ -42,7 +42,8 @@ static class ToolList
                                       ["type"] = "string",
                                       ["description"] = "Target solution name (e.g. 'MyProject'), a unique path segment (e.g. 'my-repo'), or full path. "
                                                       + "Optional when only one solution is open. "
-                                                      + "Required when multiple solutions are open — use list_solutions to see available names and uniquePathSegment hints."
+                                                      + "Required when multiple solutions are open — use list_solutions to see available names and uniquePathSegment hints. "
+                                                      + "Worktrees or clones of one repository share a name: pick one by its path segment or full path."
                                    };
       schema["properties"] = properties;
 

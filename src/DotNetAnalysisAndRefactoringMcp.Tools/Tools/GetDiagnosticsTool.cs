@@ -31,6 +31,7 @@ public class GetDiagnosticsTool : IMcpTool
       "message, location, and whether a quick-fix is available. Richer than get_file_errors " +
       "(which only finds syntax errors and unresolved references). " +
       "Filter with minSeverity ('error'|'warning'|'suggestion'|'hint', default 'warning'). " +
+      "The default leaves out the suggestion and hint tiers, such as invert-if: pass 'hint' for every finding. " +
       "Pass an optional position {line, column} to keep only the diagnostics covering that spot " +
       "(useful for explaining the error/warning under the cursor).";
 

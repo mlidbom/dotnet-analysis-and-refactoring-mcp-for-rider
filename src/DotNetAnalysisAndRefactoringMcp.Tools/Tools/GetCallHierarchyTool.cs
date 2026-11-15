@@ -31,7 +31,9 @@ public class GetCallHierarchyTool : IMcpTool
       "'outgoing' finds callees (which methods this method calls, recursively). " +
       "Provide either a symbolName (e.g. 'MyClass.MyMethod') or a file path with position (line/column), " +
       "plus a 'direction'. Recursion is bounded by 'maxDepth' (default 2, capped at 4) and an internal node budget. " +
-      "Outgoing resolution is C#-specific; non-C# roots degrade gracefully.";
+      "Outgoing resolution is C#-specific; non-C# roots degrade gracefully. " +
+      "On an implementation or override, it also finds the calls made through the interface or base member, when that " +
+      "member is declared in the solution; a compiled one, such as IDisposable.Dispose, is named in the answer, to ask about by name.";
 
    public object InputSchema => new
                                 {

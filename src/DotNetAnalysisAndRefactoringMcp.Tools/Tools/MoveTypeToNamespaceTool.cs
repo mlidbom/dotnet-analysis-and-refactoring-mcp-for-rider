@@ -53,6 +53,7 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
       "Move a type to another namespace, as ReSharper's Move to Another Namespace does: its declaration, and every " +
       "reference and using across the solution. Then checks that the declaration itself moved, and adds the using to " +
       "every file that calls the type's extension methods. The file stays where it is: git mv it to the namespace's folder. " +
+      "The usings it leaves redundant: apply_suggestions with inspectionIds 'RedundantUsingDirective' and scope 'solution'. " +
       "Name the type by symbolName or position, and the namespace by newNamespace; dryRun previews the files.";
 
    public object InputSchema => new
