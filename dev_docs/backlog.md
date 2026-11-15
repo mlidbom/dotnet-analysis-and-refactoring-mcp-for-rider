@@ -39,6 +39,10 @@ See `dev_docs/swappable-tools.md`.
   only when asked, such as a `reanalyze` argument to `inspect_code`.
 - A `move_type_to_namespace` dry run answered with the host's "(index still building — results may be incomplete)",
   probably because rolling back its temporary transaction updates the caches. `/health` said idle right after.
+  - It isn't only dry runs: in JAStudio on 2026-11-15, every one of about 60 `rename_symbol` and
+    `move_type_to_namespace` answers over two hours ended with it, the applied ones too, while `inspect_code` in
+    between said solution-wide analysis was complete. Every result was complete, by build and grep. As it stands the
+    note says nothing, and teaches agents to ignore it.
 - `get_file_errors` reports "Cannot resolve symbol 'Deconstruct' (unverified: may be source-generated)" on tuple
   deconstructions that compile, such as `var (offset, positionError) = …` in `GetDiagnosticsTool.cs`: `changedSince:
   0eee149` on this repository gave 43 such errors in 20 files that build, where `get_diagnostics` gives none. The
@@ -48,6 +52,18 @@ See `dev_docs/swappable-tools.md`.
   25 tools implement it. Unconfirmed: the answer also had the "index still building" note above, so it may be that, the
   changed-files list under-reporting, or the rename not following the implementations. Found by the shared-rules
   session, 2026-11-15.
+  - It is the list under-reporting: in JAStudio on 2026-11-15, applied renames of interface methods, such as
+    `ICardOperations.DeleteNote` with implementations in four projects, renamed every implementation, while
+    `changedFiles` listed only the interface's file and the callers'. The list leaves out the files of the
+    implementations.
+- `rename_symbol` can't rename a positional record's property by name: for `StudyNoteFieldDifference.InAnki`, of
+  `record StudyNoteFieldDifference(string Field, string? InAnki, string JAStudioWrites)`, with `kind: 'property'`, it
+  answered "Symbol 'InAnki' has no source file; only source-defined symbols can be renamed." The property is
+  declared by the record's parameter, which is its source. JAStudio, 2026-11-15.
+- `move_type_to_namespace` turned a file-scoped namespace into a block-scoped one, in a file that held two types
+  moved one after the other to the same namespace (JAStudio's `IBackendDataLoader.cs`, with the interface and
+  `BackendData`, 2026-11-15). Two namespaces in the file between the two moves need blocks, but once both types are
+  in the one namespace it should be file-scoped again, as the solution's style has it.
 
 - A directory `DiskChanges` fails to watch is never tried again: each is watched once, so edits under it are noticed
   only in files a call names. Retrying each call would log the failure each call; retrying with a backoff would
