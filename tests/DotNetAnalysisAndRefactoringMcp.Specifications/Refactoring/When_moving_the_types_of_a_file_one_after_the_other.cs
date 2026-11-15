@@ -22,6 +22,8 @@ public class When_moving_the_types_of_a_file_one_after_the_other(TheSandboxWithT
 
    [XF] public void the_file_has_one_file_scoped_namespace() => _the.File.Must().Contain("namespace Shapes.Drawing.Loading;").NotContain("namespace Shapes.Drawing.Moving");
    [XF] public void the_second_answer_says_it_made_it_file_scoped_again() => _the.Answers[1].Must().Contain("file-scoped again");
+   [XF] public void the_first_leaves_the_file_where_it_is_as_it_holds_the_other_type_still() => _the.Answers[0].Must().Contain("it holds types in other namespaces too");
+   [XF] public void the_second_moves_it_to_the_folder_of_the_namespace() => _the.Answers[1].Must().Contain("Moved the file to").Contain("Loading");
    [XF] public void and_the_file_has_no_errors() => _the.Errors.Must().Contain("0 diagnostics");
 
    /// <summary>
@@ -34,7 +36,7 @@ public class When_moving_the_types_of_a_file_one_after_the_other(TheSandboxWithT
 
    static Observed Observe(TheSandboxWithTheFixtureSolution sandbox)
    {
-      var path = sandbox.PathOf("Shapes.Drawing/Moving/Loader.cs");
+      var path = sandbox.PathOf("Shapes.Drawing/Loading/Loader.cs");
       List<string> answers = [Move("Shapes.Drawing.Moving.ILoader"), Move("Shapes.Drawing.Moving.Loaded")];
       return new Observed(answers, File.ReadAllText(path), sandbox.McpServer.CallTool("get_file_errors", new { filePath = path }));
 

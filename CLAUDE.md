@@ -89,8 +89,14 @@ measured). Before every call `McpServerComponent` runs `DiskSync.Run`:
 Edit tools are refused while any suspect differs. Read tools get a note instead.
 
 After an edit tool's work, and before its answer, the documents it changed are saved (`Disk/UnsavedDocuments.cs`):
-Rider's backend asks the frontend to (`SaveDocument`), and the call waits until disk holds their text. Documents that
-differed from disk before the edit are left alone: someone's unsaved typing.
+Rider saves what a refactoring changed by itself, right after its transaction, so the call first waits half a second for
+that, and then asks the frontend to save what is left (`SaveDocument`), waiting until disk holds their text. A second
+save right after Rider's own once left Rider with an empty copy of the file. Documents that differed from disk before
+the edit are left alone: someone's unsaved typing.
+
+A tool that moves files (`IMcpFileMovingTool`, such as `move_type_to_namespace`) moves them on disk after that save
+(`Disk/FileMoves.cs`), as `git mv` would, and waits until Rider's project model has them where they went. Not through
+the project model: a file it moved into a folder new to an SDK-style project became a `<Link>` in the project file.
 
 **Never change a document's text from the backend** (`DocumentBindingUtil.SyncDocumentsWithFiles`, `ChangeDocument`):
 it is an in-memory edit, the document counts as unsaved, and Rider's autosave later writes it over disk. Observed:
@@ -126,7 +132,7 @@ Mutation-capable tools (main-thread execution, with dispatch controlled by the m
 | Tool | Marker | Description |
 |------|--------|-------------|
 | `rename_symbol` | `IMcpSelfTransactingWriteTool` | Semantic solution-wide rename via `RenameRefactoring`; manages its own transaction to support `dryRun` rollback |
-| `move_type_to_namespace` | `IMcpSelfTransactingWriteTool` | `MoveToNamespaceWorkflow` headless; checks the declaration moved, adds usings for extension-method callers |
+| `move_type_to_namespace` | `IMcpSelfTransactingWriteTool` | `MoveToNamespaceWorkflow` headless; checks the declaration moved, adds usings for extension-method callers, moves the file to its namespace's folder |
 | `generate_members` | `IMcpWriteTool` | Generate members via `GeneratorWorkflowFactory`; relies on the framework's auto-commit transaction |
 | `apply_quick_fix` | `IMcpAsyncTool` | Apply a bulb action via `BulbActionExecutor` (which self-transacts) |
 | `apply_suggestions` | `IMcpAsyncTool` | Apply scoped quick-fixes by inspection id via `IModernManualScopedAction.ExecuteAction` (ReSharper's "Fix all in file/folder/project/solution" engine, `scope`); complements position-based `apply_quick_fix` |
@@ -356,6 +362,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   SymbolName.cs                        # Parses "Ns.Type.Member<T>(...)" as agents write it
   CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
   FileScopedNamespaces.cs              # A namespace declaration made file-scoped, across Rider versions (reflection)
+  NamespaceFolders.cs                  # The directory of a namespace's files in a project, by the folders' expected namespaces
   SkippedElements.cs                   # Per-element guard for walks + the "skipped N elements" line
   McpInstructions.cs                   # Usage guide sent in the initialize response (from the tools, so no restart)
   Severities.cs                        # "error"/"warning"/... to and from ReSharper's Severity, and their order
@@ -368,6 +375,8 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     DiskText.cs                        # Whether a file on disk holds a document's text (line endings, BOM aside)
     UnsavedDocuments.cs                # An edit's documents saved before the answer: through Rider's frontend, waited for
     DocumentNotSaved.cs                # One that Rider hadn't saved in time, and how its file differed, for the note
+    FileMoves.cs                       # Files an edit moves, moved on disk after the save; FileMove.cs is one of them
+    Rescans.cs                         # Rider's frontend asked to rescan paths (FileSystemModel.RefreshPaths)
     RiderInternals.cs                  # Rider API missing from the SDK, found by reflection (RdPath)
     RefreshRequests.cs                 # RdFsRefreshRequest across Rider versions (reflection)
   Tools/
@@ -400,7 +409,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     ListQuickFixesTool.cs              # list_quick_fixes — bulb actions at a position
     CompleteAtTool.cs                  # complete_at — code completion suggestions (main-thread dispatch)
     RenameSymbolTool.cs                # rename_symbol — semantic solution-wide rename (self-transacting write)
-    MoveTypeToNamespaceTool.cs         # move_type_to_namespace — Move to Another Namespace, checked, extension usings
+    MoveTypeToNamespaceTool.cs         # move_type_to_namespace — Move to Another Namespace, checked, extension usings, file moved
     GenerateMembersTool.cs             # generate_members — generate type members (write)
     ApplyQuickFixTool.cs               # apply_quick_fix — apply a bulb action (self-transacting write)
     ApplySuggestionsTool.cs            # apply_suggestions — file-wide scoped quick-fixes by inspection id

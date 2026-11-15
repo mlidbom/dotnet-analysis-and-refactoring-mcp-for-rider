@@ -3,15 +3,13 @@
 What Claude found the plugin lacking, or would build next, most valuable first. Sessions in other projects add what
 they run into here (see the user-level rule that the dotnet-analysis-and-refactoring MCP is a development tool you own). An item that is done goes from the list.
 
-## Tools
-
-1. **`move_type_to_namespace` moving the file too,** to the folder of its new namespace. It moves the declaration,
-   references and usings, and gives extension-method callers their using, but leaves the file: Rider's documents hold
-   the unsaved result, and a file moved on disk under them would lose it. ReSharper's Move to Folder refactoring may
-   do it inside the model.
-
 ## Known bugs
 
+- **A call by name right after a file is created on disk doesn't find its types:** the disk sync waits for a new
+  file only when the call names it, so `search_symbol`, or a tool given a `symbolName`, answers "Symbol not found" until
+  Rider's file watcher has taken the file in. In a loop that wrote a file and moved its types by name 2.5 s later, 1 of
+  40 calls found nothing (2026-11-15). Waiting a moment for the files `DiskChanges` saw created, as for named ones,
+  would do it.
 - `search_symbol` with `includeLibraries` finds a compiled member only as `Type.Member`, not by its name alone
   (`GetProjectMark` gives none): scanning every compiled type's members takes seconds. An index of member names
   would do it.

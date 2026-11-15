@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using DotNetAnalysisAndRefactoringMcp.Disk;
 using JetBrains.Application.DataContext;
 using JetBrains.Application.Progress;
 using JetBrains.Lifetimes;
@@ -36,13 +37,16 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 ///     transaction of its own, temporary for a dry run.
 ///   </para>
 ///   <para>
-///     The file isn't moved: Rider's documents hold the unsaved result, and a file moved under them would lose it. The
-///     answer says so.
+///     A file left holding only types of the new namespace moves to that namespace's folder (<see cref="NamespaceFolders"/>):
+///     on disk, once Rider has saved the edit (<see cref="FileMoves"/>). Until 2026-11-15 the file stayed, and the answer
+///     said to git mv it.
 ///   </para>
 /// </remarks>
-public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcpEditTool
+public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcpFileMovingTool
 {
    const string ActionId = "DotNetAnalysisAndRefactoringMcp.MoveToNamespace";
+
+   readonly List<FileMove> _fileMoves = [];
 
    readonly ISolution _solution;
 
@@ -50,10 +54,13 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
 
    public string Name => "move_type_to_namespace";
 
+   public IReadOnlyList<FileMove> FileMoves => _fileMoves;
+
    public string Description =>
       "Move a type to another namespace, as ReSharper's Move to Another Namespace does: its declaration, and every " +
       "reference and using across the solution. Then checks that the declaration itself moved, and adds the using to " +
-      "every file that calls the type's extension methods. The file stays where it is: git mv it to the namespace's folder. " +
+      "every file that calls the type's extension methods. A file that then holds only types of the new namespace moves to " +
+      "the namespace's folder, which is made if missing. " +
       "The usings it leaves redundant: apply_suggestions with inspectionIds 'RedundantUsingDirective' and scope 'solution'. " +
       "Name the type by symbolName or position, and the namespace by newNamespace; dryRun previews the files.";
 
@@ -114,25 +121,31 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
 
       var driver = new RefactoringDriverWithConflicts(new RefactoringDriverStorage());
       var psiServices = _solution.GetPsiServices();
-      using var transaction = dryRun
+      List<string> usingsAdded;
+      List<string> madeFileScoped;
+      List<IProjectFile> toMove;
+      using(var transaction = dryRun
                                  ? PsiTransactionCookie.CreateTemporaryChangeCookie(psiServices, ActionId)
-                                 : PsiTransactionCookie.CreateAutoCommitCookieWithCachesUpdate(psiServices, ActionId);
-
-      var executed = workflow.CreateRefactoring(driver).Execute(NullProgressIndicator.Create());
-      psiServices.Caches.Update();
-      var moved = psiServices.Symbols.GetSymbolScope(module, true, true).GetTypeElementByCLRName(newNamespace + "." + shortName);
-      if(!executed || moved == null)
+                                 : PsiTransactionCookie.CreateAutoCommitCookieWithCachesUpdate(psiServices, ActionId))
       {
-         transaction.Rollback();
-         return new
-                {
-                   error = $"The refactoring left {shortName}'s declaration in {oldNamespace}, so nothing was changed. " +
-                           "This is the half-done move the rider MCP's tool sometimes reports as applied."
-                };
+         var executed = workflow.CreateRefactoring(driver).Execute(NullProgressIndicator.Create());
+         psiServices.Caches.Update();
+         var moved = psiServices.Symbols.GetSymbolScope(module, true, true).GetTypeElementByCLRName(newNamespace + "." + shortName);
+         if(!executed || moved == null)
+         {
+            transaction.Rollback();
+            return new
+                   {
+                      error = $"The refactoring left {shortName}'s declaration in {oldNamespace}, so nothing was changed. " +
+                              "This is the half-done move the rider MCP's tool sometimes reports as applied."
+                   };
+         }
+
+         usingsAdded = [.. extensionCallers.Where(it => AddUsing(it, newNamespace!)).Select(it => it.GetLocation().FullPath)];
+         madeFileScoped = [.. SourceFilesOf(moved).Where(MakeFileScopedAsTheStyleHasIt).Select(it => it.GetLocation().FullPath)];
+         toMove = [.. SourceFilesOf(moved).Where(it => HoldsOnlyTypesIn(it, newNamespace!)).Select(it => it.ToProjectFile()).OfType<IProjectFile>()];
       }
 
-      var usingsAdded = extensionCallers.Where(it => AddUsing(it, newNamespace!)).Select(it => it.GetLocation().FullPath).ToList();
-      var madeFileScoped = SourceFilesOf(moved).Where(MakeFileScopedAsTheStyleHasIt).Select(it => it.GetLocation().FullPath).ToList();
       var root = SolutionRoot.Of(_solution);
       var answer = new StringBuilder();
       answer.AppendLine(dryRun
@@ -152,8 +165,46 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
 
       foreach(var conflict in driver.Conflicts)
          answer.AppendLine("conflict: " + conflict.Description);
-      answer.Append("The file wasn't moved: git mv it to the folder of its new namespace.");
-      return answer.ToString();
+      if(toMove.Count == 0)
+         answer.AppendLine("The file wasn't moved: it holds types in other namespaces too.");
+      foreach(var file in toMove)
+         if(PlanTheMoveOf(file, newNamespace!, dryRun, root) is { Length: > 0 } line)
+            answer.AppendLine(line);
+      return answer.ToString().TrimEnd();
+   }
+
+   /// <summary>
+   ///   Where <paramref name="file"/> goes, now that it holds only types of <paramref name="ns"/>: to the namespace's
+   ///   folder, as a <see cref="FileMove"/> of a real move, which the call makes once Rider has saved the edit, or as a
+   ///   line of the answer, for a dry run or a file that stays.
+   /// </summary>
+   string PlanTheMoveOf(IProjectFile file, string ns, bool dryRun, SolutionRoot root)
+   {
+      var project = file.GetProject()!;
+      var directory = new NamespaceFolders(project).DirectoryFor(ns);
+      if(directory == null)
+         return $"The file wasn't moved: {ns} isn't inside {project.Name}'s namespace, so it has no folder.";
+      if(directory.Equals(file.Location.Directory))
+         return "";
+
+      var to = directory.Combine(file.Location.Name).FullPath;
+      if(dryRun)
+         return $"Would move the file to {root.Relative(to)}.";
+      _fileMoves.Add(new FileMove(file.Location.FullPath, to));
+      return "";
+   }
+
+   /// <summary>
+   ///   Whether every type declared at the top of <paramref name="sourceFile"/> is in <paramref name="ns"/>, so that the
+   ///   file belongs in that namespace's folder. A file that still holds a type of another namespace stays where it is.
+   /// </summary>
+   static bool HoldsOnlyTypesIn(IPsiSourceFile sourceFile, string ns)
+   {
+      if(sourceFile.GetDominantPsiFile<CSharpLanguage>() is not ICSharpFile file) return false;
+      foreach(var declaration in file.Descendants<ICSharpTypeDeclaration>())
+         if(declaration.GetContainingTypeDeclaration() == null && declaration.DeclaredElement?.GetContainingNamespace().QualifiedName != ns)
+            return false;
+      return true;
    }
 
    /// <summary>The C# files that call the type's extension methods, which the move gives no using.</summary>

@@ -90,8 +90,11 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       var unsavedBefore = EditsFiles(arguments) ? await _unsaved.Now(lifetime).ConfigureAwait(false) : null;
       var result = await Work(arguments, lifetime, execution).ConfigureAwait(false);
       var notSaved = unsavedBefore == null ? [] : await _unsaved.SaveThoseUnsavedSince(unsavedBefore, lifetime).ConfigureAwait(false);
+      var moved = _tool is IMcpFileMovingTool mover && EditsFiles(arguments)
+                     ? await new FileMoves(_solution.Solution, _locks).Make(mover.FileMoves, notSaved, lifetime, execution, _solution.Root).ConfigureAwait(false)
+                     : [];
 
-      return WithNotes(result, Notes(disk, requested, indexingAsTheWorkBegan, notSaved));
+      return WithNotes(result, [.. moved, .. Notes(disk, requested, indexingAsTheWorkBegan, notSaved)]);
    }
 
    /// <summary>The tool's work, on the thread and under the lock its kind asks for.</summary>

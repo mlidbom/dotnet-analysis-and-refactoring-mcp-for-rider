@@ -11,6 +11,7 @@ plugin is a fork of.
 
 ### Changed
 
+- `move_type_to_namespace` moves the file to the folder of the type's new namespace, made if missing, once the file holds only types of that namespace; a dry run says where it would go. On disk, after Rider has saved the edit, and the answer comes once Rider's project model has the file there. The answer said to `git mv` it
 - `rename_symbol` renames a type's file named after it, as Rider's Rename does, and lists it in `renamedFiles`; the file kept the old name. A dry run renames no file
 - Edit tools save the files they changed before they answer, so that a build started right after the answer builds the edit: Rider saved them a while later. Files with unsaved changes before the edit, such as someone's typing in Rider, are left for Rider to save. A file Rider hasn't saved within 10 seconds is named in a note
 - No use of deprecated platform API: the Kotlin compiler no longer generates a forwarding method for the deprecated `StatusBarWidget.getPresentation(PlatformType)` into the status-bar widget, which the Marketplace's verifier reported as two usages of deprecated API
