@@ -6,7 +6,7 @@
   -->
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
-    <LangVersion>latest</LangVersion>
+    <LangVersion>14</LangVersion>
     <RootNamespace>DotNetAnalysisAndRefactoringMcp</RootNamespace>
     <AssemblyName>DotNetAnalysisAndRefactoringMcp.Tools</AssemblyName>
   </PropertyGroup>
