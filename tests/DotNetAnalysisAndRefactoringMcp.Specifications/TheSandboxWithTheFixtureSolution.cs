@@ -34,6 +34,9 @@ public sealed class TheSandboxWithTheFixtureSolution
       CallEveryToolThatChangesNothingOnce();
    }
 
+   /// <summary>This run's build of the plugin, from the working tree.</summary>
+   public PluginBuild Build => _build;
+
    /// <summary>The plugin's MCP server in the sandbox.</summary>
    public SandboxMcpServer McpServer { get; } = new(SandboxRider.McpPort);
 
@@ -111,7 +114,7 @@ public sealed class TheSandboxWithTheFixtureSolution
    }
 
    /// <summary>The copy replaces the last run's, so no run sees what an earlier one changed.</summary>
-   static void CopyTheFixtureSolutionTo(string folder)
+   internal static void CopyTheFixtureSolutionTo(string folder)
    {
       if(Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
       var original = Path.Combine(RepositoryRoot.Folder, "tests", "FixtureSolution");

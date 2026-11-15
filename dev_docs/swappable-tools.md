@@ -147,8 +147,12 @@ peer's registration, is a host type holding JSON (`PeerRegistration`).
 primary (`PrimaryServer`); `Protocol/` has the JSON-RPC and MCP types; `Tools/ToolCall` is a call's flow, with the disk
 sync in `Disk/`.
 
-**Not checked live:** the peer paths (registering with the primary, forwarding a call, a peer's health) need two
-Riders, and the specifications run one. Nor the answers when no tools build loads.
+**The peer paths are specified** with a second sandbox Rider, the first one's peer (`SandboxRider.ThePeer`), which
+the specifications in `Serving/WithAPeer` start with a copy of the fixture solution of its own, and stop after them:
+registering with the primary, routing a call to the peer by name, path segment or file, forwarding it, the peer's
+health, and deregistering when it closes. They found that routing by file took the wrong solution when two share a
+work tree. **Not checked:** the answers when no tools build loads, and a peer whose Rider has gone without
+deregistering.
 
 ## Not done yet
 

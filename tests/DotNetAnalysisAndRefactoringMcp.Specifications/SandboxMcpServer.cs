@@ -35,6 +35,19 @@ public sealed class SandboxMcpServer
    public JsonElement Initialize(string protocolVersion = "2025-03-26") =>
       Send("initialize", new JsonObject { ["protocolVersion"] = protocolVersion, ["capabilities"] = new JsonObject() });
 
+   /// <summary>What <c>list_solutions</c> answers: every open solution's name, path, tool count, and the path segment that picks it out.</summary>
+   public JsonElement ListSolutions()
+   {
+      using var listed = JsonDocument.Parse(CallTool("list_solutions", new {}));
+      return listed.RootElement.Clone();
+   }
+
+   /// <summary>The path segment <c>list_solutions</c> gives the solution at <paramref name="solutionPath"/>, to name it by.</summary>
+   public string UniquePathSegmentOf(string solutionPath) =>
+      ListSolutions().GetProperty("solutions").EnumerateArray()
+                     .Single(it => string.Equals(it.GetProperty("path").GetString(), solutionPath, StringComparison.OrdinalIgnoreCase))
+                     .GetProperty("uniquePathSegment").GetString()!;
+
    /// <summary>The tools <c>tools/list</c> lists, as their definitions.</summary>
    public IReadOnlyList<JsonElement> ListTools() => Send("tools/list", new JsonObject()).GetProperty("tools").EnumerateArray().ToList();
 

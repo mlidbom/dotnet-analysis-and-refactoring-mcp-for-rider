@@ -54,7 +54,12 @@ Component breakdown:
 - When only one solution is open (across all Rider instances), all tool calls route to it automatically (backwards-compatible).
 - When multiple solutions are open, callers must specify `solutionName` in tool arguments.
 - The `list_solutions` meta-tool returns all currently open solutions (local + peers).
-- `solutionName` matches case-insensitively against the solution filename (without `.sln`) or the full path.
+- `solutionName` matches case-insensitively against the solution filename (without `.sln`) or the full path, or else a
+  unique segment of its path, which `list_solutions` gives each of several solutions of one name.
+- A call that names files and no solution goes to the solution holding them most closely: its own folder before the
+  work tree around it, so two solutions of one repository each get their own files.
+- The specifications in `Serving/WithAPeer` run a second sandbox Rider as the first one's peer (`peer start|stop|status`
+  in the development tools).
 
 ### ReSharper integration
 
