@@ -110,7 +110,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool
       }
 
       var solutionWide = SolutionAnalysisConfiguration.GetInstance(_solution);
-      var global = solutionWide != null && solutionWide.Enabled.Value && solutionWide.Completed.Value;
+      var global = solutionWide.Enabled.Value && solutionWide.Completed.Value;
 
       await _solution.Locks.Tasks.StartNew(call.Lifetime,
                                            Scheduling.MainGuard,
@@ -145,7 +145,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool
                     minSeverity,
                     maxResults,
                     stopwatch.Elapsed,
-                    global ? null : solutionWide is { Enabled.Value: true } ? "is still running" : "is off");
+                    global ? null : solutionWide.Enabled.Value ? "is still running" : "is off");
    }
 
    /// <param name="inspected">How many files were inspected, when they were inspected one by one.</param>
@@ -176,7 +176,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool
       if(issues.Count == 0) return answer.ToString().TrimEnd();
 
       answer.AppendLine("by inspection:");
-      foreach(var group in issues.GroupBy(it => (it.InspectionId, it.Severity)).OrderByDescending(it => it.Count()).ThenBy(it => it.Key.InspectionId))
+      foreach(var group in issues.GroupBy(it => (it.InspectionId, it.Severity)).OrderByDescending(it => it.Count()).ThenBy(it => it.Key.InspectionId, StringComparer.Ordinal))
          answer.AppendLine($"  {group.Count(),5} {Severities.Name(group.Key.Severity)} {group.Key.InspectionId}");
 
       var printed = 0;

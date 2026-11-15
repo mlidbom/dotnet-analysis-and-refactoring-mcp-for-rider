@@ -143,7 +143,7 @@ public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcp
 
          usingsAdded = [.. extensionCallers.Where(it => AddUsing(it, newNamespace!)).Select(it => it.GetLocation().FullPath)];
          madeFileScoped = [.. SourceFilesOf(moved).Where(MakeFileScopedAsTheStyleHasIt).Select(it => it.GetLocation().FullPath)];
-         toMove = [.. SourceFilesOf(moved).Where(it => HoldsOnlyTypesIn(it, newNamespace!)).Select(it => it.ToProjectFile()).OfType<IProjectFile>()];
+         toMove = [.. SourceFilesOf(moved).Where(it => HoldsOnlyTypesIn(it, newNamespace!)).Select(it => it.ToProjectFile()).Where(it => it != null)];
       }
 
       var root = SolutionRoot.Of(_solution);
