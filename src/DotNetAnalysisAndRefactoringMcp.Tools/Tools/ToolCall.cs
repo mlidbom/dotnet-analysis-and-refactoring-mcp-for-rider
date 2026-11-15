@@ -30,9 +30,13 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
    /// <summary>How long a call may take before it is answered with a timeout, and its work is asked to stop.</summary>
    public const int TimeoutSeconds = 120;
 
+   /// <summary>How long ReSharper's indexing of the files a change touched may take before the call begins anyway.</summary>
+   static readonly TimeSpan HowLongIndexingAChangeMayTake = TimeSpan.FromSeconds(1);
+
    static readonly ILogger Log = Logger.GetLogger<ToolCall>();
 
    readonly IShellLocks _locks = solution.Solution.GetComponent<IShellLocks>();
+   readonly Indexing _indexing = new(solution.Solution);
    readonly IMcpSolution _solution = solution;
    readonly IMcpTool _tool = tool;
 
@@ -81,7 +85,7 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       if(refusal != null)
          return new { error = refusal };
 
-      var indexingAsTheWorkBegan = _solution.IsIndexing;
+      var indexingAsTheWorkBegan = await IndexingAsTheWorkBegins(lifetime).ConfigureAwait(false);
       var result = await (_tool switch
                             {
                                IMcpAsyncTool asyncTool => asyncTool.ExecuteAsync(arguments, execution),
@@ -120,6 +124,20 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
                                             return result;
                                          });
 
+   /// <summary>
+   ///   Whether ReSharper is indexing as the tool's work begins, for longer than
+   ///   <see cref="HowLongIndexingAChangeMayTake"/>, which the work waits for it: what the tool reads may then be
+   ///   incomplete, and the answer says so.
+   /// </summary>
+   /// <remarks>
+   ///   Not after <see cref="HowLongIndexingAChangeMayTake"/>, the disk sync's reloading a file that was just edited sets
+   ///   ReSharper indexing it for tens of milliseconds, and most answers right after an edit had the note. And not as
+   ///   the work ends: an edit's own changes, or a dry run's rolling them back, set ReSharper indexing the files they
+   ///   changed, and every edit tool's answer had it (both 2026-11-15).
+   /// </remarks>
+   async Task<bool> IndexingAsTheWorkBegins(Lifetime lifetime) =>
+      _indexing.IsRunning && !await _indexing.IsDoneWithin(HowLongIndexingAChangeMayTake, lifetime).ConfigureAwait(false);
+
    /// <summary>Why an edit tool may not run: an edit applied to Rider's old copy of a file would be saved over the newer text on disk.</summary>
    string Refusal(DiskReport disk, JObject arguments)
    {
@@ -135,11 +153,6 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
            + "\nSave or revert unsaved edits in Rider, or re-run in a few seconds.";
    }
 
-   /// <param name="indexingAsTheWorkBegan">
-   ///   Whether ReSharper was indexing as the tool's work began, after the disk sync: what the tool read may then be
-   ///   incomplete. Not as it ended: an edit's own changes, or a dry run's rolling them back, set ReSharper indexing the
-   ///   files it changed, and every edit tool's answer had the note (2026-11-15).
-   /// </param>
    List<string> Notes(DiskReport disk, IReadOnlyList<string> requested, bool indexingAsTheWorkBegan)
    {
       var notes = new List<string>();

@@ -34,6 +34,7 @@ public interface IMcpSolution
    IThreadShared<DiskSyncState> DiskSyncState { get; }
 
    /// <summary>Whether ReSharper is still indexing, so that answers may be incomplete.</summary>
+   /// <remarks>refactor: unused since 2026-11-15, when the tools' <c>Indexing</c> took over reading it. Remove it with the next host change.</remarks>
    bool IsIndexing { get; }
 
    /// <summary>What a caller should know about the tools builds, such as one that failed to load.</summary>

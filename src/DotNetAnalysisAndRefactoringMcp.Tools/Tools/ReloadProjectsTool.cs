@@ -15,7 +15,6 @@ using JetBrains.ProjectModel;
 using JetBrains.ProjectModel.ProjectsHost;
 using JetBrains.ProjectModel.ProjectsHost.SolutionHost;
 using JetBrains.ProjectModel.ProjectsHost.SolutionHost.Impl;
-using JetBrains.ReSharper.Psi.Caches;
 using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
@@ -40,7 +39,6 @@ public sealed class ReloadProjectsTool : IMcpAsyncTool
 {
    static readonly TimeSpan HowLongLoadingMayTake = TimeSpan.FromSeconds(90);
    static readonly TimeSpan HowLongIndexingMayTake = TimeSpan.FromSeconds(20);
-   static readonly TimeSpan BetweenIndexingChecks = TimeSpan.FromMilliseconds(250);
 
    readonly ISolution _solution;
 
@@ -108,7 +106,7 @@ public sealed class ReloadProjectsTool : IMcpAsyncTool
          await MainThreadTurn(call.Lifetime).ConfigureAwait(false);
          await MainThreadTurn(call.Lifetime).ConfigureAwait(false);
          var loadedIn = stopwatch.Elapsed;
-         var indexed = await IndexingIsDone(call.Lifetime).ConfigureAwait(false);
+         var indexed = await new Indexing(_solution).IsDoneWithin(HowLongIndexingMayTake, call.Lifetime).ConfigureAwait(false);
          answer.AppendLine(indexed
                               ? $"Reloaded in {Seconds(loadedIn)}, and ReSharper has indexed the result ({Seconds(stopwatch.Elapsed)} in all)."
                               : $"Reloaded in {Seconds(loadedIn)}; ReSharper was still indexing {Seconds(HowLongIndexingMayTake)} later, so answers may be incomplete for a while.");
@@ -124,24 +122,6 @@ public sealed class ReloadProjectsTool : IMcpAsyncTool
    static string Seconds(TimeSpan time) => time.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
 
    Task MainThreadTurn(Lifetime lifetime) => _solution.Locks.Tasks.StartNew(lifetime, Scheduling.MainGuard, () => {});
-
-   /// <summary>Whether the caches went idle and stayed so between two checks, within <see cref="HowLongIndexingMayTake"/>.</summary>
-   async Task<bool> IndexingIsDone(Lifetime lifetime)
-   {
-      var caches = _solution.TryGetComponent<IPsiCachesState>();
-      if(caches == null) return true;
-      var deadline = DateTime.UtcNow + HowLongIndexingMayTake;
-      var idleBefore = false;
-      while(DateTime.UtcNow < deadline)
-      {
-         var idle = caches.IsIdle.Value;
-         if(idle && idleBefore) return true;
-         idleBefore = idle;
-         await Task.Delay(BetweenIndexingChecks, lifetime).ConfigureAwait(false);
-      }
-
-      return false;
-   }
 
    sealed class FoundProject(string name, string file, IProjectMark mark)
    {
