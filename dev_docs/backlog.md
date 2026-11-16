@@ -30,6 +30,12 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   only in files a call names. Retrying each call would log the failure each call; retrying with a backoff would
   do it. Seen in no log yet (the catch audit, 2026-11-15).
 
+- **`inspect_code` and `get_diagnostics` can't take the changed files, as `get_file_errors` can:** checking every
+  inspection on the files of a change took listing them by hand, 97 files in a JAStudio session (2026-11-16). And the
+  connect guide's sentence on `changedSince` follows the one on `get_diagnostics`, so it reads as that tool's: the session
+  passed it there first, and got "filePath is required". `changedSince`/`changed` on `inspect_code` would do it, with the
+  sentence moved to `get_file_errors`.
+
 ## Bigger ideas
 
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence
