@@ -53,6 +53,13 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   its settings, so it was another reason, likely a process it ran (it had started GitHub Copilot's agent through npx).
   The specification run before and after passed. Stopping should answer or report such a dialog, not wait it out.
 
+- **`apply_suggestions` applies nothing for an inspection of solution-wide analysis** (the owner, ClaudeTooling,
+  2026-11-17). `inspect_code` listed 54 `MemberCanBePrivate.Global` warnings, with solution-wide analysis complete;
+  `apply_suggestions` with that id, at file or solution scope, answered "nothing to apply" in a file that had one, so
+  they were made private by hand. Its fixes are found through the file's daemon, which doesn't run the solution-wide
+  inspections. Rider's own Fix in solution does apply them. Either apply them, or say why there was nothing, as for
+  the stale results above.
+
 ## Bigger ideas
 
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence
