@@ -9,6 +9,16 @@ plugin is a fork of.
 
 ## [Unreleased]
 
+## [0.14.1]
+
+### Fixed
+
+- Rider logged an error at every start, "Unknown element: getting-started": the plugin's descriptor had an element Rider doesn't know. What it held, how to configure an MCP client, is in the README
+
+### Changed
+
+- The plugin's description on the Marketplace lists every tool: `move_type_to_namespace`, `inspect_code` and `reload_projects` were missing
+
 ## [0.14.0]
 
 ### Changed

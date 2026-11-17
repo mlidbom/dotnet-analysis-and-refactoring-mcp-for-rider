@@ -33,7 +33,10 @@
       <li><b>rename_symbol</b> — Semantic rename of a symbol and all references across the solution (write)</li>
       <li><b>generate_members</b> — Generate members on a type, e.g. constructors and overrides (write)</li>
       <li><b>complete_at</b> — Get code completion suggestions at a position</li>
-      <li><b>apply_suggestions</b> — Apply inspection quick-fixes file-wide by id, e.g. convert to primary constructor (write)</li>
+      <li><b>apply_suggestions</b> — Apply inspection quick-fixes by id in a file, folder, project or the whole solution (write)</li>
+      <li><b>move_type_to_namespace</b> — Move a type to another namespace, its file to the namespace's folder (write)</li>
+      <li><b>inspect_code</b> — Run ReSharper's inspections over files, folders, projects or the whole solution</li>
+      <li><b>reload_projects</b> — Reload projects whose model in Rider is stale, and wait until they're indexed</li>
     </ul>
 
     <p>Supports C#, F#, VB, and any language with a ReSharper PSI implementation.</p>
@@ -46,33 +49,6 @@
     Set the <code>DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT</code> environment variable to use a different port.</p>
   ]]></description>
   <resource-bundle/>
-  <getting-started><![CDATA[
-    <h3>1. Configure your MCP client</h3>
-    <p>Add to your MCP client config (e.g. Claude Code <code>settings.json</code>, Cursor, Windsurf, etc.):</p>
-    <pre><code>{
-  "mcpServers": {
-    "dotnet-analysis-and-refactoring": {
-      "type": "http",
-      "url": "http://127.0.0.1:23751/"
-    }
-  }
-}</code></pre>
-
-    <h3>2. Open a solution</h3>
-    <p>The MCP server starts automatically when you open a solution in Rider. No extra setup needed.</p>
-
-    <h3>3. Use the tools</h3>
-    <p>Your AI assistant can now call tools like <code>find_usages</code>, <code>get_symbol_info</code>,
-    <code>search_symbol</code>, and more — powered by ReSharper's code analysis engine.</p>
-
-    <h3>Multiple solutions</h3>
-    <p>When multiple Rider instances are open, all solutions are accessible through the same
-    <code>http://127.0.0.1:23751/</code> endpoint. Use <code>list_solutions</code> to see what's available,
-    and pass <code>solutionName</code> to target a specific solution.</p>
-
-    <h3>Custom port</h3>
-    <p>Set the <code>DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT</code> environment variable before launching Rider to use a different port.</p>
-  ]]></getting-started>
   <extensions defaultExtensionNs="com.intellij">
     <statusBarWidgetFactory
         id="DotNetAnalysisAndRefactoringMcp.StatusBar"
