@@ -30,9 +30,11 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   only in files a call names. Retrying each call would log the failure each call; retrying with a backoff would
   do it. Seen in no log yet (the catch audit, 2026-11-15).
 
-- `get_symbol_info` with `includeMembers` lists a C# 14 extension block's property only as its accessor, such as
-  `public static method get_Diameter(circle:Circle)`, beside the `$extension` member, whose own `get_symbol_info` says
-  `public property Diameter : double` (the setup-environment session, 2026-11-17). It should list the property.
+- `get_symbol_info` with `includeMembers` lists a compiled type's C# 14 extension blocks as the static methods their
+  members compile to, such as `get_IsLogicallyStatic(typeExtension:ITypeExtension)` for ReSharper's own
+  `ITypeExtensionEx`, and not the block at all. A source type's blocks are listed as C# declares them (`MemberListing`).
+  ReSharper models a compiled block as an `ICompiledTypeExtension`, reached through its grouping and marker types,
+  whose `FindDeclaringTypeMember` gives the member a static method was compiled from.
 
 - **`inspect_code` and `get_diagnostics` can't take the changed files, as `get_file_errors` can:** checking every
   inspection on the files of a change took listing them by hand, 97 files in a JAStudio session (2026-11-16). And the

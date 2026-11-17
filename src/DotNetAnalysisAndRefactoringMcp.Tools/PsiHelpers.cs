@@ -845,6 +845,9 @@ public static class PsiHelpers
    public static string FormatSignature(IDeclaredElement element)
    {
       var lang = element.PresentationLanguage ?? CSharpLanguage.Instance;
+      if(element is ITypeExtension block)
+         return FormatExtensionBlock(block, lang);
+
       var sb = new StringBuilder();
 
       // Modifiers. For a type, ReSharper's IsStatic is true whatever the type is, and a static class is abstract
@@ -892,6 +895,23 @@ public static class PsiHelpers
       }
 
       return sb.ToString();
+   }
+
+   /// <summary>
+   ///   A C# 14 extension block as C# declares it, with its receiver as the signatures write a parameter:
+   ///   <c>extension&lt;T&gt;(source:IEnumerable&lt;T&gt;)</c>, or <c>extension(Circle)</c> for a block of static members
+   ///   only. ReSharper models the block as a class named <c>$extension</c>.
+   /// </summary>
+   static string FormatExtensionBlock(ITypeExtension block, PsiLanguageType lang)
+   {
+      var receiverType = block.ReceiverType.GetPresentableName(lang);
+      var receiver = block.ReceiverParameter is { } parameter && !block.IsLogicallyStatic
+                        ? $"{parameter.ShortName}:{receiverType}"
+                        : receiverType;
+      var typeParameters = block.TypeParameters.Count == 0
+                              ? ""
+                              : $"<{string.Join(", ", block.TypeParameters.Select(it => it.ShortName))}>";
+      return $"extension{typeParameters}({receiver})";
    }
 
    static void AppendParams(StringBuilder sb, IParametersOwner owner, PsiLanguageType lang)

@@ -86,7 +86,7 @@ public class GetSymbolInfoTool : IMcpTool
       {
          var containingType = clrElement.GetContainingType();
          if(containingType != null)
-            sb.Append("containingType: ").AppendLine(containingType.GetClrName().FullName);
+            sb.Append("containingType: ").AppendLine(NameOf(containingType));
 
          if(declaredElement is ITypeElement typeElem)
          {
@@ -120,60 +120,24 @@ public class GetSymbolInfoTool : IMcpTool
 
       AppendXmlDocumentation(sb, declaredElement);
 
-      // Members (when requested for type symbols)
       if(includeMembers && declaredElement is ITypeElement membersType)
       {
-         // Collect property/event names to filter out compiler-generated accessors
-         var propertyNames = new HashSet<string>();
-         var eventNames = new HashSet<string>();
-         foreach(var m in membersType.GetMembers())
-         {
-            if(m is IProperty prop) propertyNames.Add(prop.ShortName);
-            if(m is IEvent evt) eventNames.Add(evt.ShortName);
-         }
-
          sb.AppendLine();
          sb.AppendLine("members:");
-
-         foreach(var member in membersType.GetMembers())
-         {
-            // Skip compiler-generated accessors (get_X/set_X for properties, add_X/remove_X for events)
-            if(member is IMethod accessorMethod)
-            {
-               var name = accessorMethod.ShortName;
-               if((name.StartsWith("get_") || name.StartsWith("set_")) &&
-                  propertyNames.Contains(name.Substring(4)))
-                  continue;
-               if((name.StartsWith("add_") || name.StartsWith("remove_")) &&
-                  eventNames.Contains(name.Substring(name.IndexOf('_') + 1)))
-                  continue;
-            }
-
-            // Skip compiler-generated record members
-            if(IsCompilerGeneratedMember(member, membersType))
-               continue;
-
-            sb.Append("  ").Append(AccessOf(member)).AppendLine(PsiHelpers.FormatSignature(member));
-         }
+         new MemberListing(membersType).AppendTo(sb, "  ");
       }
 
       return sb.ToString().TrimEnd();
    }
 
    /// <summary>
-   /// "private " and the like, as C# writes it, before a member in the listing: a compiled type's listing holds its
-   /// private members too, and nothing else tells them from the public ones.
+   ///   A containing type's full name. A C# 14 extension block's is the static class's, and the block as C# declares
+   ///   it, <c>Shapes.ShapeExtensions, extension(circle:Circle)</c>, not ReSharper's <c>Shapes.ShapeExtensions+$extension</c>.
    /// </summary>
-   static string AccessOf(ITypeMember member) => member.GetAccessRights() switch
-   {
-      AccessRights.PUBLIC                 => "public ",
-      AccessRights.PRIVATE                => "private ",
-      AccessRights.INTERNAL               => "internal ",
-      AccessRights.PROTECTED              => "protected ",
-      AccessRights.PROTECTED_OR_INTERNAL  => "protected internal ",
-      AccessRights.PROTECTED_AND_INTERNAL => "private protected ",
-      _                                   => ""
-   };
+   static string NameOf(ITypeElement containingType) =>
+      containingType is ITypeExtension block && block.GetContainingType() is {} staticClass
+         ? $"{staticClass.GetClrName().FullName}, {PsiHelpers.FormatSignature(block)}"
+         : containingType.GetClrName().FullName;
 
    static void AppendXmlDocumentation(StringBuilder sb, IDeclaredElement declaredElement)
    {
@@ -265,46 +229,5 @@ public class GetSymbolInfoTool : IMcpTool
          // A doc comment that isn't well-formed XML, such as one with a bare '<': its text as written, and saying so.
          return (string.Join(" ", docLines).Trim() + " [the doc comment isn't well-formed XML]", null);
       }
-   }
-
-   /// <summary>
-   /// Detects compiler-generated members typical of records: Equals, GetHashCode, ToString,
-   /// PrintMembers, Deconstruct, op_Equality, op_Inequality, EqualityContract, and clone methods.
-   /// </summary>
-   static bool IsCompilerGeneratedMember(ITypeMember member, ITypeElement containingType)
-   {
-      var name = member.ShortName;
-
-      // Skip any $-prefixed members (compiler internals)
-      if(name.StartsWith("$") || name.StartsWith("<"))
-         return member.GetDeclarations().Count == 0;
-
-      // Equality operators are always compiler-generated on records
-      // (these may be IOperator, not IMethod, so check before the IMethod block)
-      if(name == "op_Equality" || name == "op_Inequality")
-         return true;
-
-      // Parameterless constructor on a record struct (always compiler-generated)
-      if(name == ".ctor" && member is IParametersOwner ctor && ctor.Parameters.Count == 0)
-         return true;
-
-      if(member is IMethod)
-      {
-         switch(name)
-         {
-            case "Equals":
-            case "GetHashCode":
-            case "ToString":
-            case "PrintMembers":
-            case "Deconstruct":
-               return member.GetDeclarations().Count == 0;
-         }
-      }
-
-      // EqualityContract property (record-generated)
-      if(member is IProperty && name == "EqualityContract")
-         return member.GetDeclarations().Count == 0;
-
-      return false;
    }
 }

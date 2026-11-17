@@ -35,3 +35,22 @@ public class When_asking_for_a_types_members(TheSandboxWithTheFixtureSolution sa
 
    [XF] public void and_which_are_public() => _answer.Must().Contain("public method AreaOfTheFirst");
 }
+
+public class When_asking_for_the_members_of_a_class_with_an_extension_block(TheSandboxWithTheFixtureSolution sandbox)
+{
+   readonly string _answer = sandbox.McpServer.CallTool("get_symbol_info", new { symbolName = "ShapeExtensions", includeMembers = true });
+   readonly string _member = sandbox.McpServer.CallTool("get_symbol_info", new { symbolName = "Diameter" });
+
+   /// <summary>Until 2026-11-17 it was listed as "public sealed class $extension(circle:Circle)".</summary>
+   [XF] public void it_lists_the_block_as_CSharp_declares_it() => _answer.Must().Contain("\n  extension(circle:Circle)");
+
+   [XF] public void with_its_property_under_it() => _answer.Must().Contain("\n    public property Diameter : double");
+
+   [XF] public void and_its_method() => _answer.Must().Contain("\n    public method Grown(by:double) : Circle");
+
+   /// <summary>Until 2026-11-17 the property was listed only as the static method the compiler makes of its getter.</summary>
+   [XF] public void and_not_the_static_methods_its_members_compile_to() => _answer.Must().NotContain("get_Diameter").NotContain("Grown(circle:Circle");
+
+   /// <summary>Until 2026-11-17 it was "Shapes.ShapeExtensions+$extension".</summary>
+   [XF] public void a_member_is_in_the_block_of_its_class() => _member.Must().Contain("containingType: Shapes.ShapeExtensions, extension(circle:Circle)");
+}

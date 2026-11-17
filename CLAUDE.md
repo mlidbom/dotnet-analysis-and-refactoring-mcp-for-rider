@@ -389,6 +389,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     ToolBatch.cs                       # Batch runner with per-item isolation; ToolText
     FindUsagesTool.cs                  # find_usages — IFinder.FindReferences()
     GetSymbolInfoTool.cs               # get_symbol_info — detailed symbol metadata
+    MemberListing.cs                   # A type's members as declared: no accessors, no generated members, extension blocks
     FindImplementationsTool.cs         # find_implementations — FindInheritors/FindImplementingMembers
     GetFileErrorsTool.cs               # get_file_errors — PSI tree walk for errors
     SearchSymbolTool.cs                # search_symbol — substring search across declarations
