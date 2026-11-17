@@ -9,6 +9,10 @@ plugin is a fork of.
 
 ## [Unreleased]
 
+### Fixed
+
+- Rider 2026.3 started a second MCP server for each Rider, with no solution, on a port of its own: in the lightweight backend it runs beside the solution's. Whenever that one got the base port first, it served as the primary. The plugin now loads only where ReSharper's inspections run
+
 ## [0.14.1]
 
 ### Fixed

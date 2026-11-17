@@ -49,7 +49,8 @@ The plugin uses a **primary/peer** model:
 Component breakdown:
 
 - `McpShellComponent.cs` — `[ShellComponent]` (process-level singleton). Tries to bind the base port; on failure, increments and becomes a peer. Owns the `McpHttpServer`; its watchdog lets a peer take over the primary's port.
-- `McpServerComponent.cs` — `[SolutionComponent]` (per-solution). Registers/unregisters the solution with the server on solution open/close, and holds what of it outlives a tools build. Skips solutions without a file (Rider 2026.3's lightweight backend has one).
+- `McpServerComponent.cs` — `[SolutionComponent]` (per-solution). Registers/unregisters the solution with the server on solution open/close, and holds what of it outlives a tools build. Skips solutions without a file.
+- `ZoneMarker.cs` — the host's components require ReSharper's `DaemonZone`, so they aren't created in Rider 2026.3's lightweight backend, which loads the plugin too but runs no daemon.
 - In the tools, `Serving/`: `OpenSolutions` routes a call (`LocalSolution`, `PeerSolution`), `PrimaryServer` is a peer's registering with the primary, `OtherMcpServer` reaches another Rider's server.
 - When only one solution is open (across all Rider instances), all tool calls route to it automatically (backwards-compatible).
 - When multiple solutions are open, callers must specify `solutionName` in tool arguments.
@@ -323,6 +324,7 @@ src/DotNetAnalysisAndRefactoringMcp/   # THE HOST: what Rider loads; a change he
   DotNetAnalysisAndRefactoringMcp.csproj  # targets net472, refs JetBrains.ReSharper.SDK 2026.3.0
   McpShellComponent.cs                 # ShellComponent — binds a port, owns the HTTP server; watchdog, peer takeover
   McpServerComponent.cs                # SolutionComponent — holds what of a solution outlives a tools build
+  ZoneMarker.cs                        # The zone the host's components need: none in Rider's lightweight backend
   McpHttpServer.cs                     # HttpListener, event streams, registrations; hands each request to the tools
   PeerRegistration.cs                  # A peer's solution registered with the primary: its port, its tools as JSON
   SolutionRoot.cs                      # Where relative paths start: solution directory and the work tree above it

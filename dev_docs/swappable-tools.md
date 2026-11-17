@@ -106,7 +106,10 @@ context of its own, calls it, and unloads the previous one. In the sandbox, Ride
 
 - **Rider 2026.3 runs a lightweight backend** (`lightweight-backend.*.log`) beside the solution's, and it loads the
   plugin too, with a solution that has no file. Registered, it made "Multiple solutions are open" of every call that
-  names no file, whenever it got the primary port first. The host now skips solutions without a file.
+  names no file, whenever it got the primary port first. The host then skipped solutions without a file, and its
+  shell component still served an MCP server there, with no solution, on a port of its own. Since 2026-11-17 the host's
+  `ZoneMarker` requires ReSharper's `DaemonZone`, which the lightweight backend doesn't run, so none of the host's
+  components are created there.
 
 - **Rider can't reload the host while it runs: a host change needs a restart** (tried in the sandbox, 2026-11-15).
   IntelliJ's dynamic plugins reload a plugin whose files change in the plugins folder, with

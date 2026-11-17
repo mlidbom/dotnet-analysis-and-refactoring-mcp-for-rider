@@ -30,12 +30,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   only in files a call names. Retrying each call would log the failure each call; retrying with a backoff would
   do it. Seen in no log yet (the catch audit, 2026-11-15).
 
-- **Rider 2026.3's lightweight backend serves an MCP server of its own, with no solution:** `Rider.LightweightBackend.exe`,
-  the second backend process a Rider runs, loads the host too, and `McpShellComponent` binds the next free port there,
-  whose `/health` lists no solution (found by the setup-environment session in the symbol linker's sandbox, 2026-11-17;
-  Magnus's everyday Riders had two such ports beside four with solutions). Calls still reach every solution, through
-  the primary, but one that starts first takes the base port and serves as the primary with no solution of its own. The
-  shell component should start no server in that process. A host change: batch it.
 - `get_symbol_info` with `includeMembers` lists a C# 14 extension block's property only as its accessor, such as
   `public static method get_Diameter(circle:Circle)`, beside the `$extension` member, whose own `get_symbol_info` says
   `public property Diameter : double` (the setup-environment session, 2026-11-17). It should list the property.

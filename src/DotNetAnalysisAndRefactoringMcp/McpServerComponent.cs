@@ -39,8 +39,9 @@ public class McpServerComponent : IDisposable
       _shellComponent = shellComponent;
       FilePath = solution.SolutionFilePath?.FullPath ?? "";
 
-      // Rider 2026.3's lightweight backend loads the plugin too, with a solution that has no file. Registered, it
-      // made "Multiple solutions are open" of every call that names no file, and no call can name it.
+      // A solution without a file can't be named by any call, and registered, it made "Multiple solutions are open" of
+      // every call that names no file. Seen in Rider 2026.3's lightweight backend, which ZoneMarker now keeps the host
+      // out of.
       if(FilePath.Length == 0)
          return;
 
