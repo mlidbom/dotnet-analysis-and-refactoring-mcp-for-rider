@@ -116,9 +116,9 @@ it reverted a file the agent had just restored. `tests/live_disk_sync.py` checks
 | `find_implementations` | Find implementations of interfaces/abstract classes and overrides of virtual members |
 | `get_file_errors` | Compile errors and unresolved references from the PSI tree; deduped, capped, `changedSince` git mode |
 | `search_symbol` | Search symbols by name (substring match) across the solution |
-| `go_to_definition` | Navigate from a usage site or symbol name to the declaration location |
+| `go_to_definition` | Navigate from a usage site or symbol name to the declaration location; a JSON form of every declaration a name stands for |
 | `get_solution_structure` | List all projects, target frameworks, and project-to-project references |
-| `browse_namespace` | Browse namespace hierarchy: child namespaces and types in a namespace |
+| `browse_namespace` | Browse namespace hierarchy: child namespaces and types in a namespace, with their members on request; a JSON form |
 | `list_symbols_in_file` | List all declarations in a file (types, methods, properties, etc.) |
 | `list_solutions` | List all currently open solutions (server-level meta-tool) |
 | `fix_usings` | Fix missing C# using directives by resolving unresolved type references against the symbol cache |
@@ -147,8 +147,10 @@ Mutation-capable tools (main-thread execution, with dispatch controlled by the m
 The .NET Terminal Symbol Linker (`C:\Dev\ClaudeSymbolLinker`) relies on this plugin, and its session asked to be told
 before any of the following changes, so it can add a specification first (2026-11-17):
 
-- the text of `list_solutions`, `browse_namespace`, `get_symbol_info`'s members section, and `go_to_definition`'s
-  signature line and ambiguity JSON, which it parses;
+- the JSON form, `format: "json"`, of `go_to_definition` and `browse_namespace`, and `list_solutions`' JSON, which it
+  reads: a contract (`Tools/Json/`), agreed with its session, which the `JsonForm` specifications check. Its releases
+  up to 0.2.10 parsed the text instead: of `list_solutions`, `browse_namespace`, `get_symbol_info`'s members section,
+  and `go_to_definition`; the next reads only the JSON form, and needs the release that has it;
 - what its sandbox Rider copies from ours: the everyday plugin folder, the tools builds in
   `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp\tools`, each with its `host.sha256`, and `/health`'s
   `solutions[].tools.build` and `.host`, by which it waits until its sandbox serves the newest build.
@@ -405,6 +407,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     FindUsagesTool.cs                  # find_usages — IFinder.FindReferences()
     GetSymbolInfoTool.cs               # get_symbol_info — detailed symbol metadata
     MemberListing.cs                   # A type's members as declared: no accessors, no generated members, extension blocks
+    Json/                              # The JSON form, format: "json": JsonFormat, JsonNaming (kinds, bare names), the shapes
     FindImplementationsTool.cs         # find_implementations — FindInheritors/FindImplementingMembers
     GetFileErrorsTool.cs               # get_file_errors — PSI tree walk for errors
     SearchSymbolTool.cs                # search_symbol — substring search across declarations

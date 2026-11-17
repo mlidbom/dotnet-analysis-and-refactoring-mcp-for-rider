@@ -11,6 +11,8 @@ plugin is a fork of.
 
 ### Added
 
+- A JSON form of `go_to_definition` and `browse_namespace`, for programs to read, such as the .NET Terminal Symbol Linker: `format: "json"` answers one JSON object, with 1-based lines and columns, bare C# names, and kinds from a fixed set of C# words. `go_to_definition` gives every declaration a name stands for, one shape whether found, ambiguous or unknown; `browse_namespace` gives each namespace's types, the types nested in them, and with `includeMembers`, their declared members, extension blocks with their receivers among them. A solution still loading answers an error rather than a partial result
+- `browse_namespace` takes `includeMembers`, in the text form too: each type's declared members under it
 - `inspect_code` takes `changedSince` (a git ref) or `changed: true`, as `get_file_errors` does: it inspects every source file changed since then, committed or not, and the untracked ones. The guide a client gets on connecting says which tools take it: it read as `get_diagnostics`' before
 
 ### Fixed
@@ -19,6 +21,7 @@ plugin is a fork of.
 - `get_symbol_info` with `includeMembers` lists a C# 14 extension block as C# declares it, `extension(circle:Circle)`, with its members under it. It listed the block as a class named `$extension`, and each member as the static method the compiler makes of it, such as a property `Diameter` as `get_Diameter(circle:Circle)`. A member's containing type is the block in its class
 - A C# 14 extension block's member is named as C# names it, `ShapeExtensions.Grown`, wherever a qualified name is given, and naming it finds it. Its name was ambiguous with the static method it compiles to, and showed ReSharper's `$extension` (`search_symbol` printed `$extension.Grown`)
 - A call that reaches a new file's types by name, such as `search_symbol`, finds them right after the file is created on disk in a project's folder. The call waited for a new file only when it named the file, and found nothing until Rider had taken it in
+- A delegate's members are no longer listed as declared: its constructor, `Invoke`, `BeginInvoke` and `EndInvoke` are the compiler's
 - `get_symbol_info`'s doc lines keep the names a doc comment links to: every `<see cref>`, `<paramref>` and `<typeparamref>` was left out, so "The sum of the areas of `<paramref name="shapes"/>`." read "The sum of the areas of ."
 
 ## [0.14.1]

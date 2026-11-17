@@ -31,6 +31,11 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   ReSharper models a compiled block as an `ICompiledTypeExtension`, reached through its grouping and marker types,
   whose `FindDeclaringTypeMember` gives the member a static method was compiled from.
 
+- The development tools' `peer stop` timed out after 2 minutes once (2026-11-17): the peer sandbox Rider showed a
+  "Confirm Exit" dialog, on every virtual desktop, which closing its windows doesn't answer. Exit confirmation is off in
+  its settings, so it was another reason, likely a process it ran (it had started GitHub Copilot's agent through npx).
+  The specification run before and after passed. Stopping should answer or report such a dialog, not wait it out.
+
 ## Bigger ideas
 
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence

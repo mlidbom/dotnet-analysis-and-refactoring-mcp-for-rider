@@ -138,12 +138,17 @@ public static class PsiHelpers
       public IDeclaredElement Element { get; set; }
       public List<SymbolCandidate> Candidates { get; set; }
       public SkippedElements Skipped { get; set; }
+
+      /// <summary>Whether the scan of every type for an unqualified member name stopped at its cap, with more to find.</summary>
+      public bool Truncated { get; set; }
+
       public bool IsAmbiguous => Candidates != null && Candidates.Count > 1;
       public bool IsFound => Element != null;
    }
 
    public class SymbolCandidate
    {
+      public IDeclaredElement Element { get; set; }
       public string Name { get; set; }
       public string QualifiedName { get; set; }
       public string Kind { get; set; }
@@ -175,21 +180,24 @@ public static class PsiHelpers
                                   kind,
                                   inSources: true,
                                   scanAllTypes: true,
-                                  skipped);
+                                  skipped,
+                                  out var truncated);
       if(candidates.Count == 0)
          candidates = Candidates(symbols.GetSymbolScope(LibrarySymbolScope.FULL, caseSensitive: true),
                                  name,
                                  kind,
                                  inSources: false,
                                  scanAllTypes: false,
-                                 skipped);
+                                 skipped,
+                                 out _);
       if(candidates.Count == 0)
          candidates = Candidates(symbols.GetSymbolScope(LibrarySymbolScope.NONE, caseSensitive: false),
                                  name.IgnoringCase,
                                  kind,
                                  inSources: true,
                                  scanAllTypes: false,
-                                 skipped);
+                                 skipped,
+                                 out _);
 
       if(candidates.Count == 0)
          return new SymbolResolveResult { Skipped = skipped };
@@ -200,7 +208,8 @@ public static class PsiHelpers
       return new SymbolResolveResult
              {
                 Candidates = candidates.Select(x => Candidate(x.element, x.fqn)).ToList(),
-                Skipped = skipped
+                Skipped = skipped,
+                Truncated = truncated
              };
    }
 
@@ -210,8 +219,10 @@ public static class PsiHelpers
       string kind,
       bool inSources,
       bool scanAllTypes,
-      SkippedElements skipped)
+      SkippedElements skipped,
+      out bool truncated)
    {
+      truncated = false;
       var candidates = new List<(IDeclaredElement element, string fqn)>();
       var seen = new HashSet<string>();
 
@@ -253,7 +264,10 @@ public static class PsiHelpers
                           });
 
             if(candidates.Count >= 10)
+            {
+               truncated = true;
                break;
+            }
          }
       }
 
@@ -326,6 +340,7 @@ public static class PsiHelpers
 
       return new SymbolCandidate
              {
+                Element = element,
                 Name = element.ShortName,
                 QualifiedName = fqn,
                 Kind = element.GetElementType().PresentableName,
@@ -346,13 +361,14 @@ public static class PsiHelpers
    /// <summary>
    /// "[assembly Name.dll]" for an element compiled into a referenced assembly, otherwise null.
    /// </summary>
-   public static string AssemblyLabel(IDeclaredElement element)
-   {
-      if(!(element is IClrDeclaredElement { Module: IAssemblyPsiModule module }))
-         return null;
+   public static string AssemblyLabel(IDeclaredElement element) =>
+      AssemblyFileNameOf(element) is { } fileName ? $"[assembly {fileName}]" : null;
 
-      return $"[assembly {module.Assembly.AssemblyName?.Name ?? module.DisplayName}.dll]";
-   }
+   /// <summary>The file name of the DLL a compiled element is in, such as <c>JetBrains.ReSharper.Psi.dll</c>; nothing for one in source.</summary>
+   public static string AssemblyFileNameOf(IDeclaredElement element) =>
+      element is IClrDeclaredElement { Module: IAssemblyPsiModule module }
+         ? $"{module.Assembly.AssemblyName?.Name ?? module.DisplayName}.dll"
+         : null;
 
    /// <summary>
    /// Up to <paramref name="count"/> symbols whose name is close to one that was not found, as
@@ -919,7 +935,7 @@ public static class PsiHelpers
       var receiver = block.ReceiverParameter is { } parameter && !block.IsLogicallyStatic
                         ? $"{parameter.ShortName}:{receiverType}"
                         : receiverType;
-      var typeParameters = block.TypeParameters.Count == 0
+      var typeParameters = block.TypeParametersCount == 0
                               ? ""
                               : $"<{string.Join(", ", block.TypeParameters.Select(it => it.ShortName))}>";
       return $"extension{typeParameters}({receiver})";

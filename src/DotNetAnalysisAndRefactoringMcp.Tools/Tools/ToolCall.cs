@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DotNetAnalysisAndRefactoringMcp.Disk;
+using DotNetAnalysisAndRefactoringMcp.Tools.Json;
 using JetBrains.Application.Threading;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
@@ -87,6 +88,9 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
          return new { error = refusal };
 
       var indexingAsTheWorkBegan = await IndexingAsTheWorkBegins(lifetime).ConfigureAwait(false);
+      if(indexingAsTheWorkBegan && JsonFormat.IsAskedFor(arguments))
+         return new { error = "The solution is still loading or being indexed, so the answer could miss symbols. Ask again when GET /health says indexing is false." };
+
       var unsavedBefore = EditsFiles(arguments) ? await _unsaved.Now(lifetime).ConfigureAwait(false) : null;
       var result = await Work(arguments, lifetime, execution).ConfigureAwait(false);
       var notSaved = unsavedBefore == null ? [] : await _unsaved.SaveThoseUnsavedSince(unsavedBefore, lifetime).ConfigureAwait(false);
@@ -94,7 +98,7 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
                      ? await new FileMoves(_solution.Solution, _locks).Make(mover.FileMoves, notSaved, lifetime, execution, _solution.Root).ConfigureAwait(false)
                      : [];
 
-      return WithNotes(result, [.. moved, .. Notes(disk, requested, indexingAsTheWorkBegan, notSaved)]);
+      return WithNotes(result, [.. moved, .. Notes(disk, requested, indexingAsTheWorkBegan, notSaved)], JsonFormat.IsAskedFor(arguments));
    }
 
    /// <summary>The tool's work, on the thread and under the lock its kind asks for.</summary>
@@ -201,6 +205,19 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       return files.Count > shown ? $"{files.Count} files ({listed}, +{files.Count - shown} more)" : listed;
    }
 
-   static object WithNotes(object result, List<string> notes) =>
-      notes.Count == 0 ? result : $"{JsonOf.Text(result)}\n\n{string.Join("\n", notes)}";
+   /// <summary>
+   ///   <paramref name="result"/> with the call's notes: after its text, or in the JSON form, as its <c>notes</c>, so
+   ///   that the answer stays one JSON object.
+   /// </summary>
+   static object WithNotes(object result, List<string> notes, bool asJson)
+   {
+      if(notes.Count == 0) return result;
+      if(asJson && result is not string && JsonOf.Value(result) is JObject json)
+      {
+         json["notes"] = new JArray(notes);
+         return json;
+      }
+
+      return $"{JsonOf.Text(result)}\n\n{string.Join("\n", notes)}";
+   }
 }

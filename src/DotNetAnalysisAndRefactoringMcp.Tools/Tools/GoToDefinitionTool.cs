@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using DotNetAnalysisAndRefactoringMcp.Tools.Json;
 using JetBrains.ProjectModel;
+using JetBrains.ReSharper.Psi;
 using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
@@ -18,7 +22,11 @@ public class GoToDefinitionTool : IMcpTool
       "Given a usage site (file+line+column) or a symbol name, returns the file path and position " +
       "where the symbol is declared, along with the declaration source text. " +
       "For a symbol compiled into a referenced DLL, returns its assembly and decompiled source instead. " +
-      "Pass multiple symbols via the 'symbols' array to navigate to several in one call.";
+      "Pass multiple symbols via the 'symbols' array to navigate to several in one call. " +
+      "With format: 'json', for one symbol: {\"declarations\": [{kind, name, qualifiedName, file, line, column, assembly?}], " +
+      "\"truncated\"?: true}, one declaration for a symbol found, several for an ambiguous name, none for a name nothing " +
+      "matches; 'Type.Member' matches every member whose qualified name ends so. A compiled symbol has the assembly and no " +
+      "file; a member with no source of its own, such as a positional record's property, is where its type is declared.";
 
    public object InputSchema => new
                                 {
@@ -31,6 +39,7 @@ public class GoToDefinitionTool : IMcpTool
                                                    filePath = new { type = "string", description = "Absolute path to the file containing a usage of the symbol" },
                                                    line = new { type = "integer", description = "1-based line number of the symbol usage" },
                                                    column = new { type = "integer", description = "1-based column number of the symbol usage" },
+                                                   format = JsonFormat.Argument,
                                                    symbols = new
                                                              {
                                                                 type = "array",
@@ -53,7 +62,32 @@ public class GoToDefinitionTool : IMcpTool
                                 };
 
    public object Execute(JObject arguments) =>
-      ToolBatch.Of(arguments, "symbols", item: "symbolName")?.Run(ExecuteSingle) ?? ExecuteSingle(arguments);
+      JsonFormat.IsAskedFor(arguments)
+         ? DeclarationsOf(arguments)
+         : ToolBatch.Of(arguments, "symbols", item: "symbolName")?.Run(ExecuteSingle) ?? ExecuteSingle(arguments);
+
+   /// <summary>The JSON form: every declaration the name or position stands for.</summary>
+   object DeclarationsOf(JObject arguments)
+   {
+      if(arguments["symbols"] != null)
+         return new { error = "format 'json' takes one symbol: a symbolName, or a filePath with line and column" };
+
+      var symbolName = arguments["symbolName"]?.ToString();
+      if(string.IsNullOrEmpty(symbolName))
+      {
+         var (element, error) = PsiHelpers.ResolveFromArgs(_solution,
+                                                           null,
+                                                           arguments["kind"]?.ToString(),
+                                                           arguments["filePath"]?.ToString(),
+                                                           arguments["line"]?.Value<int>() ?? 0,
+                                                           arguments["column"]?.Value<int>() ?? 0);
+         return error ?? new DeclarationsJson([DeclarationJson.Of(element)], truncated: false);
+      }
+
+      var found = PsiHelpers.ResolveSymbolByName(_solution, symbolName, arguments["kind"]?.ToString());
+      IEnumerable<IDeclaredElement> elements = found.IsFound ? [found.Element] : found.Candidates?.Select(it => it.Element) ?? [];
+      return new DeclarationsJson([.. elements.Select(DeclarationJson.Of)], found.Truncated);
+   }
 
    object ExecuteSingle(JObject arguments)
    {

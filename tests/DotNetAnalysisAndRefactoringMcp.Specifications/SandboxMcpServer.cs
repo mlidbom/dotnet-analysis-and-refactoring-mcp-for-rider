@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -67,6 +66,9 @@ public sealed class SandboxMcpServer
    }
 
    /// <summary>Calls <paramref name="tool"/> as the server is to refuse, and returns the refusal's text.</summary>
+   /// <summary>A tool's answer in its JSON form, which the call's arguments ask for with format: "json", parsed.</summary>
+   public JsonNode Json(string tool, object arguments) => JsonNode.Parse(CallTool(tool, arguments))!;
+
    public string Refusal(string tool, object arguments)
    {
       var (text, isError) = Call(tool, arguments);
