@@ -69,25 +69,25 @@ public sealed class SandboxRider
    public ToolsBuilds Tools => new(Path.Combine(LocalApplicationData, FolderName, "tools"));
 
    /// <summary>
-   ///   Puts <paramref name="build"/> in the sandbox. Only its tools if the sandbox has its host already, which it serves
+   ///   Puts <paramref name="build"/> in the sandbox. Only its tools if the sandbox has its plugin already, which it serves
    ///   from the next call on; otherwise the whole plugin, restarting the sandbox if it runs. Returns whether it
    ///   installed the plugin.
    /// </summary>
    public bool Install(PluginBuild build)
    {
-      var installsThePlugin = InstallTheHostOf(build);
+      var installsThePlugin = InstallThePluginOf(build);
       Tools.Deploy(build);
       return installsThePlugin;
    }
 
    /// <summary>
-   ///   Installs the plugin of <paramref name="build"/> unless the sandbox has its host already, restarting the sandbox if
+   ///   Installs the plugin of <paramref name="build"/> unless the sandbox has it already, restarting the sandbox if
    ///   it runs; returns whether it installed it. All that <see cref="ThePeer"/> needs, as it serves the tools deployed to
    ///   the first sandbox.
    /// </summary>
-   public bool InstallTheHostOf(PluginBuild build)
+   public bool InstallThePluginOf(PluginBuild build)
    {
-      if(Plugin.HasTheHostOf(build)) return false;
+      if(Plugin.HasThePluginOf(build)) return false;
       var wasRunning = IsRunning;
       Stop();
       Plugin.Install(build);

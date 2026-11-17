@@ -34,7 +34,7 @@ public sealed class PluginBuild
    public IEnumerable<(string Subfolder, string File)> HostFiles =>
    [
       ("dotnet", HostAssembly),
-      ("lib", FrontendJar)
+      ("lib", FrontendJarFile)
    ];
 
    /// <summary>The tools assembly and its symbols.</summary>
@@ -42,6 +42,9 @@ public sealed class PluginBuild
 
    /// <summary>What tells this build's host from others, as the host computes it: the SHA-256 of its assembly.</summary>
    public string HostIdentity => IdentityOf(HostAssembly);
+
+   /// <summary>What tells this build's frontend jar from others: <see cref="FrontendJar.IdentityOf"/>.</summary>
+   public string FrontendIdentity => FrontendJar.IdentityOf(FrontendJarFile);
 
    /// <summary>The SHA-256 of a host assembly, in lowercase hexadecimal: <c>ToolsBuildFolder.HostIdentity</c> in the host.</summary>
    public static string IdentityOf(string hostAssembly) => Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(hostAssembly)));
@@ -51,7 +54,7 @@ public sealed class PluginBuild
    ///   the change notes. Its name carries the version; the <c>-base</c> and <c>-instrumented</c> jars beside it are steps
    ///   on the way.
    /// </summary>
-   string FrontendJar =>
+   string FrontendJarFile =>
       Directory.GetFiles(Path.Combine(_repositoryRoot, "rider-plugin", "build", "libs"), Host + "-*.jar")
                .Where(it => !it.EndsWith("-base.jar", StringComparison.Ordinal) && !it.EndsWith("-instrumented.jar", StringComparison.Ordinal))
                .OrderByDescending(File.GetLastWriteTimeUtc)
@@ -66,7 +69,7 @@ public sealed class PluginBuild
 
    /// <remarks>
    ///   No daemon: one would outlive the build holding the caller's output, and a caller that reads that output to its end,
-   ///   such as <c>dotnet test | grep</c>, waited until the daemon went (2026-11-15). Gradle runs only when the host changed.
+   ///   such as <c>dotnet test | grep</c>, waited until the daemon went (2026-11-15).
    /// </remarks>
    void BuildTheFrontendJar(RiderInstallation rider) =>
       ExternalCommand.Run(Path.Combine(_repositoryRoot, "rider-plugin", "gradlew.bat"),

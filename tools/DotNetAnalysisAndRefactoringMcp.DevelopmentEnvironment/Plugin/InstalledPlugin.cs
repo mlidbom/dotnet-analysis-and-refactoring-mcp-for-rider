@@ -50,13 +50,30 @@ public sealed class InstalledPlugin
    }
 
    /// <summary>
-   ///   Whether the installed host is the host of <paramref name="build"/>. If it is, the build's tools can be deployed
-   ///   to a running Rider without installing anything, and without a restart.
+   ///   Whether the installed plugin is that of <paramref name="build"/>: its host and its frontend jar. If it is, the
+   ///   build's tools can be deployed to a running Rider without installing anything, and without a restart.
    /// </summary>
-   public bool HasTheHostOf(PluginBuild build)
+   /// <remarks>
+   ///   The frontend jar too: until 2026-11-17 only the host was compared, and a change to the plugin's descriptor alone
+   ///   never got installed.
+   /// </remarks>
+   public bool HasThePluginOf(PluginBuild build) => HasTheHostOf(build) && HasTheFrontendJarOf(build);
+
+   bool HasTheHostOf(PluginBuild build)
    {
       var installed = Path.Combine(_pluginFolder, "dotnet", "DotNetAnalysisAndRefactoringMcp.dll");
       return File.Exists(installed) && PluginBuild.IdentityOf(installed) == build.HostIdentity;
+   }
+
+   bool HasTheFrontendJarOf(PluginBuild build) => InstalledFrontendJar is {} installed && FrontendJar.IdentityOf(installed) == build.FrontendIdentity;
+
+   string? InstalledFrontendJar
+   {
+      get
+      {
+         var lib = Path.Combine(_pluginFolder, "lib");
+         return Directory.Exists(lib) ? Directory.GetFiles(lib, "*.jar").SingleOrDefault() : null;
+      }
    }
 
    /// <summary>

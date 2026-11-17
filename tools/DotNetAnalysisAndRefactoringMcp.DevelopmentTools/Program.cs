@@ -18,18 +18,18 @@ static class Program
                           sandbox place               Puts the sandbox's windows in their place again
                           sandbox status              Whether it runs, where its windows are, what its MCP server answers
                           sandbox install             Builds the working tree and puts it in the sandbox: only the tools,
-                                                      served from the next call, unless the host changed; then the plugin,
-                                                      restarting the sandbox if it runs
+                                                      served from the next call, unless the plugin changed (its host or its
+                                                      frontend jar); then the plugin, restarting the sandbox if it runs
                           peer start [<solution>]     Starts the second sandbox Rider, the first one's peer, opens the
                                                       solution, waits until the first's MCP server lists it indexed
                           peer stop                   Closes the peer
                           peer status                 Whether the peer runs, where its windows are
                           everyday deploy             Builds the working tree and deploys it to the everyday Riders: the
                                                       tools, which every one of them serves from its next call, and the
-                                                      plugin if the host changed, which takes effect when they restart
+                                                      plugin if it changed, which takes effect when they restart
                           everyday rollback           Removes the newest tools build, so the everyday Riders go back to the
                                                       one before it at their next call
-                          everyday rollback-plugin    Puts back the plugin build the last deploy that changed the host
+                          everyday rollback-plugin    Puts back the plugin build that the last deploy installing the plugin
                                                       replaced; it takes effect when the everyday Riders restart
                         """;
 
@@ -59,7 +59,7 @@ static class Program
             break;
          case ["sandbox", "install"]:
             Console.WriteLine(sandbox.Install(PluginBuild.FromTheWorkingTree(rider))
-                                 ? "Installed the plugin in the sandbox: the host changed."
+                                 ? "Installed the plugin in the sandbox: its host or its frontend jar changed."
                                  : "Deployed the tools to the sandbox: it serves them from its next call.");
             break;
          case ["peer", "start"]:
@@ -93,17 +93,17 @@ static class Program
    }
 
    /// <remarks>
-   ///   The tools are deployed even when the host changed: running Riders keep serving the newest build for the host
+   ///   The tools are deployed even when the plugin changed: running Riders keep serving the newest build for the host
    ///   they run, and after the restart they serve this one.
    /// </remarks>
    static void Deploy(EverydayRider everyday, SandboxRider sandbox, PluginBuild build)
    {
-      var hostChanged = !everyday.Plugin.HasTheHostOf(build);
-      if(hostChanged) everyday.Plugin.Install(build);
+      var pluginChanged = !everyday.Plugin.HasThePluginOf(build);
+      if(pluginChanged) everyday.Plugin.Install(build);
       var name = everyday.Tools.Deploy(build);
       var waiting = everyday.RunningTheHostBeforeTheInstalledOne(sandbox.ProcessId);
-      Console.WriteLine(hostChanged
-                           ? $"The host changed: installed the plugin, and deployed the tools build {name}. Both take effect when the everyday Riders restart."
+      Console.WriteLine(pluginChanged
+                           ? $"The plugin changed, its host or its frontend jar: installed it, and deployed the tools build {name}. Both take effect when the everyday Riders restart."
                            : waiting > 0
                               ? $"Deployed the tools build {name}, for the host installed at {everyday.Plugin.HostInstalledAt!.Value.ToLocalTime():HH:mm}: " +
                                 (waiting == 1

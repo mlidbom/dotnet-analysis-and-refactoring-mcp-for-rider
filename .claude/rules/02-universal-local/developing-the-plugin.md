@@ -37,7 +37,7 @@ the sandbox Rider first: a second Rider, with folders of its own, its own tools 
   swapped-out tools builds are freed. A run takes under a minute; NCrunch is told to ignore the project. A known bug
   gets a skipped specification that names it, so that fixing it means removing the `Skip`.
 - `sandbox install` builds the working tree and puts it in the sandbox: only the tools, served from the next call,
-  unless the host changed; then the whole plugin, restarting the sandbox if it runs.
+  unless the plugin changed, its host or its frontend jar; then the whole plugin, restarting the sandbox if it runs.
 - `sandbox start <solution>` opens a solution in it and returns once the MCP server has it indexed. Call the tools on
   `http://127.0.0.1:23841/`; `/health` says which tools build serves them.
 - The sandbox's window goes, by itself, to the virtual desktop of the Rider that has this repository's solution open,
@@ -46,10 +46,11 @@ the sandbox Rider first: a second Rider, with folders of its own, its own tools 
 ## Deploying to the everyday Riders: the tools at once, the host at a restart
 
 `everyday deploy` deploys a build that passed in the sandbox: every everyday Rider serves its tools from its next
-call. Only if the host changed does it install the plugin too, which waits for Magnus to restart his Riders: then
-deploy in batches, and end the report with the heading `### RESTART RIDER ###` and a line saying what the restart
-brings. `everyday rollback` removes the newest tools build, so the Riders go back to the one before it at their next
-call; `everyday rollback-plugin` puts back the plugin build that the last host change replaced.
+call. Only if the plugin changed, its host or its frontend jar, does it install the plugin too, which waits for Magnus
+to restart his Riders: then deploy in batches, and end the report with the heading `### RESTART RIDER ###` and a line
+saying what the restart brings. `everyday rollback` removes the newest tools build, so the Riders go back to the one
+before it at their next call; `everyday rollback-plugin` puts back the plugin build that the last plugin install
+replaced.
 
 The original plugin (`resharper-joshua`, port 23741) was removed from Magnus's Riders on 2026-11-14, once his symbol
 linker depended on this one. Every project's `.mcp.json` names this one, `dotnet-analysis-and-refactoring`, since then.

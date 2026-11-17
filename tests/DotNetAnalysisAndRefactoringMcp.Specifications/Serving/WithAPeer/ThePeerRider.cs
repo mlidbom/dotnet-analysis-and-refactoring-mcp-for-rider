@@ -28,7 +28,7 @@ public sealed class ThePeerRider : IDisposable
       _sandbox = sandbox;
       _peer = SandboxRider.ThePeer(RiderInstallation.OfThisUser());
       _peer.Stop();
-      _peer.InstallTheHostOf(sandbox.Build);
+      _peer.InstallThePluginOf(sandbox.Build);
 
       _solutionFolder = Path.Combine(_peer.SolutionsFolder, "FixtureSolution");
       TheSandboxWithTheFixtureSolution.CopyTheFixtureSolutionTo(_solutionFolder);

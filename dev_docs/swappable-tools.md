@@ -50,7 +50,7 @@ and **publishing** is uploading the plugin to the Marketplace, nothing else.
   in the run was freed, the first one included: the fixture has it run every tool that changes nothing first.
 - **The tools are created anew at every request** (`McpTools.Of`), and the host keeps none of them.
 - **Deploying:** `sandbox install` and `everyday deploy` deploy the tools build, which takes effect at the next call.
-  Only when the host changed do they install the plugin too, which takes effect at the restart.
+  Only when the plugin changed, its host or its frontend jar, do they install it too, which takes effect at the restart.
 
 ## Rules for code in the tools assembly
 
