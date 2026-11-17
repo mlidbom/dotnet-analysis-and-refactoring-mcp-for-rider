@@ -9,17 +9,18 @@ plugin is a fork of.
 
 ## [Unreleased]
 
+## [0.14.0]
+
 ### Changed
 
 - Requires Rider 2026.3 or later: the plugin is built against its SDK, so it no longer bridges API changes between Rider versions by reflection, and every Rider it supports is the one it is tested on. Rider 2025.3 to 2026.2 keep version 0.13.0
-- `move_type_to_namespace` moves the file to the folder of the type's new namespace, made if missing, once the file holds only types of that namespace; a dry run says where it would go. On disk, after Rider has saved the edit, and the answer comes once Rider's project model has the file there. The answer said to `git mv` it
 - `rename_symbol` renames a type's file named after it, as Rider's Rename does, and lists it in `renamedFiles`; the file kept the old name. A dry run renames no file
-- Edit tools save the files they changed before they answer, so that a build started right after the answer builds the edit: Rider saved them a while later. Files with unsaved changes before the edit, such as someone's typing in Rider, are left for Rider to save. A file Rider hasn't saved within 10 seconds is named in a note
+- Edit tools save the files they changed before they answer, so that a build started right after the answer builds the edit: Rider saved them a while later. Files with unsaved changes before the edit, such as someone's typing in Rider, are left for Rider to save. A file Rider hasn't saved within 10 seconds is named in a note, which says how the file differs from Rider's copy
 - No use of deprecated platform API: the Kotlin compiler no longer generates a forwarding method for the deprecated `StatusBarWidget.getPresentation(PlatformType)` into the status-bar widget, which the Marketplace's verifier reported as two usages of deprecated API
 
 ### Added
 
-- `move_type_to_namespace`: ReSharper's Move to Another Namespace, checked: if the declaration didn't move, nothing is changed and the answer says so. Files that call the type's extension methods get the `using` the move gives them no other way. The file stays where it is
+- `move_type_to_namespace`: ReSharper's Move to Another Namespace, checked: if the declaration didn't move, nothing is changed and the answer says so. Files that call the type's extension methods get the `using` the move gives them no other way. The file moves to the folder of the new namespace, made if missing, once it holds only types of that namespace, and its namespace is made file-scoped again when the code style has it so. A dry run says where the file would go
 - `apply_suggestions` takes a `scope`: `file` (the default), or the file's `folder`, `project` or the whole `solution`, as Rider's Fix in folder/project/solution. The file is where the fix is found
 - `apply_suggestions` says how many files each fix changed. A fix in a wider scope skips the files in which Rider's solution-wide analysis found no such issue, and those results lag a change of settings, such as a new `.editorconfig`: with no file changed, the answer says so and why
 - `inspect_code`: ReSharper's inspections over files, folders, projects or the whole solution, run by the engine of Rider's Inspect Code against its live model, in parallel. With Rider's solution-wide analysis on and complete, its inspections are in too, such as `UnusedMember.Global`: the whole-solution sweep that took `jb inspectcode`. Counts per inspection, then rg-style lines; filters by severity and inspection id
@@ -28,8 +29,6 @@ plugin is a fork of.
 
 ### Fixed
 
-- An edit tool's save, sent right after Rider's own, had the file written twice in a row, and in about 1 of 25 moves Rider, reloading it meanwhile, was left with an empty copy of it: the call waited 10 s and said Rider hadn't saved the file. The call now waits for Rider's own save first, and saves only what it leaves. When Rider hasn't saved a file in time, the note says how the file differs from Rider's copy
-- `move_type_to_namespace` makes a file's namespace file-scoped again when the solution's code style has it so: once a file's types had moved to the same namespace one after the other, their namespace stayed block-scoped, as the first move had to make it
 - `rename_symbol` renames a positional record's property, through the record's parameter that declares it, as Rider's Rename does; it answered that the property "has no source file"
 - `rename_symbol`'s `changedFiles` left out the files of the implementations and overrides it renamed with the symbol: it is now the files the rename changed
 - Answers ended with `(index still building — results may be incomplete)` though the solution was indexed: every edit tool's, as the edit's own changes, and a dry run's rolling them back, set ReSharper indexing the files they changed; and most answers right after a file was edited on disk, as reloading it does too, for tens of milliseconds. The note now says that ReSharper was indexing as the call's work began, for longer than the second the call waits for it
