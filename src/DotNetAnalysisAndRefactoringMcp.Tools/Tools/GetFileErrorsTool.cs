@@ -22,9 +22,6 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
 {
    const int DefaultMaxDiagnostics = 50;
 
-   static readonly HashSet<string> SourceExtensions =
-      new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".cs", ".fs", ".vb" };
-
    // Members the compiler binds by pattern rather than by name at a call site. When one does not resolve, the
    // usual cause is a source generator whose output Rider has not seen, not a broken file.
    static readonly HashSet<string> PatternMembers = new HashSet<string>
@@ -88,38 +85,12 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
                                    required = Array.Empty<string>()
                                 };
 
-   public JObject Expand(JObject arguments)
-   {
-      var reference = arguments["changedSince"]?.ToString();
-      if(string.IsNullOrEmpty(reference) && arguments["changed"]?.Value<bool>() == true)
-         reference = "HEAD";
-
-      if(string.IsNullOrEmpty(reference))
-         return arguments;
-
-      var expanded = (JObject)arguments.DeepClone();
-      expanded["changedScope"] = $"changed since {reference}";
-      try
-      {
-         var directory = SolutionRoot.Of(_solution).Workspace
-                      ?? throw new InvalidOperationException("the solution has no directory");
-         var files = GitChanges.Since(directory, reference)
-                               .Where(x => SourceExtensions.Contains(Path.GetExtension(x)))
-                               .ToList();
-         expanded["filePaths"] = new JArray(files);
-      }
-      catch(InvalidOperationException exception)
-      {
-         expanded["changedError"] = exception.Message;
-      }
-
-      return expanded;
-   }
+   public JObject Expand(JObject arguments) => ChangedSinceArgument.Expand(arguments, _solution);
 
    public object Execute(JObject arguments)
    {
-      if(arguments["changedScope"] != null)
-         return ExecuteChanged(arguments);
+      if(ChangedSinceArgument.ScopeOf(arguments) is { } changedScope)
+         return ExecuteChanged(arguments, changedScope);
 
       return ToolBatch.Of(arguments, "filePaths", item: "filePath")?.Run(ExecuteSingle) ?? ExecuteSingle(arguments);
    }
@@ -136,11 +107,10 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
    /// <summary>
    /// Errors only, in files that have any: the shape a post-edit or pre-commit hook wants.
    /// </summary>
-   object ExecuteChanged(JObject arguments)
+   object ExecuteChanged(JObject arguments, string scope)
    {
-      var scope = arguments["changedScope"].ToString();
-      if(arguments["changedError"] != null)
-         return new { error = $"Cannot list files {scope}: {arguments["changedError"]}" };
+      if(ChangedSinceArgument.ErrorOf(arguments) is { } error)
+         return new { error = $"Cannot list files {scope}: {error}" };
 
       var changed = (arguments["filePaths"] as JArray)?.Select(x => x.ToString()).ToList() ?? new List<string>();
       if(changed.Count == 0)
