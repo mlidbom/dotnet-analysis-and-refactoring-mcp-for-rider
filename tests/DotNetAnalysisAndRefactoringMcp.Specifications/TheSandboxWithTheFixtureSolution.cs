@@ -7,14 +7,15 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications;
 
 /// <summary>
 ///   The sandbox Rider running this working tree's build of the plugin, with a fresh copy of the fixture solution
-///   (<c>tests/DotNetAnalysisAndRefactoringMcp.FixtureSolution</c>) open and indexed. Every specification calls the plugin's tools there, through
-///   <see cref="McpServer"/>.
+///   (<c>tests/DotNetAnalysisAndRefactoringMcp.FixtureSolution</c>) open and indexed. Every specification calls the
+///   plugin's tools there, through <see cref="McpServer"/>.
 /// </summary>
 /// <remarks>
 ///   Set up once for the whole run: it builds the plugin, puts it in the sandbox, and restarts the sandbox, which takes
-///   a minute or two. The sandbox is left running afterwards, so its state can be looked at.
+///   a minute or two. The sandbox is stopped after the run, and after a setup that failed: a sandbox left running holds
+///   gigabytes of Magnus's memory (2026-11-17). <c>sandbox start</c> opens the copy again, to look at its state.
 /// </remarks>
-public sealed class TheSandboxWithTheFixtureSolution
+public sealed class TheSandboxWithTheFixtureSolution : IDisposable
 {
    /// <summary>
    ///   The fixture solution's name, its folder's and its solution file's, prefixed with the plugin's, so that a Rider
@@ -39,10 +40,22 @@ public sealed class TheSandboxWithTheFixtureSolution
       sandbox.Install(_build);
       _solutionFolder = Path.Combine(sandbox.SolutionsFolder, SolutionName);
       CopyTheFixtureSolutionTo(_solutionFolder);
-      sandbox.Start(PathOf(SolutionFile));
-      WaitUntilTheSolutionResolves();
-      CallEveryToolThatChangesNothingOnce();
+      try
+      {
+         sandbox.Start(PathOf(SolutionFile));
+         WaitUntilTheSolutionResolves();
+         CallEveryToolThatChangesNothingOnce();
+      }
+      catch
+      {
+         // A fixture whose constructor throws is never disposed.
+         sandbox.Stop();
+         throw;
+      }
    }
+
+   /// <summary>Stops the sandbox Rider once the run is over.</summary>
+   public void Dispose() => _sandbox.Stop();
 
    /// <summary>This run's build of the plugin, from the working tree.</summary>
    public PluginBuild Build => _build;
