@@ -9,6 +9,8 @@ plugin is a fork of.
 
 ## [Unreleased]
 
+## [0.15.0]
+
 ### Added
 
 - A JSON form of `go_to_definition` and `browse_namespace`, for programs to read, such as the .NET Terminal Symbol Linker: `format: "json"` answers one JSON object, with 1-based lines and columns, bare C# names, and kinds from a fixed set of C# words. `go_to_definition` gives every declaration a name stands for, one shape whether found, ambiguous or unknown; `browse_namespace` gives each namespace's types, the types nested in them, and with `includeMembers`, their declared members, extension blocks with their receivers among them. A solution still loading answers an error rather than a partial result
