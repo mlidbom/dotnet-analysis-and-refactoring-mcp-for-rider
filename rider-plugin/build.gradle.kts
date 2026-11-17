@@ -44,6 +44,13 @@ dependencies {
     }
 }
 
+// CI downloads Gradle on every run, and a failed download is tried three more times before the build fails. Set here
+// because `gradlew wrapper` writes gradle-wrapper.properties from this task's settings, whose default is no retries.
+// As the symbol linker's.
+tasks.wrapper {
+    retries = 3
+}
+
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
