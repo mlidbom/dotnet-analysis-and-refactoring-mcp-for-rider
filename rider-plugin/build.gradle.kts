@@ -11,8 +11,8 @@ import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 // What this plugin adds is its .NET part: compileDotNet builds it, and prepareSandbox puts it beside the jar.
 
 plugins {
-    kotlin("jvm") version "2.4.0"
-    id("org.jetbrains.intellij.platform") version "2.16.0"
+    kotlin("jvm") version "2.4.21"
+    id("org.jetbrains.intellij.platform") version "2.20.1"
     id("org.jetbrains.changelog") version "2.5.0"
 }
 
@@ -124,14 +124,14 @@ val toolsOutput: File = repositoryRoot.resolve("src/$tools/bin/Release/net472")
 val toolsBuildFolder = layout.buildDirectory.dir("tools-build")
 
 // The tools project references the host's, so building it builds both.
-val compileDotNet by tasks.registering(Exec::class) {
+val compileDotNet = tasks.register<Exec>("compileDotNet") {
     workingDir = repositoryRoot
     commandLine("dotnet", "build", "src/$tools/$tools.csproj", "-c", "Release", "-v", "quiet", "-nologo")
 }
 
 // The tools build the plugin is installed with, as the host's ToolsBuildFolder reads one: a folder named by the time
 // it was built, with the tools assembly, its symbols, and host.sha256, the SHA-256 of the host it goes with.
-val assembleToolsBuild by tasks.registering {
+val assembleToolsBuild = tasks.register("assembleToolsBuild") {
     dependsOn(compileDotNet)
     outputs.dir(toolsBuildFolder)
     outputs.upToDateWhen { false }
