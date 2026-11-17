@@ -12,5 +12,5 @@ public class When_a_call_names_a_solution_that_is_not_open(TheSandboxWithTheFixt
 
    [XF] public void it_is_refused_as_not_found() => _refusal.Must().Contain("Solution 'NoSuchSolution' not found");
 
-   [XF] public void the_refusal_lists_the_open_solutions() => _refusal.Must().Contain("'FixtureSolution'");
+   [XF] public void the_refusal_lists_the_open_solutions() => _refusal.Must().Contain($"'{TheSandboxWithTheFixtureSolution.SolutionName}'");
 }

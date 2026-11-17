@@ -7,7 +7,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications;
 
 /// <summary>
 ///   The sandbox Rider running this working tree's build of the plugin, with a fresh copy of the fixture solution
-///   (<c>tests/FixtureSolution</c>) open and indexed. Every specification calls the plugin's tools there, through
+///   (<c>tests/DotNetAnalysisAndRefactoringMcp.FixtureSolution</c>) open and indexed. Every specification calls the plugin's tools there, through
 ///   <see cref="McpServer"/>.
 /// </summary>
 /// <remarks>
@@ -16,6 +16,15 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications;
 /// </remarks>
 public sealed class TheSandboxWithTheFixtureSolution
 {
+   /// <summary>
+   ///   The fixture solution's name, its folder's and its solution file's, prefixed with the plugin's, so that a Rider
+   ///   with it open, and the solution's name in the tools' answers, don't read as another project's fixture solution.
+   /// </summary>
+   public const string SolutionName = "DotNetAnalysisAndRefactoringMcp.FixtureSolution";
+
+   /// <summary>The fixture solution's solution file, at the root of its folder.</summary>
+   public const string SolutionFile = SolutionName + ".slnx";
+
    readonly string _solutionFolder;
    readonly SandboxRider _sandbox;
    readonly PluginBuild _build;
@@ -28,9 +37,9 @@ public sealed class TheSandboxWithTheFixtureSolution
 
       sandbox.Stop();
       sandbox.Install(_build);
-      _solutionFolder = Path.Combine(sandbox.SolutionsFolder, "FixtureSolution");
+      _solutionFolder = Path.Combine(sandbox.SolutionsFolder, SolutionName);
       CopyTheFixtureSolutionTo(_solutionFolder);
-      sandbox.Start(PathOf("FixtureSolution.slnx"));
+      sandbox.Start(PathOf(SolutionFile));
       WaitUntilTheSolutionResolves();
       CallEveryToolThatChangesNothingOnce();
    }
@@ -123,7 +132,7 @@ public sealed class TheSandboxWithTheFixtureSolution
    internal static void CopyTheFixtureSolutionTo(string folder)
    {
       if(Directory.Exists(folder)) DeleteWithItsRepository(folder);
-      var original = Path.Combine(RepositoryRoot.Folder, "tests", "FixtureSolution");
+      var original = Path.Combine(RepositoryRoot.Folder, "tests", SolutionName);
       Directory.CreateDirectory(folder);
       foreach(var subfolder in Directory.GetDirectories(original, "*", SearchOption.AllDirectories).Where(IsSource))
          Directory.CreateDirectory(Path.Combine(folder, Path.GetRelativePath(original, subfolder)));

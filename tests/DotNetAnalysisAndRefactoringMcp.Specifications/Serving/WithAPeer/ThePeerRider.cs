@@ -30,7 +30,7 @@ public sealed class ThePeerRider : IDisposable
       _peer.Stop();
       _peer.InstallThePluginOf(sandbox.Build);
 
-      _solutionFolder = Path.Combine(_peer.SolutionsFolder, "FixtureSolution");
+      _solutionFolder = Path.Combine(_peer.SolutionsFolder, TheSandboxWithTheFixtureSolution.SolutionName);
       TheSandboxWithTheFixtureSolution.CopyTheFixtureSolutionTo(_solutionFolder);
       File.WriteAllText(PathOf("Shapes/OnlyInThePeer.cs"),
                         "namespace Shapes;\n\n/// <summary>A type only the peer's copy of the fixture solution has.</summary>\npublic sealed class OnlyInThePeer;\n");
@@ -50,7 +50,7 @@ public sealed class ThePeerRider : IDisposable
    }
 
    /// <summary>The peer's copy of the fixture solution, which the first sandbox's server lists by this path.</summary>
-   public string SolutionPath => PathOf("FixtureSolution.slnx");
+   public string SolutionPath => PathOf(TheSandboxWithTheFixtureSolution.SolutionFile);
 
    /// <summary>The full path of a file of the peer's copy of the fixture solution, given its path within the solution.</summary>
    public string PathOf(string pathInTheSolution) => Path.GetFullPath(Path.Combine(_solutionFolder, pathInTheSolution));

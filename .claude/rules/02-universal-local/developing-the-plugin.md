@@ -33,9 +33,10 @@ there takes away the code intelligence you would fix it with, and can hang the I
 the sandbox Rider first: a second Rider, with folders of its own, its own tools builds, and the MCP server on port 23841.
 
 - `dotnet test tests/DotNetAnalysisAndRefactoringMcp.Specifications` is the test: it puts the working tree's build in
-  the sandbox, opens a fresh copy of `tests/FixtureSolution` there, and checks the tools' answers over HTTP, and that
-  swapped-out tools builds are freed. A run takes under a minute; NCrunch is told to ignore the project. A known bug
-  gets a skipped specification that names it, so that fixing it means removing the `Skip`.
+  the sandbox, opens a fresh copy of `tests/DotNetAnalysisAndRefactoringMcp.FixtureSolution` there, and checks the
+  tools' answers over HTTP, and that swapped-out tools builds are freed. A run takes under a minute; NCrunch is told to
+  ignore the project. A known bug gets a skipped specification that names it, so that fixing it means removing the
+  `Skip`.
 - `sandbox install` builds the working tree and puts it in the sandbox: only the tools, served from the next call,
   unless the plugin changed, its host or its frontend jar; then the whole plugin, restarting the sandbox if it runs.
 - `sandbox start <solution>` opens a solution in it and returns once the MCP server has it indexed. Call the tools on

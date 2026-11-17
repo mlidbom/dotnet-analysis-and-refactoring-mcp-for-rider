@@ -11,7 +11,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Serving.WithAPeer;
 public class When_listing_the_open_solutions(TheSandboxWithTheFixtureSolution sandbox, ThePeerRider peer)
 {
    readonly IReadOnlyList<JsonElement> _solutions = sandbox.McpServer.ListSolutions().GetProperty("solutions").EnumerateArray().ToList();
-   readonly string _thisRidersSolution = sandbox.PathOf("FixtureSolution.slnx");
+   readonly string _thisRidersSolution = sandbox.PathOf(TheSandboxWithTheFixtureSolution.SolutionFile);
    readonly string _peersSolution = peer.SolutionPath;
 
    IReadOnlyList<string> Paths => _solutions.Select(it => it.GetProperty("path").GetString()!).ToList();

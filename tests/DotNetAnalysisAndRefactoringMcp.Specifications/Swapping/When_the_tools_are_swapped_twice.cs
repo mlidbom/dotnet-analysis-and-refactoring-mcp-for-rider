@@ -24,7 +24,7 @@ public class When_the_tools_are_swapped_twice
       sandbox.McpServer.CallTool("search_symbol", new { query = "Circle" });
       _newest = sandbox.DeployTheToolsAgain();
       _answer = sandbox.McpServer.CallTool("search_symbol", new { query = "Circle" });
-      _tools = OnceNoneIsBeingFreed(() => sandbox.McpServer.ToolsOf(sandbox.PathOf("FixtureSolution.slnx")));
+      _tools = OnceNoneIsBeingFreed(() => sandbox.McpServer.ToolsOf(sandbox.PathOf(TheSandboxWithTheFixtureSolution.SolutionFile)));
    }
 
    [XF] public void it_answers_from_the_newest_build() => _tools.GetProperty("build").GetString().Must().Be(_newest);

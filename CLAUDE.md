@@ -433,7 +433,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     ReloadProjectsTool.cs              # reload_projects — ISolutionHost.ReloadProjectsAsync, waited for via LoadEvents
 tools/                                 # development tools: the sandbox Rider, deploying (see .claude/rules)
 tests/DotNetAnalysisAndRefactoringMcp.Specifications/  # the tools checked in the sandbox Rider
-tests/FixtureSolution/                 # the solution the specifications open there, copied as a git repository of one commit
+tests/DotNetAnalysisAndRefactoringMcp.FixtureSolution/  # the solution the specifications open there, copied as a git repository of one commit
 ```
 
 ## Building & Installing
