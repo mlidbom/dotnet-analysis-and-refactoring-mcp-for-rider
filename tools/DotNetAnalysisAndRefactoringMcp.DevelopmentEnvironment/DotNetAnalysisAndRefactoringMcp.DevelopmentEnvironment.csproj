@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net11.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Slions.VirtualDesktop" Version="6.9.2" />
-    <PackageReference Include="Vanara.PInvoke.User32" Version="5.0.5" />
+    <PackageReference Include="Vanara.PInvoke.User32" Version="5.0.8" />
   </ItemGroup>
 
 </Project>
