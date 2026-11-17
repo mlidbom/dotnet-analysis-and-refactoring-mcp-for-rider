@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -18,22 +19,33 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 ///   <c>get_Diameter(circle:Circle)</c> for a property <c>Diameter</c>: those are left out. A compiled type's blocks
 ///   are modeled otherwise, and not listed so yet (dev_docs/backlog.md).
 /// </remarks>
-class MemberListing(ITypeElement type)
+class MemberListing
 {
-   readonly HashSet<string> _propertyNames = [.. type.GetMembers().OfType<IProperty>().Select(it => it.ShortName)];
-   readonly HashSet<string> _eventNames = [.. type.GetMembers().OfType<IEvent>().Select(it => it.ShortName)];
+   readonly ITypeElement _type;
+   readonly HashSet<string> _propertyNames;
+   readonly HashSet<string> _eventNames;
+
+   public MemberListing(ITypeElement type)
+   {
+      _type = type;
+      _propertyNames = [.. type.GetMembers().OfType<IProperty>().Select(it => it.ShortName)];
+      _eventNames = [.. type.GetMembers().OfType<IEvent>().Select(it => it.ShortName)];
+   }
+
+   /// <summary>The members listed: what the source declares, and its extension blocks, each with members of its own.</summary>
+   public IEnumerable<ITypeMember> Members => _type.GetMembers().Where(it => it is ITypeExtension || IsDeclared(it));
 
    /// <summary>One line for each member, each starting with <paramref name="indent"/>, and an extension block's members indented under it.</summary>
    public void AppendTo(StringBuilder text, string indent)
    {
-      foreach(var member in type.GetMembers())
+      foreach(var member in Members)
       {
          if(member is ITypeExtension block)
          {
             text.Append(indent).AppendLine(PsiHelpers.FormatSignature(block));
             new MemberListing(block).AppendTo(text, indent + "  ");
-         } else if(IsDeclared(member))
-            text.Append(indent).Append(AccessOf(member)).AppendLine(PsiHelpers.FormatSignature(member));
+         } else
+            text.Append(indent).Append(AccessOf(member) is { } access ? access + " " : "").AppendLine(PsiHelpers.FormatSignature(member));
       }
    }
 
@@ -50,26 +62,30 @@ class MemberListing(ITypeElement type)
    }
 
    /// <summary>
-   ///   "private " and the like, as C# writes it, before a member in the listing: a compiled type's listing holds its
-   ///   private members too, and nothing else tells them from the public ones.
+   ///   "private" and the like, as C# writes it, for a member in the listing: a compiled type's listing holds its
+   ///   private members too, and nothing else tells them from the public ones. Nothing when C# writes none.
    /// </summary>
-   static string AccessOf(ITypeMember member) => member.GetAccessRights() switch
+   public static string? AccessOf(ITypeMember member) => member.GetAccessRights() switch
    {
-      AccessRights.PUBLIC                 => "public ",
-      AccessRights.PRIVATE                => "private ",
-      AccessRights.INTERNAL               => "internal ",
-      AccessRights.PROTECTED              => "protected ",
-      AccessRights.PROTECTED_OR_INTERNAL  => "protected internal ",
-      AccessRights.PROTECTED_AND_INTERNAL => "private protected ",
-      _                                   => ""
+      AccessRights.PUBLIC                 => "public",
+      AccessRights.PRIVATE                => "private",
+      AccessRights.INTERNAL               => "internal",
+      AccessRights.PROTECTED              => "protected",
+      AccessRights.PROTECTED_OR_INTERNAL  => "protected internal",
+      AccessRights.PROTECTED_AND_INTERNAL => "private protected",
+      _                                   => null
    };
 
    /// <summary>
-   ///   Members the compiler generates, typical of records: Equals, GetHashCode, ToString, PrintMembers, Deconstruct,
-   ///   op_Equality, op_Inequality, EqualityContract, and clone methods.
+   ///   Members the compiler generates: a delegate's, and those typical of records: Equals, GetHashCode, ToString,
+   ///   PrintMembers, Deconstruct, op_Equality, op_Inequality, EqualityContract, and clone methods.
    /// </summary>
    static bool IsCompilerGenerated(ITypeMember member)
    {
+      // A delegate's constructor, Invoke, BeginInvoke and EndInvoke: C# declares none of them.
+      if(member.ContainingType is IDelegate)
+         return true;
+
       var name = member.ShortName;
 
       // Skip any $-prefixed members (compiler internals)
