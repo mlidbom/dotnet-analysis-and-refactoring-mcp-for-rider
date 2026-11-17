@@ -13,7 +13,7 @@ public static class ShapeExtensions
     /// <summary>The width of <paramref name="circle"/>: twice its radius.</summary>
     public double Diameter => 2 * Math.Sqrt(circle.Area() / Math.PI);
 
-    /// <summary>A circle whose radius is <paramref name="by"/> longer.</summary>
+    /// <summary>A <see cref="Circle"/> whose radius is <paramref name="by"/> longer.</summary>
     public Circle Grown(double by) => new(circle.Diameter / 2 + by);
   }
 }

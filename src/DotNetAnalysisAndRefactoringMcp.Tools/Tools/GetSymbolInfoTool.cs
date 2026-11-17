@@ -142,8 +142,8 @@ public class GetSymbolInfoTool : IMcpTool
    static void AppendXmlDocumentation(StringBuilder sb, IDeclaredElement declaredElement)
    {
       var xmlDoc = TryGetXmlDoc(declaredElement);
-      var summary = xmlDoc?.SelectSingleNode("//summary")?.InnerText?.Trim();
-      var remarks = xmlDoc?.SelectSingleNode("//remarks")?.InnerText?.Trim();
+      var summary = xmlDoc?.SelectSingleNode("//summary") is { } summaryPart ? DocCommentText.Of(summaryPart) : null;
+      var remarks = xmlDoc?.SelectSingleNode("//remarks") is { } remarksPart ? DocCommentText.Of(remarksPart) : null;
 
       // Some static methods trigger an internal NRE in ReSharper's XML-doc API.
       // Fall back to source comments so symbol info still returns useful metadata.
@@ -221,8 +221,8 @@ public class GetSymbolInfoTool : IMcpTool
             return default;
 
          return (
-                   root.Element("summary")?.Value?.Trim(),
-                   root.Element("remarks")?.Value?.Trim());
+                   root.Element("summary") is { } summary ? DocCommentText.Of(summary) : null,
+                   root.Element("remarks") is { } remarks ? DocCommentText.Of(remarks) : null);
       }
       catch(XmlException)
       {
