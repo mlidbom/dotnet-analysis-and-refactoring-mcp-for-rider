@@ -12,6 +12,7 @@ using JetBrains.DocumentModel;
 using JetBrains.DocumentModel.Storage;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
+using JetBrains.ProjectModel.ProjectsHost;
 using JetBrains.ReSharper.Psi;
 using JetBrains.Util;
 using JetBrains.Util.Logging;
@@ -24,9 +25,10 @@ namespace DotNetAnalysisAndRefactoringMcp.Disk;
 /// <remarks>
 ///   <para>
 ///     Suspects are the files a call names, the files <see cref="DiskChanges"/> saw change, and the files that
-///     differed before. For a suspect whose document differs from disk, or a named file on disk in no project, the
-///     frontend is asked to rescan it (and the folder of a new file), and the call waits until the backend has the
-///     new text. A file still different after that wait is not waited on again until its disk time changes.
+///     differed before. For a suspect whose document differs from disk, or a file on disk in no project yet that the
+///     call names or that is in a project's folder, the frontend is asked to rescan it (and the folder of a new file),
+///     and the call waits until the backend has the new text. A file still different after that wait is not waited on
+///     again until its disk time changes.
 ///   </para>
 ///   <para>
 ///     The frontend's rescan alone lands anywhere from 0.1 s to 9 s later (measured). So stale documents are
@@ -89,13 +91,29 @@ public sealed class DiskSync
       if(rescan.Count > 0)
          await new Rescans(_solution, _locks).Request(lifetime, rescan);
 
-      var waited = stale.Concat(absent.Where(named.Contains)).ToList();
+      IReadOnlyList<string> projectFolders = absent.Count == 0 ? [] : await execution.Read(ProjectFolders);
+      var waited = stale.Concat(absent.Where(WillJoinAProject)).ToList();
       var after = waited.Count > 0 ? await WaitForReload(execution, waited) : DiskState.Clean;
       var state = before.Without(waited).With(after);
       Remember(suspects, state);
 
       return new DiskReport(state.Stale, state.Absent.Where(named.Contains).ToList());
+
+      // A new file worth a wait: one the call names, or one in a project's folder, which an SDK-style project takes
+      // in. A call that reaches its types by name, such as a search, finds them only once Rider has it. Not every new
+      // file the work tree watch sees: one in no project's folder would cost each call after it the whole wait.
+      bool WillJoinAProject(string file) =>
+         named.Contains(file)
+      || projectFolders.Any(folder => file.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
    }
+
+   /// <summary>The folders of the solution's project files.</summary>
+   IReadOnlyList<string> ProjectFolders() =>
+      _solution.GetAllProjects()
+               .Where(it => !it.ProjectFileLocation.IsEmpty && it.GetProjectMark() != null)
+               .Select(it => it.ProjectFileLocation.Directory.FullPath)
+               .Distinct()
+               .ToList();
 
    IReadOnlyList<string> Known() => _settled.Locked(it => it.Stale.Keys.ToList());
 

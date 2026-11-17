@@ -87,6 +87,10 @@ measured). Before every call `McpServerComponent` runs `DiskSync.Run`:
    matches whenever the frontend reloads it. A file still stale after that wait is "settled": it is not waited
    on again until its disk time changes.
 
+A new file is waited for, as in step 5, when the call names it or it lies in a project's folder, which an SDK-style
+project takes in: a call that reaches its types by name finds them only once Rider has it. Not every new file the work
+tree's watch sees, since one in no project's folder would cost a call the whole wait.
+
 Edit tools are refused while any suspect differs. Read tools get a note instead.
 
 After an edit tool's work, and before its answer, the documents it changed are saved (`Disk/UnsavedDocuments.cs`):

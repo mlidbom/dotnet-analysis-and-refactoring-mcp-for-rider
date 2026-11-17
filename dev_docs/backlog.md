@@ -5,11 +5,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
 
 ## Known bugs
 
-- **A call by name right after a file is created on disk doesn't find its types:** the disk sync waits for a new
-  file only when the call names it, so `search_symbol`, or a tool given a `symbolName`, answers "Symbol not found" until
-  Rider's file watcher has taken the file in. In a loop that wrote a file and moved its types by name 2.5 s later, 1 of
-  40 calls found nothing (2026-11-15). Waiting a moment for the files `DiskChanges` saw created, as for named ones,
-  would do it.
 - `search_symbol` with `includeLibraries` finds a compiled member only as `Type.Member`, not by its name alone
   (`GetProjectMark` gives none): scanning every compiled type's members takes seconds. An index of member names
   would do it.
