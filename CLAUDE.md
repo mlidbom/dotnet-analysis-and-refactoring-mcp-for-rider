@@ -127,7 +127,7 @@ it reverted a file the agent had just restored. `tests/live_disk_sync.py` checks
 | `get_call_hierarchy` | Build a call hierarchy tree for a method: `incoming` (callers via `IFinder.FindReferences`) or `outgoing` (callees) |
 | `get_type_hierarchy` | Get the inheritance hierarchy of a type: `supertypes` (base/interfaces) or `subtypes` (`FindInheritors`) |
 | `get_diagnostics` | Run the daemon (`DaemonHighlightingCollector`) on a file: severity, inspection id, message, location, quick-fix availability |
-| `inspect_code` | Inspect Code's engine (`CollectInspectionResults`) over files, folders, projects or the solution; solution-wide inspections when SWEA is complete |
+| `inspect_code` | Inspect Code's engine (`CollectInspectionResults`) over files, folders, projects, the solution, or the files changed since a git ref; solution-wide inspections when SWEA is complete |
 | `list_quick_fixes` | List ReSharper quick-fixes (bulb actions) available at a position |
 | `complete_at` | Get code completion suggestions at a caret position (runs on the R# main thread) |
 | `reload_projects` | Rider's Reload Project for the projects of the given files, waited for until loaded and indexed |
@@ -142,11 +142,16 @@ Mutation-capable tools (main-thread execution, with dispatch controlled by the m
 | `apply_quick_fix` | `IMcpAsyncTool` | Apply a bulb action via `BulbActionExecutor` (which self-transacts) |
 | `apply_suggestions` | `IMcpAsyncTool` | Apply scoped quick-fixes by inspection id via `IModernManualScopedAction.ExecuteAction` (ReSharper's "Fix all in file/folder/project/solution" engine, `scope`); complements position-based `apply_quick_fix` |
 
-### Output other tools parse
+### What the symbol linker relies on
 
-The .NET Terminal Symbol Linker (`C:\Dev\ClaudeSymbolLinker`) parses the text of `list_solutions`, `browse_namespace`,
-`get_symbol_info`'s members section, and `go_to_definition`'s signature line and ambiguity JSON. Tell its session
-before changing that output, so it can add a specification first (asked by its session, 2026-11-17).
+The .NET Terminal Symbol Linker (`C:\Dev\ClaudeSymbolLinker`) relies on this plugin, and its session asked to be told
+before any of the following changes, so it can add a specification first (2026-11-17):
+
+- the text of `list_solutions`, `browse_namespace`, `get_symbol_info`'s members section, and `go_to_definition`'s
+  signature line and ambiguity JSON, which it parses;
+- what its sandbox Rider copies from ours: the everyday plugin folder, the tools builds in
+  `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp\tools`, each with its `host.sha256`, and `/health`'s
+  `solutions[].tools.build` and `.host`, by which it waits until its sandbox serves the newest build.
 
 > `complete_at` is logically read-only but implements `IMcpSelfTransactingWriteTool` solely to obtain main-thread dispatch (the completion engine asserts the R# main thread); it performs no writes.
 
@@ -425,7 +430,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     ReloadProjectsTool.cs              # reload_projects — ISolutionHost.ReloadProjectsAsync, waited for via LoadEvents
 tools/                                 # development tools: the sandbox Rider, deploying (see .claude/rules)
 tests/DotNetAnalysisAndRefactoringMcp.Specifications/  # the tools checked in the sandbox Rider
-tests/FixtureSolution/                 # the solution the specifications open there
+tests/FixtureSolution/                 # the solution the specifications open there, copied as a git repository of one commit
 ```
 
 ## Building & Installing

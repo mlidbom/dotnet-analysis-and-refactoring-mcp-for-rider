@@ -43,7 +43,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 ///     analysis still running, the file daemon got through 1,140 files in the 100 s.
 ///   </para>
 /// </remarks>
-public sealed class InspectCodeTool : IMcpAsyncTool
+public sealed class InspectCodeTool : IMcpAsyncTool, IMcpExpandableTool
 {
    /// <summary>Within the host's 120 seconds per call, so that what was inspected by then is answered.</summary>
    static readonly TimeSpan HowLongInspectingMayTake = TimeSpan.FromSeconds(100);
@@ -59,7 +59,9 @@ public sealed class InspectCodeTool : IMcpAsyncTool
    public string Description =>
       "Run ReSharper's inspections over files, folders, projects or the whole solution, as Rider's Inspect Code does, " +
       "in parallel and against Rider's live model: the whole-solution sweep without jb inspectcode. Pass files, folders " +
-      "or project files in 'filePaths' (or one in 'filePath'); none inspects the solution. Filter with minSeverity " +
+      "or project files in 'filePaths' (or one in 'filePath'); none inspects the solution. Pass 'changedSince' (a git " +
+      "ref) or 'changed: true' to inspect every source file changed since then, committed or not, and untracked ones. " +
+      "Filter with minSeverity " +
       "('error'|'warning'|'suggestion'|'hint', default 'warning') and inspectionIds. Prints the count per inspection, " +
       "then rg-style 'line:column severity id: message' lines per file, up to maxResults. Stops after 100 s and answers " +
       "what it inspected by then. Inspections that need solution-wide analysis, such as UnusedMember.Global, are in when " +
@@ -73,6 +75,8 @@ public sealed class InspectCodeTool : IMcpAsyncTool
                                                 {
                                                    filePath = new { type = "string", description = "A file, folder or project file to inspect." },
                                                    filePaths = new { type = "array", items = new { type = "string" }, description = "Files, folders or project files to inspect. None: the whole solution." },
+                                                   changedSince = new { type = "string", description = "Inspect every source file changed since this git ref (committed or not) plus untracked ones, e.g. 'HEAD', 'origin/main'." },
+                                                   changed = new { type = "boolean", description = "Shorthand for changedSince: 'HEAD': every modified or untracked source file." },
                                                    minSeverity = new { type = "string", description = "'error', 'warning' (default), 'suggestion' or 'hint'." },
                                                    inspectionIds = new { type = "array", items = new { type = "string" }, description = "Only these inspections, such as 'UnusedVariable'." },
                                                    maxResults = new { type = "integer", description = $"Issue lines to print; the rest are counted. Default {DefaultMaxResults}." }
@@ -80,6 +84,8 @@ public sealed class InspectCodeTool : IMcpAsyncTool
                                 };
 
    object IMcpTool.Execute(JObject arguments) => throw new InvalidOperationException("Use the asynchronous tool dispatcher.");
+
+   public JObject Expand(JObject arguments) => ChangedSinceArgument.Expand(arguments, _solution);
 
    public async Task<object> ExecuteAsync(JObject arguments, McpToolExecution execution)
    {
@@ -89,9 +95,17 @@ public sealed class InspectCodeTool : IMcpAsyncTool
       var inspectionIds = (arguments["inspectionIds"] as JArray)?.Select(it => it.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
       var maxResults = arguments["maxResults"]?.Value<int>() ?? DefaultMaxResults;
 
+      // No changed files is no files, not the whole solution, which no paths would otherwise mean.
+      var changedScope = ChangedSinceArgument.ScopeOf(arguments);
+      if(changedScope != null && ChangedSinceArgument.ErrorOf(arguments) is { } changedError)
+         return new { error = $"Cannot list files {changedScope}: {changedError}" };
+      if(changedScope != null && paths.Count == 0)
+         return $"{changedScope}: no changed source files";
+      var scopeLabel = changedScope == null ? "" : changedScope + ": ";
+
       var scope = await execution.Read(() => FilesIn(paths)).ConfigureAwait(false);
       if(scope.Files.Count == 0)
-         return new { error = scope.NotFound.Count > 0 ? "Nothing to inspect in " + string.Join(", ", scope.NotFound) : "The solution has no files to inspect." };
+         return new { error = scopeLabel + (scope.NotFound.Count > 0 ? "Nothing to inspect in " + Listed(scope.NotFound) : "The solution has no files to inspect.") };
 
       var issues = new ConcurrentBag<Issue>();
       var inspected = 0;
@@ -138,7 +152,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool
       var finished = await Task.WhenAny(done.Task, Task.Delay(HowLongInspectingMayTake, call.Lifetime)).ConfigureAwait(false) == done.Task;
       if(!finished) inspection.Terminate();
 
-      return Answer(issues.ToList(),
+      return scopeLabel + Answer(issues.ToList(),
                     scope,
                     global ? null : inspected,
                     finished,
@@ -172,7 +186,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool
                            ? "With solution-wide analysis: its inspections, such as UnusedMember.Global, are in."
                            : $"Solution-wide analysis {solutionWideAnalysis}, so its inspections, such as UnusedMember.Global, are left out.");
       if(scope.NotFound.Count > 0)
-         answer.AppendLine("Nothing to inspect in " + string.Join(", ", scope.NotFound));
+         answer.AppendLine("Nothing to inspect in " + Listed(scope.NotFound));
       if(issues.Count == 0) return answer.ToString().TrimEnd();
 
       answer.AppendLine("by inspection:");
@@ -195,6 +209,10 @@ public sealed class InspectCodeTool : IMcpAsyncTool
          answer.AppendLine($"({issues.Count - maxResults} more issues not printed: raise maxResults, or narrow with filePaths or inspectionIds)");
       return answer.ToString().TrimEnd();
    }
+
+   /// <summary>The first few of <paramref name="paths"/>, and how many more: changed files in no project of the solution can be many.</summary>
+   static string Listed(IReadOnlyList<string> paths) =>
+      string.Join(", ", paths.Take(5)) + (paths.Count > 5 ? $", +{paths.Count - 5} more" : "");
 
    static string Seconds(TimeSpan time) => time.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
 

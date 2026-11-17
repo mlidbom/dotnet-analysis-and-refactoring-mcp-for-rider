@@ -31,12 +31,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   ReSharper models a compiled block as an `ICompiledTypeExtension`, reached through its grouping and marker types,
   whose `FindDeclaringTypeMember` gives the member a static method was compiled from.
 
-- **`inspect_code` and `get_diagnostics` can't take the changed files, as `get_file_errors` can:** checking every
-  inspection on the files of a change took listing them by hand, 97 files in a JAStudio session (2026-11-16). And the
-  connect guide's sentence on `changedSince` follows the one on `get_diagnostics`, so it reads as that tool's: the session
-  passed it there first, and got "filePath is required". `changedSince`/`changed` on `inspect_code` would do it, with the
-  sentence moved to `get_file_errors`.
-
 ## Bigger ideas
 
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence

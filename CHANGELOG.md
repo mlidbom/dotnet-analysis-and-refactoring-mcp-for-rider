@@ -9,6 +9,10 @@ plugin is a fork of.
 
 ## [Unreleased]
 
+### Added
+
+- `inspect_code` takes `changedSince` (a git ref) or `changed: true`, as `get_file_errors` does: it inspects every source file changed since then, committed or not, and the untracked ones. The guide a client gets on connecting says which tools take it: it read as `get_diagnostics`' before
+
 ### Fixed
 
 - Rider 2026.3 started a second MCP server for each Rider, with no solution, on a port of its own: in the lightweight backend it runs beside the solution's. Whenever that one got the base port first, it served as the primary. The plugin now loads only where ReSharper's inspections run

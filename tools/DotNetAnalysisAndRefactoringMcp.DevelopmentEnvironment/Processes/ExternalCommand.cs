@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Processes;
 
 /// <summary>A command line program the tools run to completion, such as <c>dotnet build</c> or Gradle.</summary>
-static class ExternalCommand
+public static class ExternalCommand
 {
    /// <summary>
    ///   Runs <paramref name="program"/> and waits for it, echoing its output. A nonzero exit code is a failure of the
