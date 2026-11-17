@@ -38,6 +38,9 @@ dependencies {
         } else {
             rider(providers.gradleProperty("platformVersion").get())
         }
+        // The Marketplace ZIP Signer that signPlugin runs. Undeclared, CI had none: "Cannot resolve 'Marketplace ZIP
+        // Signer' with: 'localPath[null],marketplaceZipSigner[]'", in v0.14.0's first release run (2026-11-17).
+        zipSigner()
     }
 }
 
