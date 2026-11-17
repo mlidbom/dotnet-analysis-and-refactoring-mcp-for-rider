@@ -12,21 +12,27 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
 /// </summary>
 /// <remarks>
 ///   Not by its bytes: two builds of the same sources differed in the zip's own records, with every entry the same
-///   (2026-11-17). And not by the descriptor's change notes, which Gradle fills in from CHANGELOG.md: an edit there
-///   doesn't change how Rider runs the plugin, and installing the plugin waits for a restart of every everyday Rider.
+///   (2026-11-17). Nor by what doesn't change how Rider runs the plugin, since installing the plugin waits for a restart
+///   of every everyday Rider: the descriptor's change notes, which Gradle fills in from CHANGELOG.md, and the manifest,
+///   which records what built the jar. The Gradle, JVM and OS in it differ between the Marketplace's build, made in
+///   CI on Linux, and one made here, with every class the same (2026-11-17).
 /// </remarks>
 static class FrontendJar
 {
    const string Descriptor = "META-INF/plugin.xml";
+   const string Manifest = "META-INF/MANIFEST.MF";
 
    static readonly Regex ChangeNotes = new("<change-notes>.*?</change-notes>", RegexOptions.Singleline);
 
-   /// <summary>The SHA-256 of <paramref name="jar"/>'s entries, by name and content, without the descriptor's change notes.</summary>
+   /// <summary>
+   ///   The SHA-256 of <paramref name="jar"/>'s entries, by name and content, without the manifest and the
+   ///   descriptor's change notes.
+   /// </summary>
    public static string IdentityOf(string jar)
    {
       using var archive = ZipFile.OpenRead(jar);
       using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-      foreach(var entry in archive.Entries.OrderBy(it => it.FullName, StringComparer.Ordinal))
+      foreach(var entry in archive.Entries.Where(it => it.FullName != Manifest).OrderBy(it => it.FullName, StringComparer.Ordinal))
       {
          hash.AppendData(Encoding.UTF8.GetBytes(entry.FullName + "\0"));
          hash.AppendData(ContentOf(entry));
