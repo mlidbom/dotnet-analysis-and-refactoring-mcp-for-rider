@@ -40,9 +40,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       # No localIdePath -> the build downloads the pinned Rider (gradle.properties). compileDotNet builds the host
-      # and the tools, and prepareSandbox puts them in the plugin beside the jar.
+      # and the tools, and prepareSandbox puts them in the plugin beside the jar. Every deprecation Gradle finds is
+      # printed, not just counted: this path downloads a Rider, which a local build doesn't, so only here are they seen.
       - name: Build plugin
-        run: ./gradlew buildPlugin --console=plain --stacktrace
+        run: ./gradlew buildPlugin --console=plain --stacktrace --warning-mode all
 
       # The Marketplace's own check, failing on any finding (build.gradle.kts says why), against the oldest supported
       # Rider and the latest release.
