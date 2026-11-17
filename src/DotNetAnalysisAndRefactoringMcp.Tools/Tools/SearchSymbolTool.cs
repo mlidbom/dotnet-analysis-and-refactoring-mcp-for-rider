@@ -261,7 +261,7 @@ public class SearchSymbolTool : IMcpTool
 
          string containingType = null;
          if(element is IClrDeclaredElement clr)
-            containingType = clr.GetContainingType()?.ShortName;
+            containingType = PsiHelpers.QualifyingTypeOf(clr)?.ShortName;
 
          Results.Add(new SymbolResult
                      {

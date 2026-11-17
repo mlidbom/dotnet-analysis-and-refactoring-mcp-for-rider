@@ -10,6 +10,7 @@ using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Caches;
 using JetBrains.ReSharper.Psi.CSharp;
+using JetBrains.ReSharper.Psi.CSharp.DeclaredElements;
 using JetBrains.ReSharper.Psi.CSharp.Tree;
 using JetBrains.ReSharper.Psi.Files;
 using JetBrains.ReSharper.Psi.Tree;
@@ -275,11 +276,17 @@ public static class PsiHelpers
             if(!name.IsShort(member.ShortName) || kind != null && !MatchesKind(member, kind))
                continue;
 
-            var fqn = GetQualifiedName(member);
+            var declared = DeclaredMemberOf(member);
+            var fqn = GetQualifiedName(declared);
             if(!qualified || name.Matches(fqn))
-               Add(member, fqn);
+               Add(declared, fqn);
          }
       }
+
+      // The static method a C# 14 extension block's member compiles to is that member to whoever writes C#: one
+      // candidate, not two of one name.
+      static IDeclaredElement DeclaredMemberOf(ITypeMember member) =>
+         member is ICSharpExtensionSecondaryMember lowered ? lowered.DeclaringMember : member;
 
       void AddLocalFunctions()
       {
@@ -511,16 +518,12 @@ public static class PsiHelpers
 
       if(element is IClrDeclaredElement clr)
       {
-         var containingType = clr.GetContainingType();
-         while(containingType != null)
-         {
+         for(var containingType = QualifyingTypeOf(clr); containingType != null; containingType = containingType.GetContainingType())
             parts.Insert(0, containingType.ShortName);
-            containingType = containingType.GetContainingType();
-         }
 
          var ns = clr is ITypeElement te
                      ? te.GetContainingNamespace()
-                     : clr.GetContainingType()?.GetContainingNamespace();
+                     : QualifyingTypeOf(clr)?.GetContainingNamespace();
 
          if(ns != null && !string.IsNullOrEmpty(ns.QualifiedName))
             parts.Insert(0, ns.QualifiedName);
@@ -528,6 +531,14 @@ public static class PsiHelpers
 
       return string.Join(".", parts);
    }
+
+   /// <summary>
+   ///   The type that qualifies <paramref name="element"/>'s name as C# writes it: its containing type, or, for a member
+   ///   of a C# 14 extension block, the static class the block is in: <c>ShapeExtensions.Diameter</c>, where ReSharper's
+   ///   model has a class named <c>$extension</c> between them.
+   /// </summary>
+   public static ITypeElement QualifyingTypeOf(IClrDeclaredElement element) =>
+      element.GetContainingType() is ITypeExtension block ? block.GetContainingType() : element.GetContainingType();
 
    /// <summary>
    /// Common resolution logic used by all tools. Resolves a symbol from either symbolName+kind or filePath+line+column.

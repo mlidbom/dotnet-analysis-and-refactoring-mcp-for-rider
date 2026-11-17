@@ -13,6 +13,7 @@ plugin is a fork of.
 
 - Rider 2026.3 started a second MCP server for each Rider, with no solution, on a port of its own: in the lightweight backend it runs beside the solution's. Whenever that one got the base port first, it served as the primary. The plugin now loads only where ReSharper's inspections run
 - `get_symbol_info` with `includeMembers` lists a C# 14 extension block as C# declares it, `extension(circle:Circle)`, with its members under it. It listed the block as a class named `$extension`, and each member as the static method the compiler makes of it, such as a property `Diameter` as `get_Diameter(circle:Circle)`. A member's containing type is the block in its class
+- A C# 14 extension block's member is named as C# names it, `ShapeExtensions.Grown`, wherever a qualified name is given, and naming it finds it. Its name was ambiguous with the static method it compiles to, and showed ReSharper's `$extension` (`search_symbol` printed `$extension.Grown`)
 - `get_symbol_info`'s doc lines keep the names a doc comment links to: every `<see cref>`, `<paramref>` and `<typeparamref>` was left out, so "The sum of the areas of `<paramref name="shapes"/>`." read "The sum of the areas of ."
 
 ## [0.14.1]

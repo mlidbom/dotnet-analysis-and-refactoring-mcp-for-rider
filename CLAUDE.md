@@ -138,6 +138,12 @@ Mutation-capable tools (main-thread execution, with dispatch controlled by the m
 | `apply_quick_fix` | `IMcpAsyncTool` | Apply a bulb action via `BulbActionExecutor` (which self-transacts) |
 | `apply_suggestions` | `IMcpAsyncTool` | Apply scoped quick-fixes by inspection id via `IModernManualScopedAction.ExecuteAction` (ReSharper's "Fix all in file/folder/project/solution" engine, `scope`); complements position-based `apply_quick_fix` |
 
+### Output other tools parse
+
+The .NET Terminal Symbol Linker (`C:\Dev\ClaudeSymbolLinker`) parses the text of `list_solutions`, `browse_namespace`,
+`get_symbol_info`'s members section, and `go_to_definition`'s signature line and ambiguity JSON. Tell its session
+before changing that output, so it can add a specification first (asked by its session, 2026-11-17).
+
 > `complete_at` is logically read-only but implements `IMcpSelfTransactingWriteTool` solely to obtain main-thread dispatch (the completion engine asserts the R# main thread); it performs no writes.
 
 ### Symbol resolution
