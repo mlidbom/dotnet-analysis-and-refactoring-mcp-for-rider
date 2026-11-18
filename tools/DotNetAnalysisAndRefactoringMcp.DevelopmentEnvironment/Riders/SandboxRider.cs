@@ -29,7 +29,13 @@ public sealed class SandboxRider
    const int HeapLimitInMegabytes = 2048;
 
    static readonly TimeSpan HowLongStartingMayTake = TimeSpan.FromMinutes(5);
-   static readonly TimeSpan HowLongStoppingMayTake = TimeSpan.FromMinutes(2);
+   /// <summary>
+   ///   How long closing the sandbox's windows may take to end it, before its processes are killed. Rider sometimes asks
+   ///   "Confirm Exit", on every virtual desktop, which closing its windows doesn't answer (2026-11-17 and 2026-11-18).
+   /// </summary>
+   static readonly TimeSpan HowLongClosingMayTake = TimeSpan.FromSeconds(30);
+
+   static readonly TimeSpan HowLongDyingMayTake = TimeSpan.FromSeconds(30);
 
    static readonly HttpClient HealthClient = new() { Timeout = TimeSpan.FromSeconds(5) };
 
@@ -153,20 +159,35 @@ public sealed class SandboxRider
       PlaceWindows(); // The solution's own window has replaced Rider Home by now.
    }
 
-   /// <summary>Closes the sandbox's windows until it exits, as a human closing them would.</summary>
+   /// <summary>
+   ///   Closes the sandbox's windows until it exits, as a human closing them would, and kills its processes if that
+   ///   hasn't ended it within <see cref="HowLongClosingMayTake"/>: a sandbox is disposable, and one left running holds
+   ///   gigabytes of Magnus's memory.
+   /// </summary>
    public void Stop()
    {
       var running = RunningProcess();
       if(running is null) return;
-      WaitUntil(() =>
-                {
-                   if(running.HasExited) return true;
-                   foreach(var window in FramesOf(running)) window.AskToClose();
-                   return running.WaitForExit(TimeSpan.FromSeconds(5));
-                },
-                HowLongStoppingMayTake,
-                $"{Name} to exit");
+      if(!ClosedByItsWindows(running))
+      {
+         running.Kill(entireProcessTree: true);
+         WaitUntil(() => running.HasExited, HowLongDyingMayTake, $"{Name} to die");
+      }
+
       File.Delete(ProcessFile);
+   }
+
+   bool ClosedByItsWindows(Process running)
+   {
+      var closing = Stopwatch.StartNew();
+      while(closing.Elapsed < HowLongClosingMayTake)
+      {
+         if(running.HasExited) return true;
+         foreach(var window in FramesOf(running)) window.AskToClose();
+         if(running.WaitForExit(TimeSpan.FromSeconds(5))) return true;
+      }
+
+      return running.HasExited;
    }
 
    /// <summary>
