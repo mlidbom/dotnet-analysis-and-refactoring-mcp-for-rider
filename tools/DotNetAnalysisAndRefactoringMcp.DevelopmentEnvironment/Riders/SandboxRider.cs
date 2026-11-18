@@ -13,13 +13,20 @@ namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Riders;
 /// <remarks>
 ///   Its folders are under <c>%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcpSandbox</c>, outside the repository, so the everyday Rider,
 ///   which has the repository open, doesn't watch its caches change. Rider's launcher reads the folders from the
-///   properties file that the <c>RIDER_PROPERTIES</c> environment variable names.<br/>
+///   properties file that the <c>RIDER_PROPERTIES</c> environment variable names, and the JVM options from the file
+///   that <c>RIDER_VM_OPTIONS</c> names: <see cref="JvmOptionsFile"/>.<br/>
 ///   <see cref="ThePeer"/> is a second sandbox, beside it, for what needs two Riders.
 /// </remarks>
 public sealed class SandboxRider
 {
    /// <summary>The port the plugin's MCP server listens on in the sandbox. Everywhere else it's 23751 unless set otherwise.</summary>
    public const int McpPort = 23841;
+
+   /// <summary>
+   ///   How large the heap of the sandbox's frontend may grow: the installation's default, which is ample for the small
+   ///   solutions the sandbox opens.
+   /// </summary>
+   const int HeapLimitInMegabytes = 2048;
 
    static readonly TimeSpan HowLongStartingMayTake = TimeSpan.FromMinutes(5);
    static readonly TimeSpan HowLongStoppingMayTake = TimeSpan.FromMinutes(2);
@@ -98,6 +105,16 @@ public sealed class SandboxRider
    /// <summary>Where solutions to open in the sandbox go. The sandbox trusts everything under it.</summary>
    public string SolutionsFolder => Path.Combine(_root, "solutions");
 
+   /// <summary>
+   ///   The JVM options the sandbox's frontend starts with, after the installation's own: the heap limit,
+   ///   <see cref="HeapLimitInMegabytes"/>.
+   /// </summary>
+   /// <remarks>
+   ///   Without a file of its own, Rider's launcher took the everyday Riders' file, with Magnus's 16 GB heap limit and
+   ///   Toolbox's options. The last <c>-Xmx</c> wins, so every sandbox could grow as large (found 2026-11-18).
+   /// </remarks>
+   string JvmOptionsFile => Path.Combine(_root, "rider64.exe.vmoptions");
+
    string PluginsFolder => Path.Combine(_root, "plugins");
    string ProcessFile => Path.Combine(_root, "running-process.txt");
    bool HasThePluginInstalled => File.Exists(Path.Combine(PluginsFolder, "DotNetAnalysisAndRefactoringMcp", "dotnet", "DotNetAnalysisAndRefactoringMcp.dll"));
@@ -119,6 +136,7 @@ public sealed class SandboxRider
       {
          new SandboxRiderSettings(Path.Combine(_root, "config")).Write(SolutionsFolder);
          WriteTheFoldersFile();
+         File.WriteAllLines(JvmOptionsFile, [$"-Xmx{HeapLimitInMegabytes}m"]);
          var process = Launch(solution);
          File.WriteAllText(ProcessFile, $"{process.Id};{process.StartTime.Ticks}");
       } else if(solution is not null)
@@ -184,6 +202,7 @@ public sealed class SandboxRider
    Process Launch(string? solution)
    {
       Environment.SetEnvironmentVariable("RIDER_PROPERTIES", Path.Combine(_root, "idea.properties"));
+      Environment.SetEnvironmentVariable("RIDER_VM_OPTIONS", JvmOptionsFile);
       Environment.SetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT", McpPort.ToString());
       Environment.SetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS", Tools.Folder);
       var startInformation = new ProcessStartInfo(_rider.Launcher) { UseShellExecute = true };
