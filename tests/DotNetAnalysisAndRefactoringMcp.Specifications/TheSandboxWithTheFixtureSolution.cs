@@ -52,17 +52,22 @@ public sealed class TheSandboxWithTheFixtureSolution : IDisposable
       catch
       {
          // A fixture whose constructor throws is never disposed.
-         sandbox.Stop();
-         _turn.Dispose();
+         Dispose();
          throw;
       }
    }
 
-   /// <summary>Stops the sandbox Rider once the run is over, and ends the run's <see cref="SandboxTurn"/>.</summary>
+   /// <summary>Stops the sandbox Rider once the run is over, and ends the run's <see cref="SandboxTurn"/>, even if stopping failed.</summary>
    public void Dispose()
    {
-      _sandbox.Stop();
-      _turn.Dispose();
+      try
+      {
+         _sandbox.Stop();
+      }
+      finally
+      {
+         _turn.Dispose();
+      }
    }
 
    /// <summary>This run's build of the plugin, from the working tree.</summary>
