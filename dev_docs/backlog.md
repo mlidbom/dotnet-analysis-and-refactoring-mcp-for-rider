@@ -72,6 +72,16 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   Rider, which ends every Claude session in its Claude Sessions tabs. So what a reload leaves stale is worth finding out
   when it next happens: what the MCP could reload that Rider's menu doesn't.
 
+- **`get_file_errors` checked a stale or half-reloaded copy right after an edit on disk** (deskmancer-agent-rep,
+  Deskmancer, `Deskmancer.Telemetry/Analytics/ObservedAnalyticsTevents.cs`, after Edit-tool edits of a doc comment
+  only). 2026-11-17: the first call answered "{ expected" at 39:40, a position that fitted the file as it was before
+  the edit, 10 lines shorter; a call a moment later answered 0 diagnostics. 2026-11-18: two calls in a row answered
+  "Cannot resolve symbol 'Deliver'" (a cref) and "Cannot resolve symbol '_dispatcher'", while `dotnet build` had 0
+  warnings and 0 errors; `reload_projects` on the project cleared it. The description promises that files edited on
+  disk are reloaded before each call. A false error reads as a real one, which the user-level rules say to report as
+  breakage, and costs a build to tell apart. Wanted: the call waits until Rider's copy holds the disk's text, and its
+  model of the file is rebuilt from it, before it inspects; or it says that it couldn't.
+
 ## Bigger ideas
 
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence
