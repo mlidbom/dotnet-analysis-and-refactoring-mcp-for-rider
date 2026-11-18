@@ -82,6 +82,24 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   breakage, and costs a build to tell apart. Wanted: the call waits until Rider's copy holds the disk's text, and its
   model of the file is rebuilt from it, before it inspects; or it says that it couldn't.
 
+- **`rename_symbol` left a renamed type parameter's `<typeparamref>` tags stale** (jastudio-rep-opus, Compze,
+  `Compze.AllProjects`, branch taggregate-store-spike, 2026-11-18). In
+  `src/Compze.Teventive/Taggregates/BaseClasses/TeventApplyingPart.cs`, a class's type parameters `TComponent` and
+  `TComponentTevent`, renamed by position on the declaration to `TPart` and `TPartTevent`: every use in code was
+  renamed, but three `<typeparamref name="…"/>` tags were not (one in the class's summary, two in `DeclareAppliers`'
+  summary). The build doesn't catch them. Wanted: the rename updates them, as Rider's own Rename does, as it does
+  `<see cref>`s.
+
+- **Every `rename_symbol` on a type in `test/Compze.Tests.Integration` failed with an `OperationCanceledException`**
+  (jastudio-rep-opus, Compze, `Compze.AllProjects`, 2026-11-18): "ReSharper failed on rename_symbol:
+  OperationCanceledException: The operation was canceled.", dry runs included. The symbols were nested specification
+  classes, such as `Compze.Tests.Integration.CQRS.TaggregateStores.Given_a_tevent_store_and_a_state_store`, given by
+  name with kind `type` and by file, line and column. `get_symbol_info`, `find_usages` and `get_file_errors` resolved
+  the same symbols just before and after, and renames in `src/` worked in the same minutes. The first three calls ran
+  in parallel and may have cancelled each other; the four single calls after them failed the same way. `test/` is
+  outside the `.slnx`'s folder, where the rider MCP's `get_file_problems` also refuses files (the user-level rule on
+  C# code intelligence): a place to look. Wanted: renames there that work, or an error that says what cancelled them.
+
 ## Bigger ideas
 
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence
