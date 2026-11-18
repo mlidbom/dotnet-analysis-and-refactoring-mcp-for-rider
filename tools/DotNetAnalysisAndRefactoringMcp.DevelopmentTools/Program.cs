@@ -1,3 +1,4 @@
+using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment;
 using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
 using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Riders;
 
@@ -31,6 +32,9 @@ static class Program
                                                       one before it at their next call
                           everyday rollback-plugin    Puts back the plugin build that the last deploy installing the plugin
                                                       replaced; it takes effect when the everyday Riders restart
+
+                        The commands that start, stop or install a sandbox wait for the sandbox turn, which a run of the
+                        specifications, this repository's or the symbol linker's, holds while it runs.
                         """;
 
    static int Main(string[] arguments)
@@ -43,13 +47,13 @@ static class Program
       switch(arguments)
       {
          case ["sandbox", "start"]:
-            sandbox.Start();
+            InTheSandboxTurn("sandbox start", () => sandbox.Start());
             break;
          case ["sandbox", "start", var solution]:
-            sandbox.Start(Path.GetFullPath(solution));
+            InTheSandboxTurn("sandbox start", () => sandbox.Start(Path.GetFullPath(solution)));
             break;
          case ["sandbox", "stop"]:
-            sandbox.Stop();
+            InTheSandboxTurn("sandbox stop", sandbox.Stop);
             break;
          case ["sandbox", "place"]:
             sandbox.PlaceWindows();
@@ -58,18 +62,19 @@ static class Program
             foreach(var line in sandbox.Status()) Console.WriteLine(line);
             break;
          case ["sandbox", "install"]:
-            Console.WriteLine(sandbox.Install(PluginBuild.FromTheWorkingTree(rider))
-                                 ? "Installed the plugin in the sandbox: its host or its frontend jar changed."
-                                 : "Deployed the tools to the sandbox: it serves them from its next call.");
+            InTheSandboxTurn("sandbox install",
+                             () => Console.WriteLine(sandbox.Install(PluginBuild.FromTheWorkingTree(rider))
+                                                        ? "Installed the plugin in the sandbox: its host or its frontend jar changed."
+                                                        : "Deployed the tools to the sandbox: it serves them from its next call."));
             break;
          case ["peer", "start"]:
-            peer.Start();
+            InTheSandboxTurn("peer start", () => peer.Start());
             break;
          case ["peer", "start", var peersSolution]:
-            peer.Start(Path.GetFullPath(peersSolution));
+            InTheSandboxTurn("peer start", () => peer.Start(Path.GetFullPath(peersSolution)));
             break;
          case ["peer", "stop"]:
-            peer.Stop();
+            InTheSandboxTurn("peer stop", peer.Stop);
             break;
          case ["peer", "status"]:
             foreach(var line in peer.Status()) Console.WriteLine(line);
@@ -90,6 +95,16 @@ static class Program
       }
 
       return 0;
+   }
+
+   /// <summary>
+   ///   Runs <paramref name="command"/>'s change to a sandbox in the <see cref="SandboxTurn"/>: it waits for a run of the
+   ///   specifications to end, instead of starting, stopping or reinstalling the sandbox under it.
+   /// </summary>
+   static void InTheSandboxTurn(string command, Action change)
+   {
+      using var turn = SandboxTurn.Take($"the development tools' {command} in {RepositoryRoot.Folder}");
+      change();
    }
 
    /// <remarks>

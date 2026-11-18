@@ -153,7 +153,10 @@ before any of the following changes, so it can add a specification first (2026-1
   text of `list_solutions`, `browse_namespace`, `get_symbol_info`'s members section and `go_to_definition` instead;
 - what its sandbox Rider copies from ours: the everyday plugin folder, the tools builds in
   `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp\tools`, each with its `host.sha256`, and `/health`'s
-  `solutions[].tools.build` and `.host`, by which it waits until its sandbox serves the newest build.
+  `solutions[].tools.build` and `.host`, by which it waits until its sandbox serves the newest build;
+- the sandbox turn (`SandboxTurn`), which both suites take for their whole run, so that one runs sandbox Riders at a
+  time: `%LOCALAPPDATA%\SandboxRiders\turn.lock`, held open for reading and writing and shared only for reading, with
+  a line saying who holds it.
 
 > `complete_at` is logically read-only but implements `IMcpSelfTransactingWriteTool` solely to obtain main-thread dispatch (the completion engine asserts the R# main thread); it performs no writes.
 

@@ -13,7 +13,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications;
 /// <remarks>
 ///   Set up once for the whole run: it builds the plugin, puts it in the sandbox, and restarts the sandbox, which takes
 ///   a minute or two. The sandbox is stopped after the run, and after a setup that failed: a sandbox left running holds
-///   gigabytes of Magnus's memory (2026-11-17). <c>sandbox start</c> opens the copy again, to look at its state.
+///   gigabytes of Magnus's memory (2026-11-17). <c>sandbox start</c> opens the copy again, to look at its state.<br/>
+///   The run holds the <see cref="SandboxTurn"/> throughout, so it waits for any other run of sandbox Riders on the
+///   machine, this repository's or the symbol linker's, to end first.
 /// </remarks>
 public sealed class TheSandboxWithTheFixtureSolution : IDisposable
 {
@@ -26,22 +28,23 @@ public sealed class TheSandboxWithTheFixtureSolution : IDisposable
    /// <summary>The fixture solution's solution file, at the root of its folder.</summary>
    public const string SolutionFile = SolutionName + ".slnx";
 
+   readonly SandboxTurn _turn;
    readonly string _solutionFolder;
    readonly SandboxRider _sandbox;
    readonly PluginBuild _build;
 
    public TheSandboxWithTheFixtureSolution()
    {
+      _turn = SandboxTurn.Take($"the specifications in {RepositoryRoot.Folder}");
       var rider = RiderInstallation.OfThisUser();
       var sandbox = _sandbox = new SandboxRider(rider);
-      _build = PluginBuild.FromTheWorkingTree(rider);
-
-      sandbox.Stop();
-      sandbox.Install(_build);
-      _solutionFolder = Path.Combine(sandbox.SolutionsFolder, SolutionName);
-      CopyTheFixtureSolutionTo(_solutionFolder);
       try
       {
+         _build = PluginBuild.FromTheWorkingTree(rider);
+         sandbox.Stop();
+         sandbox.Install(_build);
+         _solutionFolder = Path.Combine(sandbox.SolutionsFolder, SolutionName);
+         CopyTheFixtureSolutionTo(_solutionFolder);
          sandbox.Start(PathOf(SolutionFile));
          WaitUntilTheSolutionResolves();
          CallEveryToolThatChangesNothingOnce();
@@ -50,12 +53,17 @@ public sealed class TheSandboxWithTheFixtureSolution : IDisposable
       {
          // A fixture whose constructor throws is never disposed.
          sandbox.Stop();
+         _turn.Dispose();
          throw;
       }
    }
 
-   /// <summary>Stops the sandbox Rider once the run is over.</summary>
-   public void Dispose() => _sandbox.Stop();
+   /// <summary>Stops the sandbox Rider once the run is over, and ends the run's <see cref="SandboxTurn"/>.</summary>
+   public void Dispose()
+   {
+      _sandbox.Stop();
+      _turn.Dispose();
+   }
 
    /// <summary>This run's build of the plugin, from the working tree.</summary>
    public PluginBuild Build => _build;
