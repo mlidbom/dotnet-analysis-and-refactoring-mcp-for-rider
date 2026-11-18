@@ -48,11 +48,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   3. **A tool that reverts Rider's copy to the disk,** asked for by the session: only on Magnus's word, as its
      description says, since the unsaved edits may be his.
 
-- The development tools' `peer stop` timed out after 2 minutes once (2026-11-17): the peer sandbox Rider showed a
-  "Confirm Exit" dialog, on every virtual desktop, which closing its windows doesn't answer. Exit confirmation is off in
-  its settings, so it was another reason, likely a process it ran (it had started GitHub Copilot's agent through npx).
-  The specification run before and after passed. Stopping should answer or report such a dialog, not wait it out.
-
 - **`apply_suggestions` applies nothing for an inspection of solution-wide analysis** (the owner, ClaudeTooling,
   2026-11-17). `inspect_code` listed 54 `MemberCanBePrivate.Global` warnings, with solution-wide analysis complete;
   `apply_suggestions` with that id, at file or solution scope, answered "nothing to apply" in a file that had one, so
@@ -83,12 +78,12 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   model of the file is rebuilt from it, before it inspects; or it says that it couldn't.
 
 - **`rename_symbol` left a renamed type parameter's `<typeparamref>` tags stale** (jastudio-rep-opus, Compze,
-  `Compze.AllProjects`, branch taggregate-store-spike, 2026-11-18). In
-  `src/Compze.Teventive/Taggregates/BaseClasses/TeventApplyingPart.cs`, a class's type parameters `TComponent` and
-  `TComponentTevent`, renamed by position on the declaration to `TPart` and `TPartTevent`: every use in code was
-  renamed, but three `<typeparamref name="…"/>` tags were not (one in the class's summary, two in `DeclareAppliers`'
-  summary). The build doesn't catch them. Wanted: the rename updates them, as Rider's own Rename does, as it does
-  `<see cref>`s.
+  2026-11-18): `TeventApplyingPart`'s `TComponent` and `TComponentTevent`, renamed by position to `TPart` and
+  `TPartTevent`, each after a dry run; every use in code was renamed, and three tags were not. Rider's log has both
+  renames applied, to that one file. Didn't reproduce: the `When_renaming_a_type_parameter` specification passes, and
+  Compze's file as it was then (`1a0d766bb`, exported and opened in the sandbox) had its tags renamed, by the code of
+  then and of now alike. Unknown what differed; if it happens again, note what touched the file between the rename and
+  the look at its tags.
 
 ## Bigger ideas
 
