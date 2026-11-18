@@ -42,7 +42,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 ///     said to git mv it.
 ///   </para>
 /// </remarks>
-public sealed class MoveTypeToNamespaceTool : IMcpSelfTransactingWriteTool, IMcpFileMovingTool
+public sealed class MoveTypeToNamespaceTool : IMcpMainThreadTool, IMcpFileMovingTool
 {
    const string ActionId = "DotNetAnalysisAndRefactoringMcp.MoveToNamespace";
 

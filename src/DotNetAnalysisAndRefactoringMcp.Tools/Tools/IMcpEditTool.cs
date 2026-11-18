@@ -10,7 +10,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 /// <c>dryRun: true</c> edits nothing and is never refused.
 /// </summary>
 /// <remarks>
-/// Orthogonal to <see cref="IMcpWriteTool"/> and <see cref="IMcpAsyncTool"/>, which choose a thread and a lock.
+/// Orthogonal to <see cref="IMcpWriteTool"/>, <see cref="IMcpMainThreadTool"/> and <see cref="IMcpAsyncTool"/>, which
+/// choose a thread and a lock.
 /// </remarks>
 public interface IMcpEditTool : IMcpTool {}
 

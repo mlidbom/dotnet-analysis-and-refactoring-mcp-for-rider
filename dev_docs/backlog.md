@@ -90,16 +90,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   summary). The build doesn't catch them. Wanted: the rename updates them, as Rider's own Rename does, as it does
   `<see cref>`s.
 
-- **Every `rename_symbol` on a type in `test/Compze.Tests.Integration` failed with an `OperationCanceledException`**
-  (jastudio-rep-opus, Compze, `Compze.AllProjects`, 2026-11-18): "ReSharper failed on rename_symbol:
-  OperationCanceledException: The operation was canceled.", dry runs included. The symbols were nested specification
-  classes, such as `Compze.Tests.Integration.CQRS.TaggregateStores.Given_a_tevent_store_and_a_state_store`, given by
-  name with kind `type` and by file, line and column. `get_symbol_info`, `find_usages` and `get_file_errors` resolved
-  the same symbols just before and after, and renames in `src/` worked in the same minutes. The first three calls ran
-  in parallel and may have cancelled each other; the four single calls after them failed the same way. `test/` is
-  outside the `.slnx`'s folder, where the rider MCP's `get_file_problems` also refuses files (the user-level rule on
-  C# code intelligence): a place to look. Wanted: renames there that work, or an error that says what cancelled them.
-
 ## Bigger ideas
 
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence

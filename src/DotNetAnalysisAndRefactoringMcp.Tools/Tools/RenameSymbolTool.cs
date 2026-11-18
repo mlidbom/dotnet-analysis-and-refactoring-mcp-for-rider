@@ -16,11 +16,9 @@ using Newtonsoft.Json.Linq;
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
 
 /// <summary>
-/// Safe, semantic, solution-wide rename. This is a self-transacting WRITE tool
-/// (<see cref="IMcpSelfTransactingWriteTool"/>): per the runtime contract the component executes
-/// it on the R# main thread with a write lock held and documents already committed, but it does
-/// NOT open a PSI transaction for us. We therefore open our own transaction so we can control
-/// whether it commits (a real rename) or is discarded (a dry-run).
+/// Safe, semantic, solution-wide rename. It runs as Rider runs its Rename (<see cref="IMcpMainThreadTool"/>): on the
+/// R# main thread, under a read lock, documents committed, in a PSI transaction of its own, so that it controls
+/// whether the transaction commits (a real rename) or is discarded (a dry-run).
 ///
 /// The actual rename is driven by the standard ReSharper rename machinery:
 ///   RenameWorkflow + RenameRefactoring (the high-level executer) over a RenameDataModel.
@@ -32,7 +30,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 /// RefactoringDriver discards conflicts), and the driver-collected <see cref="IConflict"/>s are
 /// shaped into the output.
 /// </summary>
-public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
+public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
 {
    readonly ISolution _solution;
 
@@ -181,8 +179,8 @@ public class RenameSymbolTool : IMcpSelfTransactingWriteTool, IMcpEditTool
 
          workflow.AssignDataModel(dataModel);
 
-         // We are a self-transacting write tool: the component holds the write lock but did
-         // NOT open a PSI transaction for us. Open our own. For a real rename we use the
+         // The call opened no PSI transaction for us, as Rider's WorkflowExecuter opens one around a refactoring's
+         // Execute. Open our own. For a real rename we use the
          // auto-committing cookie (commits on dispose). For a dry-run we use a temporary
          // change cookie, which rolls back on dispose so none of the edits Execute() makes
          // are ever persisted — while the conflict/affected-file analysis we capture from the

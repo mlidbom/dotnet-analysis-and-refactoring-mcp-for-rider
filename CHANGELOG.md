@@ -9,6 +9,10 @@ plugin is a fork of.
 
 ## [Unreleased]
 
+### Fixed
+
+- `rename_symbol` failed with "OperationCanceledException: The operation was canceled.", dry runs included, on a type in a project that references ASP.NET Core, whenever ReSharper hadn't yet cached the project's controllers: Rename looks for them, to find the files to rename with the type, with a search on several threads, which can't read while the tool holds the write lock. It now runs as Rider's Rename does, under a read lock, and so does `move_type_to_namespace`
+
 ## [0.15.0]
 
 ### Added

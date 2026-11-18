@@ -67,6 +67,9 @@ Component breakdown:
 - `PsiHelpers.cs` — shared helpers: file lookup, position-to-node resolution, element resolution, snippet truncation.
 - `Tools/IMcpTool.cs` — common interface for all tools. Each tool provides its name, description, JSON schema, and execute method.
 - `Tools/IMcpWriteTool.cs` — marker interface for tools that modify the PSI tree (requires write lock + PsiTransaction).
+- `Tools/IMcpMainThreadTool.cs` — runs a tool as Rider runs its refactorings: main thread, read lock, its own PSI
+  transaction, ReSharper's code taking the write lock where it edits. Under the write lock, ReSharper's searches that run
+  on several threads are cancelled: a rename in a project referencing ASP.NET Core failed so until 2026-11-18.
 - `Tools/IMcpEditTool.cs` — `IMcpEditTool` marks tools that edit source files (refused while a file is stale; dry runs pass). `IMcpExpandableTool` lets a tool widen its arguments before any lock (e.g. `changedSince` → `filePaths` via git).
 - `Tools/ToolBatch.cs` — the one batch runner: `ToolBatch.Of(arguments, "filePaths", item: "filePath")?.Run(ExecuteSingle) ?? ExecuteSingle(arguments)`. Top-level arguments apply to every item; each item is isolated.
 - `SkippedElements.cs` — guard for solution-/file-wide walks: `skipped.Guard(element, () => ...)`, then append `skipped.Line`. Use it in every loop over types or members.
@@ -136,8 +139,8 @@ Mutation-capable tools (main-thread execution, with dispatch controlled by the m
 
 | Tool | Marker | Description |
 |------|--------|-------------|
-| `rename_symbol` | `IMcpSelfTransactingWriteTool` | Semantic solution-wide rename via `RenameRefactoring`; manages its own transaction to support `dryRun` rollback |
-| `move_type_to_namespace` | `IMcpSelfTransactingWriteTool` | `MoveToNamespaceWorkflow` headless; checks the declaration moved, adds usings for extension-method callers, moves the file to its namespace's folder |
+| `rename_symbol` | `IMcpMainThreadTool` | Semantic solution-wide rename via `RenameRefactoring`; manages its own transaction to support `dryRun` rollback |
+| `move_type_to_namespace` | `IMcpMainThreadTool` | `MoveToNamespaceWorkflow` headless; checks the declaration moved, adds usings for extension-method callers, moves the file to its namespace's folder |
 | `generate_members` | `IMcpWriteTool` | Generate members via `GeneratorWorkflowFactory`; relies on the framework's auto-commit transaction |
 | `apply_quick_fix` | `IMcpAsyncTool` | Apply a bulb action via `BulbActionExecutor` (which self-transacts) |
 | `apply_suggestions` | `IMcpAsyncTool` | Apply scoped quick-fixes by inspection id via `IModernManualScopedAction.ExecuteAction` (ReSharper's "Fix all in file/folder/project/solution" engine, `scope`); complements position-based `apply_quick_fix` |
@@ -404,6 +407,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     ToolCall.cs                        # One call's flow: disk sync, stale-file refusal, dispatch by kind, timeout, notes
     IMcpTool.cs                        # Tool interface: Name, Description, InputSchema, Execute
     IMcpWriteTool.cs                   # Marker interface for write tools (write lock + PsiTransaction)
+    IMcpMainThreadTool.cs              # Marker: main thread, read lock, as Rider runs a refactoring
     IMcpEditTool.cs                    # Markers: edits source files (stale guard); expands arguments
     IMcpAsyncTool.cs                   # Read phase, then mutation phase, no lock held in between
     ToolBatch.cs                       # Batch runner with per-item isolation; ToolText

@@ -106,10 +106,23 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       _tool switch
       {
          IMcpAsyncTool asyncTool => asyncTool.ExecuteAsync(arguments, execution),
+         IMcpMainThreadTool      => OnTheMainThreadAsync(arguments, lifetime),
          IMcpWriteTool           => WriteAsync(arguments, lifetime),
          _                       => execution.Read(() => _tool.Execute(arguments)),
       };
 
+   /// <summary>An <see cref="IMcpMainThreadTool"/>'s work: on the main thread, under a read lock, the documents committed.</summary>
+   Task<object> OnTheMainThreadAsync(JObject arguments, Lifetime lifetime) =>
+      _locks.ExecuteOrQueueReadLockAsync(lifetime,
+                                         $"DotNetAnalysisAndRefactoringMcp.{_tool.Name}",
+                                         () =>
+                                         {
+                                            if(!lifetime.IsAlive)
+                                               throw new OperationCanceledException();
+
+                                            _solution.Solution.GetPsiServices().Files.CommitAllDocuments();
+                                            return _tool.Execute(arguments);
+                                         });
 
    Task<object> WriteAsync(JObject arguments, Lifetime lifetime) =>
       _locks.ExecuteOrQueueReadLockAsync(lifetime,
