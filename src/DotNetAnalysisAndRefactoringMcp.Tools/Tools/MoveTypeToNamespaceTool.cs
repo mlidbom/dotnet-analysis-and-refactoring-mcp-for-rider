@@ -124,9 +124,7 @@ public sealed class MoveTypeToNamespaceTool : IMcpMainThreadTool, IMcpFileMoving
       List<string> usingsAdded;
       List<string> madeFileScoped;
       List<IProjectFile> toMove;
-      using(var transaction = dryRun
-                                 ? PsiTransactionCookie.CreateTemporaryChangeCookie(psiServices, ActionId)
-                                 : PsiTransactionCookie.CreateAutoCommitCookieWithCachesUpdate(psiServices, ActionId))
+      using(var transaction = EditTransaction.Begin(psiServices, ActionId, dryRun))
       {
          var executed = workflow.CreateRefactoring(driver).Execute(NullProgressIndicator.Create());
          psiServices.Caches.Update();

@@ -7,10 +7,15 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Refactoring;
 
 /// <summary>
 ///   <c>Stacking</c>'s type parameter <c>TShape</c>, renamed for real to <c>TPiece</c>, by the position of its
-///   declaration. Its doc comments name it with <c>&lt;typeparamref&gt;</c> tags, as Compze's <c>TeventApplyingPart</c>
-///   did, whose type parameters a rename left the tags of stale on 2026-11-18.
+///   declaration, after a dry run of the same rename. Its doc comments name it with <c>&lt;typeparamref&gt;</c> tags, as
+///   Compze's <c>TeventApplyingPart</c> did, whose type parameters a rename after a dry run left the tags of stale on
+///   2026-11-18.
 /// </summary>
-/// <remarks>It changes a file, so it renames once, for every fact.</remarks>
+/// <remarks>
+///   It changes a file, so it renames once, for every fact. It passes without the tools' <c>EditTransaction</c>'s
+///   rebuild of the trees a dry run rolled back, too: what made Compze's file lose its doc comments' references is
+///   unknown, and the fix was checked by replaying the renames on that file, as it was then, in the sandbox.
+/// </remarks>
 public class When_renaming_a_type_parameter(TheSandboxWithTheFixtureSolution sandbox)
 {
    static Observed? _observed;

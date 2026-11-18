@@ -410,6 +410,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     IMcpMainThreadTool.cs              # Marker: main thread, read lock, as Rider runs a refactoring
     IMcpEditTool.cs                    # Markers: edits source files (stale guard); expands arguments
     IMcpAsyncTool.cs                   # Read phase, then mutation phase, no lock held in between
+    EditTransaction.cs                 # An edit tool's PSI transaction: committed, or rolled back and its files parsed anew
     ToolBatch.cs                       # Batch runner with per-item isolation; ToolText
     FindUsagesTool.cs                  # find_usages — IFinder.FindReferences()
     GetSymbolInfoTool.cs               # get_symbol_info — detailed symbol metadata

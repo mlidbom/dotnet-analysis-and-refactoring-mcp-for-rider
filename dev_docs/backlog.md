@@ -77,14 +77,6 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   breakage, and costs a build to tell apart. Wanted: the call waits until Rider's copy holds the disk's text, and its
   model of the file is rebuilt from it, before it inspects; or it says that it couldn't.
 
-- **`rename_symbol` left a renamed type parameter's `<typeparamref>` tags stale** (jastudio-rep-opus, Compze,
-  2026-11-18): `TeventApplyingPart`'s `TComponent` and `TComponentTevent`, renamed by position to `TPart` and
-  `TPartTevent`, each after a dry run; every use in code was renamed, and three tags were not. Rider's log has both
-  renames applied, to that one file. Didn't reproduce: the `When_renaming_a_type_parameter` specification passes, and
-  Compze's file as it was then (`1a0d766bb`, exported and opened in the sandbox) had its tags renamed, by the code of
-  then and of now alike. Unknown what differed; if it happens again, note what touched the file between the rename and
-  the look at its tags.
-
 ## Bigger ideas
 
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence

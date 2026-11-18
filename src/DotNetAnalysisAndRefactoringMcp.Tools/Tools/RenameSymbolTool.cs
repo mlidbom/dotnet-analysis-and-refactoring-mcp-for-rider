@@ -180,18 +180,14 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
          workflow.AssignDataModel(dataModel);
 
          // The call opened no PSI transaction for us, as Rider's WorkflowExecuter opens one around a refactoring's
-         // Execute. Open our own. For a real rename we use the
-         // auto-committing cookie (commits on dispose). For a dry-run we use a temporary
-         // change cookie, which rolls back on dispose so none of the edits Execute() makes
-         // are ever persisted — while the conflict/affected-file analysis we capture from the
+         // Execute. Open our own, which a real rename commits as it ends, and a dry run rolls back, so none of the
+         // edits Execute() makes are ever persisted — while the conflict/affected-file analysis we capture from the
          // (now discarded) tree mutation remains valid for reporting.
          bool executed;
          var unreadable = new SkippedElements();
          List<object> conflicts;
-         List<object> changedFiles;
-         using(var transaction = dryRun
-                                    ? PsiTransactionCookie.CreateTemporaryChangeCookie(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol")
-                                    : PsiTransactionCookie.CreateAutoCommitCookieWithCachesUpdate(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol"))
+         IReadOnlyList<IPsiSourceFile> affected;
+         using(var transaction = EditTransaction.Begin(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol", dryRun))
          {
             // Build atomic renames AND search the solution for usages (populates the
             // references store the atomic renames consume). NameHasChanged ensures the load
@@ -211,12 +207,13 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
 
             // What ReSharper fails to read costs only that conflict's value, and the answer says so.
             conflicts = ExtractConflicts(driver, unreadable);
-            changedFiles = ChangedFiles(psiServices.Transactions.Current);
+            affected = transaction.ChangedFiles;
          }
 
+         var changedFiles = ChangedFiles(affected);
          if(dryRun)
          {
-            // The temporary change cookie rolled back on Dispose, discarding all edits.
+            // The transaction rolled back as it ended, discarding all edits.
             return new
                    {
                       applied = false,
@@ -298,22 +295,21 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
    }
 
    /// <summary>
-   ///   The files the rename changed: the ones its <paramref name="transaction"/> changed, before a dry run's is rolled
-   ///   back. The files of the implementations and overrides it renamed with the symbol are among them.
+   ///   The files the rename changed: the ones its transaction changed, <paramref name="affected"/>, before a dry run's
+   ///   is rolled back. The files of the implementations and overrides it renamed with the symbol are among them.
    /// </summary>
    /// <remarks>
    ///   Until 2026-11-15 the list was put together from the rename's data model, of the symbol's declarations and the
    ///   references to each element renamed, and it left out the files of the implementations: a rename of an
    ///   interface's method with implementations in four projects listed only the interface's file and the callers'.
    /// </remarks>
-   static List<object> ChangedFiles(IPsiTransaction transaction) =>
+   static List<object> ChangedFiles(IEnumerable<IPsiSourceFile> affected) =>
    [
-      .. transaction.AffectedFiles
-                    .Select(it => it.GetLocation().FullPath)
-                    .Where(it => it.Length > 0)
-                    .Distinct()
-                    .OrderBy(it => it, StringComparer.Ordinal)
-                    .Select(it => (object)new { file = it, fileName = Path.GetFileName(it) })
+      .. affected.Select(it => it.GetLocation().FullPath)
+                 .Where(it => it.Length > 0)
+                 .Distinct()
+                 .OrderBy(it => it, StringComparer.Ordinal)
+                 .Select(it => (object)new { file = it, fileName = Path.GetFileName(it) })
    ];
 
    /// <summary>

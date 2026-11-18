@@ -11,6 +11,7 @@ plugin is a fork of.
 
 ### Fixed
 
+- A rename right after a dry run of it could leave doc comments stale: renaming a type parameter of Compze's `TeventApplyingPart` renamed every use in code, and none of its `<typeparamref>` tags. A dry run's rollback left the file's tree without its doc comments' references; ReSharper now parses the files a dry run changed anew, for `rename_symbol` and `move_type_to_namespace`
 - `rename_symbol` failed with "OperationCanceledException: The operation was canceled.", dry runs included, on a type in a project that references ASP.NET Core, whenever ReSharper hadn't yet cached the project's controllers: Rename looks for them, to find the files to rename with the type, with a search on several threads, which can't read while the tool holds the write lock. It now runs as Rider's Rename does, under a read lock, and so does `move_type_to_namespace`
 
 ## [0.15.0]
