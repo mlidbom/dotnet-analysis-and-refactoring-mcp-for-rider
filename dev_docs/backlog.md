@@ -60,6 +60,14 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   inspections. Rider's own Fix in solution does apply them. Either apply them, or say why there was nothing, as for
   the stale results above.
 
+- **No tool makes Rider reload a solution whose `.slnx` changed** (stall-recorder, ClaudeTooling, 2026-11-18). Three
+  projects added to `ClaudeTooling.slnx` on disk didn't reach Rider's model: `inspect_code` on their folders answered
+  "Nothing to inspect", and `reload_projects` refused both the new `.csproj` files ("on disk but in no project yet")
+  and the `.slnx` itself ("No project found for …ClaudeTooling.slnx"). Until Magnus reloads the solution in Rider, the
+  new projects get no inspections. Wanted: `reload_projects` given the `.slnx`, or a project file the solution file
+  lists but Rider's model lacks, reloads the solution's project structure, as Rider's own reload of a changed solution
+  file does; and the "Nothing to inspect" answer says that the files are in no project Rider has loaded.
+
 ## Bigger ideas
 
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence
