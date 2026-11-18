@@ -67,6 +67,10 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   new projects get no inspections. Wanted: `reload_projects` given the `.slnx`, or a project file the solution file
   lists but Rider's model lacks, reloads the solution's project structure, as Rider's own reload of a changed solution
   file does; and the "Nothing to inspect" answer says that the files are in no project Rider has loaded.
+  Here, Magnus's Reload All Projects (the solution's context menu) was enough: `inspect_code` then covered the new
+  projects. But in his experience it "does not really reload everything", and the only fix he knows is restarting
+  Rider, which ends every Claude session in its Claude Sessions tabs. So what a reload leaves stale is worth finding out
+  when it next happens: what the MCP could reload that Rider's menu doesn't.
 
 ## Bigger ideas
 
