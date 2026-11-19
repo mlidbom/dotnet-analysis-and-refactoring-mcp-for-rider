@@ -39,13 +39,15 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
    public string Name => "rename_symbol";
 
    public string Description =>
-      "Safely rename a code symbol (class, method, property, field, parameter, local, etc.) " +
+      "Safely rename a code symbol (class, method, property, field, parameter, local, type parameter, etc.) " +
       "and all of its references across the entire solution. This is a semantic rename: it " +
-      "updates real usages, not text matches. Provide either a symbolName (e.g. 'MyClass' or " +
-      "'Namespace.MyClass') or a file path with position (line/column), plus the required " +
-      "'newName'. A type's file named after it is renamed with it, as Rider's Rename does. Returns any conflicts the " +
-      "refactoring detected. Set 'dryRun' to true to preview conflicts and affected files WITHOUT modifying any code " +
-      "or renaming any file.";
+      "updates real usages, not text matches. It follows what Rider's Rename follows: a member's interface " +
+      "implementations and overrides; the doc comments' <see cref>, <paramref> and <typeparamref> tags that name the " +
+      "symbol; a positional record's property with its parameter; and a type's file named after it, which is renamed " +
+      "with it. Provide either a symbolName (e.g. 'MyClass' or 'Namespace.MyClass') or a file path with position " +
+      "(line/column), plus the required 'newName'. Returns any conflicts the refactoring detected, and the files it " +
+      "changed, saved before it answers. Set 'dryRun' to true to preview conflicts and affected files WITHOUT " +
+      "modifying any code or renaming any file.";
 
    public object InputSchema => new
                                 {
