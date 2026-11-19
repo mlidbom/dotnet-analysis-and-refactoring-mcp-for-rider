@@ -152,6 +152,26 @@ What is known (2026-11-19):
   make. Publishing the headless mode is another matter: the command line tools are free, so it would give anyone the
   whole of Royder without a JetBrains license. Their terms get checked before it is ever published.
 
+The tooling owner's requirements for the design (2026-11-19). Its subagents in worktrees build with `dotnet build`
+today, and go without Royder:
+
+1. **The same tools, routed by path.** A subagent calls the same `mcp__dotnet-analysis-and-refactoring` tools with a
+   file in its worktree, and the call reaches that worktree's host. No second MCP server per worktree to configure: an
+   agent can't add one to its own session. The routing that exists may carry it: a call that names files already goes
+   to the solution holding them most closely, and a headless host could register with the primary as a peer does.
+2. **Started on demand.** The first call that names a file in a worktree with no host starts one, and says it is
+   indexing until it's ready, rather than failing. An explicit start as well, to warm one up before a subagent begins.
+3. **Stopped when unused,** after some minutes with no call, and at once when its worktree is removed. A host must
+   never outlive its folder, holding files that block `git worktree remove`.
+4. **A budget.** At most a few hosts at once, at 1 to 1.5 GB each. Past it, the least recently used one stops, and a
+   call that is refused says why.
+5. **Separate from Magnus's Rider.** A host never writes into the solution's `.idea` folder or the user settings his
+   Rider reads, so the two don't fight over the main checkout.
+
+It offers the hub, ClaudeTooling's resident server, which already runs long-lived processes for agents such as
+session hosts, as the owner of the hosts' lifecycle: ours to weigh against Royder owning it. It matters most when no
+Rider is open, and so no primary to route through.
+
 The spike, before any design:
 
 1. A console host on the `jb` package's platform that opens one worktree's solution headless and answers
@@ -159,7 +179,8 @@ The spike, before any design:
 2. Measured on this repository and on a large solution, such as JAStudio or Compze: the time from start until indexed,
    cold and with caches, and the memory it holds.
 3. A report to Magnus, with what a design would be: how agents start and stop a host, which port each gets, how a
-   call reaches it, and what of the tools moves behind a seam between the two hosts.
+   call reaches it, how it meets the tooling owner's requirements, and what of the tools moves behind a seam between
+   the two hosts.
 
 ## Decided against
 
