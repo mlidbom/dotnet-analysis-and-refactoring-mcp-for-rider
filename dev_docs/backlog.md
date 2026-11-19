@@ -163,8 +163,15 @@ today, and go without Royder:
    indexing until it's ready, rather than failing. An explicit start as well, to warm one up before a subagent begins.
 3. **Stopped when unused,** after some minutes with no call, and at once when its worktree is removed. A host must
    never outlive its folder, holding files that block `git worktree remove`.
-4. **A budget.** At most a few hosts at once, at 1 to 1.5 GB each. Past it, the least recently used one stops, and a
-   call that is refused says why.
+4. **A budget of memory, not of hosts,** at 1 to 1.5 GB each. Magnus, 2026-11-19: "Check my machine's memory status
+   via the service provided by the stall monitor. If there is plenty and has been for a while. Don't block." The
+   machine stall recorder's live samples (`MachineStalls.LiveSamples`, a named pipe that hands a viewer the last five
+   minutes of samples, then each as it is taken; see `~/.claude/dev_docs/machine-stall-recorder.md`) say whether
+   memory has been plentiful for a while, by the recorder's own thresholds (`WarningThresholds.Default`: the memory
+   gauge turns yellow at 85% in use, about 14 GB free of 94). Then a host starts, however many run. Only when memory is
+   short does the least recently used one stop first, or the call is refused and says why. Memory did run out on
+   2026-11-18, twice: about 0 GB available, and the commit charge at its limit, from 08:00 to 09:00 and 19:00 to 21:00.
+   Open: what decides where no recorder runs, in cloud sessions and in CI.
 5. **Separate from Magnus's Rider.** A host never writes into the solution's `.idea` folder or the user settings his
    Rider reads, so the two don't fight over the main checkout.
 
