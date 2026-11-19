@@ -125,11 +125,40 @@ for the solutions that were open, and after, for when they are indexed again, an
   measure one, from closing a Rider until its solutions answer indexed again, and see whether each still earns its
   complexity. Swapping still saves the edit-and-test loop a restart per change, which is likely to keep it worth having.
 
-## Bigger ideas
+## Headless Royder for agents' worktrees: a spike first
 
-- **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence
-  with Rider closed, in cloud sessions and in CI. Uncertain: the plugin makes some calls only Rider's frontend
-  answers, such as the file rescans in `Disk/Rescans.cs`.
+Magnus, 2026-11-19: "For tooling-owner and other projects to be able to fire off subagents on worktrees with full
+royder support would be a fantastic boon." The aim: an agent in a worktree of its own gets the whole of Royder there,
+without a Rider open on his desktop for it, taking memory and processor time. A Rider window per worktree was decided
+against for that cost ("An agent Rider", under "Decided against"). The same host would give code intelligence with
+Rider closed, in cloud sessions and in CI.
+
+What is known (2026-11-19):
+
+- **Rider's lightweight backend is no way to it.** `Rider.LightweightBackend.exe`, new in 2026.3, runs beside each
+  solution's backend with 66 of the full backend's 143 zones, no `DaemonZone` and no `SweaZone`. It holds only the
+  documents open in editors, which the frontend sends it, and no projects. `ZoneMarker` keeps the host out of it.
+- **ReSharper's command line tools ship the platform.** The `jb` global tool (2026.3.0.1, installed here) is the whole
+  engine on .NET 10, 648 MB, inspections included, with the framework InspectCode and CleanupCode are built on,
+  `JetBrains.CommandLine.Products`. `jb inspectcode --eXtensions` loads extensions, but InspectCode does one job and
+  exits: a server needs a host program of its own on that platform.
+- **What it would save, and what not:** the window, the desktop, the frontend's work, and the lightweight backend's
+  300–400 MB. Not the solution: a loaded, indexed one likely weighs what a `Rider.BackendHost.exe` does, 1–1.5 GB
+  here. Unmeasured.
+- **What the tools would need a second way of doing:** what goes through Rider's frontend, such as the rescans
+  (`Disk/Rescans.cs`), the saves after an edit (`Disk/UnsavedDocuments.cs`) and the main-thread tools' dispatch. With
+  no editors, the disk sync may get much simpler.
+- **Unknown: the license.** Whether the command line tools' terms allow a long-running server built on them.
+
+The spike, before any design:
+
+1. A console host on the `jb` package's platform that opens one worktree's solution headless and answers
+   `search_symbol` and `find_usages` over HTTP.
+2. Measured on this repository and on a large solution, such as JAStudio or Compze: the time from start until indexed,
+   cold and with caches, and the memory it holds.
+3. The license terms checked.
+4. A report to Magnus, with what a design would be: how agents start and stop a host, which port each gets, how a
+   call reaches it, and what of the tools moves behind a seam between the two hosts.
 
 ## Decided against
 
