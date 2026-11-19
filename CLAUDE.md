@@ -1,6 +1,10 @@
-# .NET Analysis&Refactoring MCP — Project Guide
+# Royder MCP — Project Guide
 
 ## What This Is
+
+Royder MCP, Royder for short: the preliminary name Magnus set on 2026-11-19, since the name before it was a pain to
+refer to. The code, its folders and assemblies, the `dotnet-analysis-and-refactoring` server key, the README and the
+Marketplace listing still carry that name, .NET Analysis&Refactoring MCP, until the rename is decided.
 
 A fork of Joshua Light's `resharper-mcp`, renamed on 2026-11-14 (see `dev_docs/swappable-tools.md`).
 An MCP (Model Context Protocol) server that runs **inside** the ReSharper/Rider backend process,

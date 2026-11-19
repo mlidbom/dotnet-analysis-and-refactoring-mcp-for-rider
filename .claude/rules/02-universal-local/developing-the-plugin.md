@@ -1,7 +1,8 @@
 # Developing the plugin: the sandbox Rider, deploying, branches
 
 This repository is Magnus's fork of Joshua Light's plugin, renamed .NET Analysis&Refactoring MCP
-(`mlidbom/dotnet-analysis-and-refactoring-mcp-for-rider`), and a development tool you own: Magnus handed it over on
+(`mlidbom/dotnet-analysis-and-refactoring-mcp-for-rider`), and since 2026-11-19 called Royder MCP, Royder for short,
+a preliminary name that only the documents use so far (see `CLAUDE.md`). It is a development tool you own: Magnus handed it over on
 2026-11-14, "I will hand you total ownership of it." Change it as you see fit. What it should do better is in
 `dev_docs/backlog.md`, where the tooling owner, the session in `~/.claude` that the other projects' sessions tell what
 it lacks, writes their requests.
