@@ -43,7 +43,9 @@ but ReSharper plugins target **net472**. So we implement a lightweight MCP serve
 
 ### Multi-solution support (primary/peer architecture)
 
-Rider opens each solution in a separate OS process, so multiple instances compete for ports.
+Rider runs each solution's backend, where the plugin lives, in an OS process of its own (`Rider.BackendHost.exe`),
+under the one frontend process (`rider64.exe`) that holds every solution's window. So the backends compete for ports,
+and restarting Rider ends them all at once.
 The plugin uses a **primary/peer** model:
 
 - **Primary** — the first Rider instance binds the base port (23751). It acts as the single MCP endpoint for all clients.

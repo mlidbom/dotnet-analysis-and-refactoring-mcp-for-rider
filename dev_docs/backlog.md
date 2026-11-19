@@ -79,19 +79,20 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
 
 ## Coordinated Rider restarts
 
-Magnus, 2026-11-19: Claude sessions will survive Rider restarts, and a tool in the tooling project, driven by the hub
-or the tooling owner, will close a Rider and reopen it with its solutions on their virtual desktops. Agents are told
-why Royder is gone, and he gets a prompt he can deny. Restarts can then happen almost any time, and an agent may
-request one, such as after a host change. What Royder should do about it, talked over with the session
+Magnus, 2026-11-19: Claude sessions will survive Rider restarts, and a tool in the tooling project, driven by the hub,
+will restart Rider and put its solutions back on their virtual desktops. Agents are told why Royder is gone, and he
+gets a prompt he can deny. Restarts can then happen almost any time, and an agent may request one, such as after a host
+change. The design is the tooling's, in `~/.claude/dev_docs/restarting-rider.md`. It reads `/health` before a restart,
+for the solutions that were open, and after, for when they are indexed again, and may reuse the development tools'
+`Screen/` code for the virtual desktops. What it means for Royder, talked over with its session,
 `coordinated-rider-restart`:
 
-- **Hand over the primary at shutdown.** The primary's server holds port 23751, which every session calls. When its
-  Rider closes, Royder is gone for every session and every solution until another Rider's watchdog notices the port is
-  free and takes it over, and it checks every 30 s (`McpShellComponent.TryPromoteToPrimary`). On shutdown, the primary
-  should hand the port to a peer at once. This costs agents today too, whenever Magnus closes that Rider.
-- **Hold calls across a restart.** If the restart's driver tells the primary which solutions are about to restart, by
-  path, calls to them can wait until they re-register and are indexed, rather than fail. Agents see one slow answer
-  instead of an error. The interface, such as an internal JSON-RPC method, is to be agreed with the driver's session.
+- **A peer takes over the primary's port slowly.** The primary's server holds port 23751, which every session calls.
+  When the primary's solution closes and other solutions stay open, Royder is gone for every session until a peer's
+  watchdog finds the port free and takes it over, and it checks every 30 s (`McpShellComponent.TryPromoteToPrimary`).
+  The simple fix is a check every few seconds. It doesn't help a restart of Rider, which ends every backend at once.
+- **Holding calls across a restart: not now.** A restart of Rider leaves no backend to hold them in: it would take a
+  process outside Rider holding the port. Agents are told and call again; revisit if the failed calls turn out to cost.
 - **Revisit what a restart's cost decided.** The host stays minimal (the developing-the-plugin rule) and the tools are
   swapped between calls (`dev_docs/swappable-tools.md`) because a restart was expensive. Once restarts are cheap,
   measure one, from closing a Rider until its solutions answer indexed again, and see whether each still earns its
