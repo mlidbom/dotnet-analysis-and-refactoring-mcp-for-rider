@@ -77,6 +77,26 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   breakage, and costs a build to tell apart. Wanted: the call waits until Rider's copy holds the disk's text, and its
   model of the file is rebuilt from it, before it inspects; or it says that it couldn't.
 
+## Coordinated Rider restarts
+
+Magnus, 2026-11-19: Claude sessions will survive Rider restarts, and a tool in the tooling project, driven by the hub
+or the tooling owner, will close a Rider and reopen it with its solutions on their virtual desktops. Agents are told
+why Royder is gone, and he gets a prompt he can deny. Restarts can then happen almost any time, and an agent may
+request one, such as after a host change. What Royder should do about it, talked over with the session
+`coordinated-rider-restart`:
+
+- **Hand over the primary at shutdown.** The primary's server holds port 23751, which every session calls. When its
+  Rider closes, Royder is gone for every session and every solution until another Rider's watchdog notices the port is
+  free and takes it over, and it checks every 30 s (`McpShellComponent.TryPromoteToPrimary`). On shutdown, the primary
+  should hand the port to a peer at once. This costs agents today too, whenever Magnus closes that Rider.
+- **Hold calls across a restart.** If the restart's driver tells the primary which solutions are about to restart, by
+  path, calls to them can wait until they re-register and are indexed, rather than fail. Agents see one slow answer
+  instead of an error. The interface, such as an internal JSON-RPC method, is to be agreed with the driver's session.
+- **Revisit what a restart's cost decided.** The host stays minimal (the developing-the-plugin rule) and the tools are
+  swapped between calls (`dev_docs/swappable-tools.md`) because a restart was expensive. Once restarts are cheap,
+  measure one, from closing a Rider until its solutions answer indexed again, and see whether each still earns its
+  complexity. Swapping still saves the edit-and-test loop a restart per change, which is likely to keep it worth having.
+
 ## Bigger ideas
 
 - **Hosting the plugin in a headless ReSharper process,** as `jb inspectcode` hosts the engine: code intelligence
