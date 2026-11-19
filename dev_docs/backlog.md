@@ -77,6 +77,21 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   breakage, and costs a build to tell apart. Wanted: the call waits until Rider's copy holds the disk's text, and its
   model of the file is rebuilt from it, before it inspects; or it says that it couldn't.
 
+- **A wide namespace rename broke code without saying so, and took one call per type** (tooling owner, renaming
+  `ClaudeTooling.ResidentServer` to `ClaudeTooling.Hub` in `~/.claude`'s ClaudeTooling solution, 2026-11-19/20; the
+  incident is in `~/.claude`'s incidents, commit a5702e0). What would have helped most: a namespace rename that checks
+  that every reference it rewrites still binds. Four failures:
+  - `rename_symbol` refuses a namespace, answering "UnsupportedLanguage". The rename took 84 `move_type_to_namespace`
+    calls instead of one.
+  - `move_type_to_namespace` threw an `ArgumentOutOfRangeException` on a partial class with a `[LibraryImport]` method
+    (`StartingTheServer`). Unverified guess: the source generator's part of the class, in `obj/`.
+  - One move shortened a qualification to `Hub.ActivityOfTheServer`, and a later move broke it (CS0234).
+    `get_file_errors` had reported no errors after the first move. A check limited to the references a move rewrites
+    wouldn't have caught it, since the later move didn't rewrite that one. It needs to cover every reference to the
+    namespaces the move changes.
+  - `rename_symbol` didn't rename a partial class's second file, `<Type>.Logger.cs`. As I read it, that's the file's
+    name: the file-per-type standard names a partial's files `Type.Part.cs`, so a rename should rename them all.
+
 ## The rename to Royder
 
 Magnus, 2026-11-19: Royder MCP is the preliminary name (see `CLAUDE.md`). When it is final, everything that isn't hard
