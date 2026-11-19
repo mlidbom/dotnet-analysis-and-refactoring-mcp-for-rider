@@ -171,7 +171,10 @@ today, and go without Royder:
    gauge turns yellow at 85% in use, about 14 GB free of 94). Then a host starts, however many run. Only when memory is
    short does the least recently used one stop first, or the call is refused and says why. Memory did run out on
    2026-11-18, twice: about 0 GB available, and the commit charge at its limit, from 08:00 to 09:00 and 19:00 to 21:00.
-   Open: what decides where no recorder runs, in cloud sessions and in CI.
+   Open: what decides where no recorder runs, in cloud sessions and in CI. The tooling owner keeps the pipe and the
+   thresholds as a contract with Royder (`~/.claude` commit `fefc2af`): they change only by adding, and Royder's
+   session is told first. Once Royder reads them, tell it which of the samples' fields Royder relies on, so it names
+   them there.
 5. **Separate from Magnus's Rider.** A host never writes into the solution's `.idea` folder or the user settings his
    Rider reads, so the two don't fight over the main checkout.
 
