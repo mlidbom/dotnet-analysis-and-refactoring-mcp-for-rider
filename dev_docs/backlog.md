@@ -77,6 +77,33 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
   breakage, and costs a build to tell apart. Wanted: the call waits until Rider's copy holds the disk's text, and its
   model of the file is rebuilt from it, before it inspects; or it says that it couldn't.
 
+## The rename to Royder
+
+Magnus, 2026-11-19: Royder MCP is the preliminary name (see `CLAUDE.md`). When it is final, everything that isn't hard
+to change takes it. Two things keep what they have:
+
+- **The plugin id,** `dev.magnus.dotnet-analysis-and-refactoring-mcp`. The Marketplace knows the plugin by it: a new
+  id would be a new listing, which installed copies don't update to.
+- **History:** past `CHANGELOG.md` entries and commit messages.
+
+The rest, in this order:
+
+1. **One plugin release:** the assemblies, namespaces and project names, the development tools and specifications
+   included, the Kotlin package, the README, the Marketplace display name in `plugin.xml`, and the status-bar widget.
+   The host's assembly name changes with it, so it takes a restart of Rider.
+2. **The plugin folder and `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp`,** in step with the symbol linker's
+   session, whose sandbox copies both (see "What the symbol linker relies on" in `CLAUDE.md`). First check in the
+   sandbox that Rider cleanly replaces a plugin whose zip has a new root folder under the same id.
+3. **The `.mcp.json` key,** `dotnet-analysis-and-refactoring` → `royder`, in every project. Both keys reach the same
+   URL, so it can roll out project by project. It renames every tool prefix, to `mcp__royder__find_usages` and so on,
+   so permission settings, rules and skills that name the tools change with it: the tooling owner's part.
+4. **The port variable,** `DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT`: a new name, no fallback, and a line in
+   `CHANGELOG.md`.
+5. **The GitHub repository's name,** on Magnus's word. GitHub redirects the old URLs.
+6. **The clone folder, `C:\Dev\resharper-mcp`, and `ReSharperMcp.sln` with it,** when no session runs in it: this
+   project's memory and session history are kept under the folder's path, and other sessions name the solution by
+   `solutionName`.
+
 ## Coordinated Rider restarts
 
 Magnus, 2026-11-19: Claude sessions will survive Rider restarts, and a tool in the tooling project, driven by the hub,
