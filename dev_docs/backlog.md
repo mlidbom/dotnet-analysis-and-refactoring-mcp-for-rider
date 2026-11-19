@@ -148,7 +148,9 @@ What is known (2026-11-19):
 - **What the tools would need a second way of doing:** what goes through Rider's frontend, such as the rescans
   (`Disk/Rescans.cs`), the saves after an edit (`Disk/UnsavedDocuments.cs`) and the main-thread tools' dispatch. With
   no editors, the disk sync may get much simpler.
-- **Unknown: the license.** Whether the command line tools' terms allow a long-running server built on them.
+- **The license: no concern for our own use** (Magnus, 2026-11-19): his JetBrains subscription covers every tool they
+  make. Publishing the headless mode is another matter: the command line tools are free, so it would give anyone the
+  whole of Royder without a JetBrains license. Their terms get checked before it is ever published.
 
 The spike, before any design:
 
@@ -156,8 +158,7 @@ The spike, before any design:
    `search_symbol` and `find_usages` over HTTP.
 2. Measured on this repository and on a large solution, such as JAStudio or Compze: the time from start until indexed,
    cold and with caches, and the memory it holds.
-3. The license terms checked.
-4. A report to Magnus, with what a design would be: how agents start and stop a host, which port each gets, how a
+3. A report to Magnus, with what a design would be: how agents start and stop a host, which port each gets, how a
    call reaches it, and what of the tools moves behind a seam between the two hosts.
 
 ## Decided against
