@@ -89,8 +89,9 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
     `get_file_errors` had reported no errors after the first move. A check limited to the references a move rewrites
     wouldn't have caught it, since the later move didn't rewrite that one. It needs to cover every reference to the
     namespaces the move changes.
-  - `rename_symbol` didn't rename a partial class's second file, `<Type>.Logger.cs`. As I read it, that's the file's
-    name: the file-per-type standard names a partial's files `Type.Part.cs`, so a rename should rename them all.
+  - `rename_symbol` renamed a partial class's first file with its type, `WarningsOfAspNetCoreInTheServersLog.cs`, but
+    left its second file's name, `WarningsOfAspNetCoreInTheServersLog.Logger.cs`; the agent renamed it by hand. The
+    file-per-type standard names a partial's files `Type.Part.cs`, so a rename should rename them all.
 
 ## The rename to Royder
 
