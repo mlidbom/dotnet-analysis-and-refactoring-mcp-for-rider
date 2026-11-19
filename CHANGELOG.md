@@ -9,6 +9,8 @@ plugin is a fork of.
 
 ## [Unreleased]
 
+## [0.15.1]
+
 ### Fixed
 
 - A rename right after a dry run of it could leave doc comments stale: renaming a type parameter of Compze's `TeventApplyingPart` renamed every use in code, and none of its `<typeparamref>` tags. A dry run's rollback left the file's tree without its doc comments' references; ReSharper now parses the files a dry run changed anew, for `rename_symbol` and `move_type_to_namespace`
