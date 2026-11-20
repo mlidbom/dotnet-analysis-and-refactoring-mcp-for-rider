@@ -93,6 +93,29 @@ they run into here (see the user-level rule that the dotnet-analysis-and-refacto
     left its second file's name, `WarningsOfAspNetCoreInTheServersLog.Logger.cs`; the agent renamed it by hand. The
     file-per-type standard names a partial's files `Type.Part.cs`, so a rename should rename them all.
 
+## Reading code without opening files
+
+Magnus's ideas, 2026-11-20, as Claude judged them against what the tools answered that day. Most valuable first:
+
+- **The reachable source of a method, in one call:** the source of a method and of every method declared in the
+  solution that its calls can reach, to a depth, each once, after an outline of the call tree. A call through an
+  interface or a virtual member reaches every implementation and override in the solution, up to a cap, beyond which
+  they are named and counted. Compiled code is left out. A budget in lines of source, and the answer says where it
+  stopped: at the depth, at the budget, or at a call that can't be followed without running the code, such as a
+  delegate's. An agent does this today with a `get_symbol_source` or a file read for each callee, and a
+  `find_implementations` for each interface call. `flow` inlines callees, but paraphrased, and follows a virtual call
+  only when it has a single implementation. It needs the outgoing tree's fixes below.
+- **`get_call_hierarchy`'s outgoing tree:** it follows only calls through a name, so not `new`, property accessors or
+  operators, and stops at an interface or virtual member, without its implementations. It lists every compiled callee,
+  such as `List.Add` and `StringBuilder.Append`, and repeats each file's full path at every node: for
+  `GetSymbolSourceTool.Execute` at depth 2, 48 nodes, 16 of them the solution's, in 16,912 characters of JSON. Wanted:
+  the solution's members only, implementations followed, as an indented text outline of `Type.Member  path:line`, and
+  JSON on `format: "json"`.
+- **`get_call_hierarchy`'s incoming tree:** the same text outline, with each call site's line of code, as `find_usages`
+  shows it, so the agent sees what is passed without opening the file.
+- **`get_symbol_source`'s answer:** the source is a JSON string, every newline and quote escaped, without line numbers.
+  Wanted: plain text with line numbers, as a file read shows it, under a `Type.Member — path:start-end` line.
+
 ## The rename to Royder
 
 Magnus, 2026-11-19: Royder MCP is the preliminary name (see `CLAUDE.md`). When it is final, everything that isn't hard
