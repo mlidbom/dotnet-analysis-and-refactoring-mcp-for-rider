@@ -3,11 +3,21 @@
 What Claude found the plugin lacking, or would build next, most valuable first. Sessions in other projects add what
 they run into here (see the user-level rule that the dotnet-analysis-and-refactoring MCP is a development tool you own). An item that is done goes from the list.
 
+## First: every tool's answer, as an agent reads it
+
+Magnus, 2026-11-20: first in the backlog. `get_symbol_source` and `get_call_hierarchy` answer in pretty-printed JSON
+where text would serve an agent better: source in an escaped string, each file's full path repeated at every node, an
+empty `"children": []` at every leaf. That costs tokens and makes the answer harder to read. Other tools may do the
+same; only these two were checked. Wanted: go through every tool's answer as an agent reads it, and for each that
+answers in JSON where text would serve better, a text form, with the JSON on `format: "json"` where a program reads it.
+The JSON the symbol linker reads stays as agreed (see "What the symbol linker relies on" in `CLAUDE.md`). The text
+forms in the next section are part of this pass.
+
 ## Next: reading code without opening files
 
-Magnus's ideas, 2026-11-20, as Claude judged them against what the tools answered that day. First in the backlog, above
-the known bugs: nearly every task in which an agent reads code would use it, where each bug bites now and then. In the
-order to build them:
+Magnus's ideas, 2026-11-20, as Claude judged them against what the tools answered that day. After the pass over the
+tools' answers, and above the known bugs: nearly every task in which an agent reads code would use it, where each bug
+bites now and then. In the order to build them:
 
 1. **`get_call_hierarchy`'s outgoing tree, which the new tool builds on:** it follows only calls through a name, so not
    `new`, property accessors or operators, and stops at an interface or virtual member, without its implementations. It
