@@ -128,13 +128,31 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
     calls instead of one.
   - `move_type_to_namespace` threw an `ArgumentOutOfRangeException` on a partial class with a `[LibraryImport]` method
     (`StartingTheServer`). Unverified guess: the source generator's part of the class, in `obj/`.
-  - One move shortened a qualification to `Hub.ActivityOfTheServer`, and a later move broke it (CS0234).
-    `get_file_errors` had reported no errors after the first move. A check limited to the references a move rewrites
-    wouldn't have caught it, since the later move didn't rewrite that one. It needs to cover every reference to the
-    namespaces the move changes.
+  - One move shortened a qualification to `Hub.ActivityOfTheServer`, and a later move broke it: the next bullet.
   - `rename_symbol` renamed a partial class's first file with its type, `WarningsOfAspNetCoreInTheServersLog.cs`, but
     left its second file's name, `WarningsOfAspNetCoreInTheServersLog.Logger.cs`; the agent renamed it by hand. The
     file-per-type standard names a partial's files `Type.Part.cs`, so a rename should rename them all.
+
+- **`move_type_to_namespace` breaks a reference that an earlier move left compiling, and says nothing** (two cases, in
+  `~/.claude`'s ClaudeTooling solution). Each move compiled; a later one broke it with CS0234, and neither reported a
+  problem.
+  - The tooling owner's rename of `ClaudeTooling.ResidentServer` to `ClaudeTooling.Hub` (2026-11-19/20): one move
+    shortened a qualification to `Hub.ActivityOfTheServer`, and a later move broke it, without rewriting that
+    reference. `get_file_errors` had reported no errors after the first move.
+  - gpt-collaborators' split of `ClaudesSetupForCodex.McpServers` (2026-11-21, `~/.claude` d8a1a02), the smallest
+    repro yet: `ClaudesMcpServersFile` uses `ClaudesMcpServer`, both in `McpServers`. Moving `ClaudesMcpServer` to
+    `McpServers.ClaudesDefinitions`, then `ClaudesMcpServersFile` after it, left `McpServers.ClaudesMcpServer` in three
+    places in `ClaudesMcpServersFile.cs` (two return types and a `new`), naming the namespace the type had left with
+    the first move. It also left the `using ClaudesSetupForCodex.McpServers.ClaudesDefinitions;` the first move had
+    added, now the file's own namespace. Unverified guess: the second move qualifies what the moved type used from its
+    old namespace by where its model last saw it, before the first move.
+
+  Wanted: a move that leaves the solution compiling, checked over every reference to the namespaces it changes, not
+  only those it rewrites, as the first case needs; and no using left that names the file's own namespace. Minor, from
+  the same split: moving `WrittenMcpServers` added a using to `IWrittenForCodex.cs` only for a cref to it, where the
+  file qualifies its other crefs by namespace (`Skills.LinkedSkills`). A cref rewritten as its file writes the others
+  would fit. Not checked: whether that is ReSharper's own Move refactoring following its reference-qualification
+  settings.
 
 - **`rename_symbol` of a nested type leaves its file's name** (gpt-collaborators' refactoring subagent, 2026-11-21
   ~16:55, in `~/.claude`). `Peers.Codex.CodexSessions.ReadFromCodex`, nested in the partial class `CodexSessions`, in
