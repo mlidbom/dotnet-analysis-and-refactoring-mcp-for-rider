@@ -136,6 +136,14 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
     left its second file's name, `WarningsOfAspNetCoreInTheServersLog.Logger.cs`; the agent renamed it by hand. The
     file-per-type standard names a partial's files `Type.Part.cs`, so a rename should rename them all.
 
+- **`rename_symbol` of a nested type leaves its file's name** (gpt-collaborators' refactoring subagent, 2026-11-21
+  ~16:55, in `~/.claude`). `Peers.Codex.CodexSessions.ReadFromCodex`, nested in the partial class `CodexSessions`, in
+  `src/Peers/Codex/CodexSessions.ReadFromCodex.cs`, renamed to `CodexOfTheHome`: the type and its references changed,
+  the file kept its name. Its description says "a type's file named after it, which is renamed with it", which holds
+  for a top-level type. Wanted: a nested type's file, `Outer.Nested.cs` by the file-per-type standard, renamed to
+  `Outer.NewName.cs`; and the outer type's rename renaming each `Outer.*.cs` with it, as in the bullet above. The
+  subagent renamed it with `git mv` (`~/.claude` cef7332).
+
 ## The rename to Royder
 
 Magnus, 2026-11-19: Royder MCP is the preliminary name (see `CLAUDE.md`). When it is final, everything that isn't hard
