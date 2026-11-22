@@ -64,7 +64,7 @@ decision.
   worktrees currently opening.
 - `close_worktree` closes an agent project and waits for its workers. Unused agent projects close after ten minutes.
   Ordinary Rider stays running. To close and remove a worktree under the same lifecycle operation, run
-  `Royder.Primary remove-worktree <settings.json> <absolute-worktree-root>`. Git uses its ordinary clean-worktree
+  `Royder.Primary remove-worktree <settings.json> <absolute-worktree-root>`. The command uses a Windows named pipe restricted to the current user. Git uses its ordinary clean-worktree
   checks. This command refuses a main checkout, an untrusted repository, a changed registration and a worktree
   open in ordinary Rider.
 - External Git removal is observed from the registered worktree identity. The manager discards the old private

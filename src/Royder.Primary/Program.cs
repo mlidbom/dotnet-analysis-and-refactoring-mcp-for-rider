@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Royder.Primary;
@@ -16,10 +15,9 @@ if(args is ["capture-catalog", var port, var build, var file])
 if(args is ["remove-worktree", var config, var path])
 {
    var options = PrimarySettings.Read(config);
-   using var body = new StringContent(new JObject { ["path"] = Path.GetFullPath(path) }.ToString(), Encoding.UTF8, "application/json");
-   using var reply = await http.PostAsync($"http://127.0.0.1:{options.Port}/worktrees/remove", body);
-   Console.WriteLine(await reply.Content.ReadAsStringAsync());
-   return reply.IsSuccessStatusCode ? 0 : 1;
+   await WorktreeRemovalPipe.Remove(options.Port, path);
+   Console.WriteLine("Worktree removed.");
+   return 0;
 }
 if(args is ["prepare-catalog", var optionsFile, var solution])
 {
@@ -53,6 +51,7 @@ host.Services.AddSingleton<ManagedWorktrees>();
 host.Services.AddHostedService(it => it.GetRequiredService<ManagedWorktrees>());
 host.Services.AddSingleton<PrimaryToolCatalog>();
 host.Services.AddSingleton<PrimaryRequests>();
+host.Services.AddHostedService<WorktreeRemovalPipe>();
 host.Services.AddSingleton<ToolCatalogEvents>();
 host.Services.AddHostedService(it => it.GetRequiredService<ToolCatalogEvents>());
 
@@ -87,17 +86,6 @@ app.MapPost("/", async (HttpRequest httpRequest, PrimaryRequests requests, Cance
    catch(JsonReaderException) { return Json(Rpc.Error(null, -32700, "Invalid JSON.")); }
    var answer = await requests.Answer(payload, cancel);
    return answer == null ? Results.Accepted() : Json(answer);
-});
-app.MapPost("/worktrees/remove", async (HttpRequest request, PrimaryRequests requests, CancellationToken cancel) =>
-{
-   if(!request.HasJsonContentType()) return Results.StatusCode(415);
-   try
-   {
-      var payload = JObject.Parse(await new StreamReader(request.Body).ReadToEndAsync(cancel));
-      await requests.Remove((string?)payload["path"] ?? "", cancel);
-      return Results.Ok("Worktree removed.");
-   }
-   catch(Exception ex) when(!cancel.IsCancellationRequested) { return Results.Text(ex.GetBaseException().Message, statusCode: 409); }
 });
 await app.RunAsync();
 return 0;
