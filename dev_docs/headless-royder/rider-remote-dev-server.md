@@ -1,6 +1,12 @@
 # Rider Remote Development as a host for Royder
 
-**Verdict, 22 November 2026.** Rider Remote Development is a documented, licensed way to edit through a connected JetBrains Client. The installed Windows server has a path that opens a solution before a client connects. **I could not verify a licensed route for a never-connected agent to perform refactorings through Royder.** JetBrains documents deferred license checking and unattended preparation. It does not document the entitlement or the state of `ICodeEditingZone` for this particular use. I would retain the `jb` host for the operations already verified and treat remote Rider as a candidate for a separately approved experiment. [Rider remote-development licensing](https://www.jetbrains.com/help/rider/Licensing_and_useful_links.html) · [Working in a connected remote project](https://www.jetbrains.com/help/rider/Work_inside_remote_project.html)
+**Verdict, 22 November 2026, after the run of round 6** ([below](#round-6--observed-on-magnuss-machine-22-november-2026)). **A Rider remote-development host that no client ever connected to runs Royder with the editing zone.** Its backends ran `ICodeEditingZone`, and Royder's dry-run `rename_symbol` gave the right change. Several solutions share one host JVM, each with a full backend of its own. The first small solution took about 3.3 GiB, the JVM included, and a second about 0.65 GiB more. One `stop` ends them all.
+
+- **Not yet tested:** a committed rename, completion, a quick fix, and a host that runs for hours.
+- **Not contained:** the host writes status files to the real `%LOCALAPPDATA%\JetBrains\RemoteDev` despite the four IDE folder overrides, and it touched the timestamps of `PermanentUserId` and `PermanentDeviceId`.
+- **JetBrains' terms:** they don't say whether this use is covered. Magnus judged on 2026-11-19 that his subscription covers our own private use, and the terms get checked before anything is published.
+
+The research before the run follows as written then. Its verdict was: "I could not verify a licensed route for a never-connected agent to perform refactorings through Royder." [Rider remote-development licensing](https://www.jetbrains.com/help/rider/Licensing_and_useful_links.html) · [Working in a connected remote project](https://www.jetbrains.com/help/rider/Work_inside_remote_project.html)
 
 ### Which installation Magnus is running
 
@@ -203,3 +209,93 @@ Require the refactoring result to identify the declaration and call site and lea
 **Expected communications.** Phase A addresses only the guest’s loopback Remote Development listener at 24931, Royder HTTP at 24941, and dynamically assigned local JVM/.NET/worker IPC. With the guest disconnected it cannot complete any Internet or license-server exchange; record attempted connections separately from successful ones. Supplying local SSH-link fields generates metadata and does not itself deploy an SSH session. A separately authorized connected control adds client↔host RD/SSH as applicable and normal client-side entitlement traffic, plus any missing client/runtime downloads and enabled network features listed in section 6. The exact destinations of either real run remain observations to make, not findings from this round.
 
 No IDE, project, warm-up, help mode, license check or benchmark was started during this research. Only public documentation, installed files, and executable paths of existing processes were read.
+
+## Round 6 — observed on Magnus’s machine, 22 November 2026
+
+**The never-connected remote Rider host performed Royder’s semantic rename preview.** Both full backend logs list `ICodeEditingZone` in `ZonesToRun`. A second solution opened in the **same host JVM**, with a second full `Rider.BackendHost.exe`. No `Rider.LightweightBackend.exe` or JetBrains Client appeared in the experiment tree. The indexed tree used **3,292.2 MiB private for A** and **3,950.0 MiB for A+B**, an observed increment of **657.8 MiB** for the second small solution. This was a real, online run of the stock product with Magnus’s license available. No license file was copied, sign-in performed, license check altered, or source edit applied.
+
+### What ran
+
+I used the installed `%LOCALAPPDATA%\Programs\Rider\bin\remote-dev-server.exe` (RD-263.7307.325) with two independently restored, one-project `net10.0` solutions outside any checkout: `C:\Dev\RoyderRemoteRound6\A\Probe.sln` and `...\B\Probe.sln`. Both contained a declaration of `ProbeShape.Twice` and exactly one call, from `CallTwice`. All times below are local.
+
+The private state root was `%TEMP%\royder-headless\codex-1-round-6`. I used `RIDER_PROPERTIES` and `RIDER_VM_OPTIONS` with distinct private `idea.config.path`, `idea.system.path`, `idea.plugins.path` and `idea.log.path`; the launcher printed the expected config, system and log directories. I copied the installed Royder plugin read-only from Magnus’s profile into the private plugins directory. I redirected ReSharper local/roaming/temp/log paths, JVM home/temp, process `APPDATA`/`LOCALAPPDATA`, .NET CLI home, NuGet caches and Royder’s development tools directory. The private profile disabled IDE/plugin update checks, automatic plugin updates, shared-index downloads and statistics reporting. `JETBRAINS_NO_CHECK_FOR_UPDATES=1` was set only in the experiment’s child environment. The trust entries covered only the two private probe folders’ parent.
+
+The port check found 24931 and 24941–24950 free. At 04:53:16 I ran `remote-dev-server.exe run C:\Dev\RoyderRemoteRound6\A\Probe.sln --listenOn 127.0.0.1 --port 24931 --ssh-link-host 127.0.0.1 --ssh-link-user <current-user> --ssh-link-port 22`. At 04:53:50 I repeated it with B’s absolute solution path and the same environment and port. Each launcher was assigned to a private Windows job before its first instruction ran. The memory guard was active throughout: the two starts had **21.91 GiB** and **18.92 GiB** available; the observed minimum was **16.04 GiB**. The 2 GiB stop threshold was never approached.
+
+### Phase A — no client and unchanged source
+
+Royder returned the exact A path with `indexing=false` after **13.06 s**, `pendingDiskChanges=0`, host `7529fd2e44f63a15a6f0473b681767eea4fbb2591bbe74328433e4ec1d1d7660` and tools build `2026-11-19_11-59-23-7530405` from the *private* copied plugin. Remote Dev’s status reported `appPid=217732`, `controllerConnected=false` and no modal dialog. A’s backend log recorded the Royder **primary on 24941**. The sampler saw no lab-owned TCP connection to port 23751.
+
+| Royder call | Answer |
+|---|---|
+| `find_usages` of `Shapes.ProbeShape.Twice` | One usage in one file and one project. Declaration at `Shapes\ProbeShape.cs:4`, call at line 5: `public static int CallTwice() => Twice(2);`. |
+| `get_diagnostics` on `ProbeShape.cs` | `diagnosticsCount: 0` at default minimum severity warning. The daemon produced 29 highlightings, all below that threshold. |
+| `rename_symbol` from `Twice` to `TwiceForProbe` with `dryRun: true` | MCP `isError: false`; the exact text payload follows. SHA-256 of the named source before and after was `83b3c8b2a5fb7fb983d3a499677254f87b085dd5e0b190714d63b4955b1aa5fa`. |
+
+~~~json
+{
+  "applied": false,
+  "dryRun": true,
+  "oldName": "Twice",
+  "newName": "TwiceForProbe",
+  "conflicts": [],
+  "changedFiles": [
+    {
+      "file": "C:\\Dev\\RoyderRemoteRound6\\A\\Shapes\\ProbeShape.cs",
+      "fileName": "ProbeShape.cs"
+    }
+  ],
+  "skipped": null
+}
+~~~
+
+This proves that this Rider configuration ran the editing zone and the semantic rename preview without any client ever attaching. It does not test a committed rename, completion, a particular quick fix, or which mechanism the product used to recognize an entitlement.
+
+### Phase B — topology and measured memory
+
+The second `run` launcher (PID 110312) handed B to the existing JVM (PID **217732**). One remote status response listed **both absolute solution paths under that app PID**, both with `controllerConnected=false`. A retained full backend **39980**, Royder primary on **24941**. B got full backend **117224**, Royder peer on **24942** registering with **24941**. B became indexed in **9.61 s**; the same Royder health response then listed both indexed solutions with their actual host/build identifiers. There was no client connection in either phase.
+
+**Per-process memory in MiB.** Figures are medians of private committed bytes and working set over the post-index observation intervals. A had 12 samples over 15.9 s, A+B had 10 over 17.9 s. No tool calls ran during those intervals. A’s first status still reported IDE background tasks, so these are post-index observations, not a claim that all caches had settled. A dash means that process was absent in that interval.
+
+| Process | PID | A private | A working set | A+B private | A+B working set |
+|---|---:|---:|---:|---:|---:|
+| Remote Rider JVM, `remote-dev-server.exe` | 217732 | 1,842.7 | 2,147.6 | 1,862.0 | 2,167.5 |
+| A full `Rider.BackendHost.exe` | 39980 | 1,227.7 | 1,559.2 | 1,104.7 | 1,454.4 |
+| B full `Rider.BackendHost.exe` | 117224 | — | — | 559.3 | 911.9 |
+| Lightweight .NET backend | — | — | — | — | — |
+| A `dotnet.exe` hosting `MSBuild.dll` | 240544 | 38.9 | 102.8 | 37.6 | 101.6 |
+| A `dotnet.exe` hosting the Roslyn worker | 138420 | 91.9 | 225.2 | 89.8 | 227.8 |
+| A `JetBrains.DPA.Protocol.Backend.exe` | 249636 | 83.8 | 183.5 | 81.8 | 181.6 |
+| B `dotnet.exe` hosting `MSBuild.dll` | 164640 | — | — | 39.3 | 102.0 |
+| B `dotnet.exe` hosting the Roslyn worker | 131976 | — | — | 76.7 | 179.8 |
+| B `JetBrains.DPA.Protocol.Backend.exe` | 34940 | — | — | 82.4 | 182.5 |
+| `fsnotifier.exe` | 131784 | 1.0 | 4.8 | 0.9 | 4.7 |
+| Console host of JVM | 71632 | 1.5 | 8.3 | 1.5 | 8.3 |
+| Console host of file watcher | 114508 | 1.4 | 8.1 | 1.4 | 8.1 |
+| Console host of A backend | 4280 | 1.5 | 8.3 | 1.5 | 8.3 |
+| Console host of A MSBuild | 148452 | 1.5 | 8.3 | 1.5 | 8.3 |
+| Console host of A Roslyn | 35788 | 1.5 | 8.3 | 1.5 | 8.3 |
+| Console host of A DPA | 147352 | 1.5 | 8.3 | 1.5 | 8.3 |
+| Console host of B backend | 22520 | — | — | 1.5 | 8.3 |
+| Console host of B MSBuild | 253036 | — | — | 1.5 | 8.3 |
+| Console host of B Roslyn | 150160 | — | — | 1.5 | 8.3 |
+| Console host of B DPA | 141076 | — | — | 1.5 | 8.3 |
+| **Whole job, median of per-sample totals** | | **3,292.2** | **4,240.9** | **3,950.0** | **5,601.0** |
+
+The **657.8 MiB** net private increase is about **0.64 GiB**. B’s backend plus its own children accounted for **759.7 MiB private**. The JVM grew by **19.3 MiB** while A’s existing full backend shrank by **123.0 MiB** between medians. The two totals include all sampled processes at each instant, so summing individual medians need not reproduce them. Summed working set grew by **1,360.1 MiB** and can count shared pages more than once. The scratch CSV includes per-process sampled maxima and transient launch/evaluation processes. The observed marginal cost applies to this small fixture and common JVM/profile; larger solutions and independently restarted JVMs need their own measurements.
+
+### Shutdown, real profile writes and restoration
+
+At 04:54:19 I issued `remote-dev-server.exe stop C:\Dev\RoyderRemoteRound6\B\Probe.sln` in the same private environment. That stopped the shared host, including A. The Windows job reported **zero active PIDs**; none of the recorded PID/start-time identities survived a separate check, and no test port remained listening. There was **no forced kill**. The fact that the shared stop ended both solutions matters to per-worktree lifecycle design.
+
+| Surface | Immediate before/after evidence | Action and verification |
+|---|---|---|
+| `%APPDATA%\JetBrains`, outside versioned IDE folders | All **48** files had identical SHA-256 content and the same names at preflight and at 04:54:27 after shutdown. Hash of the sorted relative-path/content-hash manifest: `88eb0632d67800372f4ebd96c9f7e564667b6b1c19abe588ca1c54f8a9fba03b`. `PermanentUserId` and `PermanentDeviceId` did acquire different last-write times during the experiment, on byte-identical files. They were touched again after the lab processes exited, so the writer of the timestamps alone is uncertain. | Restored just the two original timestamps after verifying the live bytes against the backups. Both timestamps matched the baseline again at 04:57:17. No ID contents were rewritten. |
+| `%LOCALAPPDATA%\JetBrains` top-level entries and timestamps | One new entry, `RemoteDev`. Its `active` directory was empty. `recent` held exactly `217732`, `217732_-1236535152` and `217732_560416207`. Their JSON identified the test JVM; the per-project entries named the A and B lab paths. | After shutdown, moved this entirely lab-owned directory into private evidence. The final top-level listing, entry types, sizes and creation/last-write times matched all **29** pre-run entries. These remote status files may contain join links and should stay private. |
+| Home Git status and active Rider settings | `git -C C:\Users\magnu status --short -- AppData/Roaming/JetBrains` was empty before, immediately after and after restoration. The expanded backup included **197** shared, Git-tracked and active Rider settings files. No monitored file had different contents at the immediate post-run snapshot. | No Git revert, commit or index operation was used to restore settings. |
+
+**Concurrent activity left intact.** At 04:54:27, the files below still matched the pre-run snapshot. Afterwards, with every lab process gone, `acp-agents\installed.json` changed content, `PrivacyPolicy\aiEua.cached` changed timestamp and a discovery entry named `discovery\167088-ide-instance.json` briefly appeared and disappeared. PID 167088 was not a lab process. At the 04:57:17 audit the discovery entry had gone; the other two post-shutdown differences remained. I did not overwrite another session’s later work. The final home Git status and Local JetBrains top-level listing still matched their baselines.
+
+**What this changes.** Clientless remote Rider is a demonstrated editing-capable Royder peer for the tested rename preview, and several solutions can share its JVM. The four IDE directory overrides and separate `JET_*` paths did **not** fully contain Remote Development status writes under the real Windows user account. Any production isolation claim must account for `Local\JetBrains\RemoteDev`. The requested snapshots verify the stated paths; they do not attribute every file operation under every versioned directory or the registry.
+
+Private reproducibility evidence is under `%TEMP%\royder-headless\codex-1-round-6`. The safe summaries are `evidence/process-memory.csv`, the two sanitized status JSON files, per-solution health, the three exact tool results and `evidence/restoration.json`. The raw status files, join links and profile backups remain private. The disposable fixture folders were left on disk; no lab process was left running.
