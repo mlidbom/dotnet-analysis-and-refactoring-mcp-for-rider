@@ -6,4 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Include="..\Shared\StencilPattern.cs" Link="StencilPattern.cs" />
+  </ItemGroup>
+
 </Project>
