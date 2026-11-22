@@ -9,6 +9,7 @@ param(
    [ValidateRange(128,131072)][int]$HeapMiB = 768,
    [string]$ToolsBuild,
    [string[]]$ExtraPlugin = @(),
+   [switch]$IsolateProjectStores,
    [hashtable]$ExtraEnvironment = @{},
    [string]$ManagedAssets,
    [string]$RiderHome = (Join-Path $env:LOCALAPPDATA 'Programs/Rider'),
@@ -102,7 +103,7 @@ try {
    if (!$Solution -or !$ToolsBuild -or !$RemoteDevPort -or !$RoyderPort) { throw 'Start requires -Solution, -ToolsBuild, -RemoteDevPort and -RoyderPort.' }
    . "$PSScriptRoot/HostProfile.ps1"
    $run = [IO.Directory]::CreateDirectory((Join-Path $profilePath "runs/$([guid]::NewGuid().ToString('N'))")).FullName
-   $plan = New-HostPlan $profilePath $run $Solution $RiderHome $ToolsBuild $RemoteDevPort $RoyderPort $HeapMiB $ExtraPlugin $ManagedAssets
+   $plan = New-HostPlan $profilePath $run $Solution $RiderHome $ToolsBuild $RemoteDevPort $RoyderPort $HeapMiB $ExtraPlugin $ManagedAssets $IsolateProjectStores.IsPresent
    foreach ($key in $ExtraEnvironment.Keys) {
       if ($plan.environment.ContainsKey($key) -or $key -in 'JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS') {
          throw "$key is set by the private launch profile."
@@ -120,18 +121,28 @@ try {
          if ($state -and $state.error) { throw $state.error }
          if ($worker.HasExited) { throw "Supervisor exited. See $run/supervisor.stderr." }
          if ($state -and $state.phase -eq 'Running') {
-            $health = Get-IndexedHealth $plan
-            if ($health) {
-               $rd = @(Get-NetTCPConnection -State Listen -LocalPort $RemoteDevPort -ErrorAction SilentlyContinue)
-               if (@($rd | ForEach-Object OwningProcess) -contains $state.hostProcess.pid) {
-                  Write-HostJson (Join-Path $run indexed-health.json) $health
-                  return Show-Host $run (Get-RunState $run)
+            if ($plan.ContainsKey('projectStores')) {
+               # The first real solution must go through the management plugin just like every later open.
+               $builtIn = Get-AdvertisedPort $run -IfStarted
+               if ($builtIn) {
+                  $listeners = @(Get-NetTCPConnection -State Listen -LocalPort @($builtIn, $RemoteDevPort) -ErrorAction SilentlyContinue |
+                     Where-Object OwningProcess -eq $state.hostProcess.pid | Select-Object -ExpandProperty LocalPort -Unique)
+                  if ($listeners.Count -eq 2) { return Show-Host $run $state }
+               }
+            } else {
+               $health = Get-IndexedHealth $plan
+               if ($health) {
+                  $rd = @(Get-NetTCPConnection -State Listen -LocalPort $RemoteDevPort -ErrorAction SilentlyContinue)
+                  if (@($rd | ForEach-Object OwningProcess) -contains $state.hostProcess.pid) {
+                     Write-HostJson (Join-Path $run indexed-health.json) $health
+                     return Show-Host $run (Get-RunState $run)
+                  }
                }
             }
          }
          Start-Sleep -Milliseconds 350
       } while ([datetime]::UtcNow -lt $until)
-      throw "Timed out waiting for the indexed solution and copied tools build. See $run/log."
+      throw "Timed out waiting for the private Rider to become ready. See $run/log."
    } catch {
       if (!$worker.HasExited) {
          if ($ManagedAssets) { [IO.File]::WriteAllText((Join-Path $run 'abandon.request'), '') }

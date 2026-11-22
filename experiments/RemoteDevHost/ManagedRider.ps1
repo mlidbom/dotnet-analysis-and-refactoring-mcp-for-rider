@@ -5,20 +5,6 @@ param([Parameter(Mandatory)][ValidateSet('start','stop','open','close','discard'
       [Parameter(Mandatory)][string]$ResultFile)
 . "$PSScriptRoot/Common.ps1"
 
-function Get-AdvertisedPort([string]$Run) {
-   $cache = Join-Path $Run builtin-port.json
-   if ([IO.File]::Exists($cache)) { return [int](Read-HostJson $cache) }
-   foreach ($log in (Get-ChildItem -LiteralPath (Join-Path $Run log) -File -Filter 'idea*.log' | Sort-Object LastWriteTimeUtc -Descending)) {
-      $announcement = Select-String -LiteralPath $log.FullName -Pattern '^\d{4}-\d{2}-\d{2} .* INFO - #o\.j\.i\.BuiltInServerManager - built-in server started, port (\d+)\s*$' | Select-Object -Last 1
-      if ($announcement) {
-         $port = [int]$announcement.Matches[0].Groups[1].Value
-         Write-HostJson $cache $port
-         return $port
-      }
-   }
-   throw "The private JVM has not announced its IntelliJ built-in HTTP port in $Run/log."
-}
-
 function Invoke-ManagedOperation {
 $profileDir = Get-ProfilePath $Profile -Managed
 $assets = Split-Path -Parent $PSScriptRoot
@@ -40,7 +26,7 @@ if ($state.phase -ne 'Running' -or !$jvm -or !(Get-LiveIdentity $state.superviso
 if ([IO.File]::ReadAllText((Join-Path $profileDir config/.lock)).Trim() -ne [string]$jvm.Id) { throw 'Private Rider profile lock mismatch.' }
 
 $port = Get-AdvertisedPort $run
-$path = switch ($Operation) { open {'royder-open-worktree'} close {'royder-close-worktree'} discard {'royder-close-worktree/discard'} status {'royder-open-worktree/status'} }
+$path = switch ($Operation) { open {'royder-open-worktree/private'} close {'royder-close-worktree'} discard {'royder-close-worktree/discard'} status {'royder-open-worktree/status'} }
 $key = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Solution.ToUpperInvariant())))
 $tagFile = Join-Path $run "project-$key.etag"
 $tag = if ([IO.File]::Exists($tagFile)) { Read-HostJson $tagFile }

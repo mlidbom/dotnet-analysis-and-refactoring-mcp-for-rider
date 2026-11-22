@@ -84,3 +84,17 @@ function Get-RunState([string]$Run) {
 function Request-HostStop([string]$Run) {
    [IO.File]::WriteAllText((Join-Path $Run stop.request), '')
 }
+
+function Get-AdvertisedPort([string]$Run, [switch]$IfStarted) {
+   $cache = Join-Path $Run builtin-port.json
+   if ([IO.File]::Exists($cache)) { return [int](Read-HostJson $cache) }
+   foreach ($log in (Get-ChildItem -LiteralPath (Join-Path $Run log) -File -Filter 'idea*.log' | Sort-Object LastWriteTimeUtc -Descending)) {
+      $announcement = Select-String -LiteralPath $log.FullName -Pattern '^\d{4}-\d{2}-\d{2} .* INFO - #o\.j\.i\.BuiltInServerManager - built-in server started, port (\d+)\s*$' | Select-Object -Last 1
+      if ($announcement) {
+         $port = [int]$announcement.Matches[0].Groups[1].Value
+         Write-HostJson $cache $port
+         return $port
+      }
+   }
+   if (!$IfStarted) { throw "The private JVM has not announced its IntelliJ built-in HTTP port in $Run/log." }
+}

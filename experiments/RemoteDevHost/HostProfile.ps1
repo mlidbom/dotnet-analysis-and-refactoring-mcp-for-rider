@@ -15,7 +15,7 @@ function Copy-PluginTree([string]$Source, [string]$Target) {
    }
 }
 
-function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $RemoteDevPort, $RoyderPort, $HeapMiB, $ExtraPlugin, $ManagedAssets) {
+function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $RemoteDevPort, $RoyderPort, $HeapMiB, $ExtraPlugin, $ManagedAssets, [bool]$IsolateProjectStores = $false) {
    $solutionFile = Get-Item -LiteralPath $Solution
    if ($solutionFile.PSIsContainer -or $solutionFile.Extension -notin '.sln','.slnx') { throw "Expected a solution file: $Solution" }
    if ($ToolsBuild -in '.', '..' -or $ToolsBuild -notmatch '^[A-Za-z0-9_.-]+$') { throw 'ToolsBuild must name one deployed build directory.' }
@@ -66,8 +66,10 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
    }
    $optionsDir = [IO.Directory]::CreateDirectory((Join-Path $folders.config options)).FullName
    [IO.File]::WriteAllText((Join-Path $optionsDir updates.xml), '<application><component name="UpdatesConfigurable"><option name="CHECK_NEEDED" value="false"/><option name="PLUGINS_CHECK_NEEDED" value="false"/><option name="PLUGINS_AUTO_UPDATE" value="false"/></component></application>')
-   $trusted = [Security.SecurityElement]::Escape($solutionFile.DirectoryName)
-   [IO.File]::WriteAllText((Join-Path $optionsDir trusted-paths.xml), "<application><component name=""Trusted.Paths.Settings""><option name=""TRUSTED_PATHS""><list><option value=""$trusted""/></list></option></component></application>")
+   $isolated = $IsolateProjectStores -or $ManagedAssets
+   $trustedEntry = if (!$isolated) { '<option value="' + [Security.SecurityElement]::Escape($solutionFile.DirectoryName) + '"/>' }
+   [IO.File]::WriteAllText((Join-Path $optionsDir trusted-paths.xml), "<application><component name=""Trusted.Paths.Settings""><option name=""TRUSTED_PATHS""><list>$trustedEntry</list></option></component></application>")
+   if ($isolated) { $plan.projectStores = [IO.Directory]::CreateDirectory((Join-Path $Run project-stores)).FullName }
    $settings = [ordered]@{ 'ide.no.platform.update'='true'; 'idea.suppress.statistics.report'='true'; 'shared.indexes.download'='false'
                           'shared.indexes.download.auto.consent'='false'; 'vcs.root.auto.add'='false' }
    foreach ($name in 'config','system','log','plugins') { $settings["idea.$name.path"] = $folders[$name].Replace('\','/') }
@@ -90,7 +92,9 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
       [IO.File]::WriteAllLines($vmOptions, [string[]]$vm)
       $arguments = $vm + @('-classpath', ($jars -join ';'), $launch.mainClass)
       if ($command -eq 'host') {
-         $arguments += @('remoteDevHost', $plan.solution, '--listenOn','127.0.0.1','--port',[string]$RemoteDevPort,
+         $arguments += 'remoteDevHost'
+         if (!$isolated) { $arguments += $plan.solution }
+         $arguments += @('--listenOn','127.0.0.1','--port',[string]$RemoteDevPort,
                          '--ssh-link-host','127.0.0.1','--ssh-link-user',$env:USERNAME,'--ssh-link-port','22')
       } else { $arguments += 'exit' }
       $quoted = @($arguments | ForEach-Object { '"' + $_.Replace('\','\\').Replace('"','\"') + '"' })
@@ -105,5 +109,6 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
       JETBRAINS_NO_CHECK_FOR_UPDATES='1'; RIDER_PROPERTIES=$properties; RIDER_VM_OPTIONS=(Join-Path $Run host.vmoptions)
       DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT=[string]$RoyderPort; DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS=$folders.tools }
    if ($ManagedAssets) { $plan.environment.ROYDER_REMOTE_ROSLYN_WORKING_DIRECTORY = [IO.Directory]::CreateDirectory((Join-Path $Run roslyn)).FullName }
+   if ($isolated) { $plan.environment.ROYDER_PRIVATE_PROJECT_STORES = $plan.projectStores }
    return $plan
 }

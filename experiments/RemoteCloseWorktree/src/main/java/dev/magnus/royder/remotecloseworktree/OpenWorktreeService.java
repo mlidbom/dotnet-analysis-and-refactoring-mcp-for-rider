@@ -46,7 +46,9 @@ public final class OpenWorktreeService extends ManagedWorktreeService {
             return new WorktreeReply(OK, "", registered == null ? null : registered.etag());
          });
       }
-      if (!route.equals("/api/" + getServiceName())) return reply(NOT_FOUND, "Unknown operation");
+      if (route.equals("/api/" + getServiceName() + "/private")) {
+         if (PrivateProjectStore.configured() == null) return reply(CONFLICT, "Private project store was not configured at startup");
+      } else if (!route.equals("/api/" + getServiceName())) return reply(NOT_FOUND, "Unknown operation");
       var name = solution.getFileName();
       if (name == null) return reply(BAD_REQUEST, "Expected a solution filename");
       var suffix = name.toString().toLowerCase(Locale.ROOT);
@@ -66,7 +68,11 @@ public final class OpenWorktreeService extends ManagedWorktreeService {
          var existing = onDispatchThread(() -> {
             var matches = OpenProjectInstance.at(solution, ProjectManager.getInstance().getOpenProjects());
             if (matches.size() > 1) return new WorktreeReply(CONFLICT, "Multiple open projects match the solution");
-            return matches.isEmpty() ? null : OpenProjectInstance.register(matches.get(0), solution, disk, openId);
+            if (matches.isEmpty()) return null;
+            var privateStore = PrivateProjectStore.configured();
+            if (privateStore != null && !privateStore.contains(matches.get(0)))
+               return new WorktreeReply(CONFLICT, "The existing project uses settings outside this private server");
+            return OpenProjectInstance.register(matches.get(0), solution, disk, openId);
          }).join();
          return existing != null ? existing : openInRider(solution, disk, openId);
       } catch (IOException error) {
@@ -82,15 +88,19 @@ public final class OpenWorktreeService extends ManagedWorktreeService {
 
       // SolutionManager uses this per-solution store location when opening an existing .sln or .slnx.
       var types = SolutionFileTypesHelper.Companion.getInstance();
-      var ideaName = types.getSolutionIdeaName(solution, types.getSolutionDisplayName(file));
+      var displayName = types.getSolutionDisplayName(file);
+      var ideaName = types.getSolutionIdeaName(solution, displayName);
       var ideaDirectory = solution.getParent().resolve(".idea").resolve(".idea." + ideaName);
       if (!disk.stillAt(solution)) return new WorktreeReply(CONFLICT, "Worktree changed before open");
       ApplicationManager.getApplication().invokeAndWait(
          () -> TrustedSolutionStore.Companion.getInstance().assumeTrusted(ideaDirectory), ModalityState.nonModal());
       try {
          // No project to replace, a new frame, normal restore, ordinary Rider trust checks.
-         var project = BuildersKt.<Project>runBlocking(EmptyCoroutineContext.INSTANCE, (scope, continuation) ->
-            SolutionManager.INSTANCE.openExistingSolution(null, true, file, true, false, continuation));
+         var privateStore = PrivateProjectStore.configured();
+         var project = privateStore == null
+            ? BuildersKt.<Project>runBlocking(EmptyCoroutineContext.INSTANCE, (scope, continuation) ->
+                 SolutionManager.INSTANCE.openExistingSolution(null, true, file, true, false, continuation))
+            : privateStore.open(solution, file, displayName, ideaDirectory, disk);
          var opened = onDispatchThread(() -> OpenProjectInstance.register(project, solution, disk, openId)).join();
          if (!opened.status().equals(OK)) return opened;
          try {

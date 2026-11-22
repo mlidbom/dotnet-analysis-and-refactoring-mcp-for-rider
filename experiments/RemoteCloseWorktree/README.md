@@ -109,6 +109,31 @@ that Roslyn has released the worktree directory.
 
 ## Background saves and private-server specifications
 
+### Private IntelliJ project stores
+
+The managed launcher starts `remoteDevHost` with no solution argument. Once the JVM owns its Remote Development
+and built-in HTTP listeners, the launcher sends the first `POST /api/royder-open-worktree/private` through the same handler it uses for later projects.
+Passing the real solution directly to the launcher would give Rider its ordinary store before the plugin could adopt it.
+An older plugin rejects this route. A new plugin also refuses it if the server lacks its private store configuration.
+
+With `ROYDER_PRIVATE_PROJECT_STORES` set by the launcher, the plugin opens an IntelliJ project in a fresh directory
+under the private run's `project-stores/`. It supplies Rider's `SolutionInitializerService.initSolution` with an
+`RdOpenSolution` constructed from the **real** solution filename during `OpenProjectTask` initialization.
+Project settings start from the private profile's defaults. The plugin neither imports nor restores personal tabs,
+run configurations or project-store files. The non-isolated standalone harness uses the ordinary Rider open path.
+
+`CheckProjectStores.ps1` compares those two routes in disposable Git main checkouts. It seeds a personal
+`workspace.xml`, a shared run configuration, VCS settings, a project name, and a solution `.DotSettings.user` file.
+It watches writes, records hashes and last-write times at each phase, and renames a method and its caller on disk
+in both checkouts. Run the two modes serially in a coordinated private-host slot:
+
+```powershell
+./experiments/RemoteCloseWorktree/CheckProjectStores.ps1 -Mode Stock -ToolsBuild $build -RemoteDevPort $remote -RoyderPort $privateMcp
+./experiments/RemoteCloseWorktree/CheckProjectStores.ps1 -Mode Private -ToolsBuild $build -RemoteDevPort $remote -RoyderPort $privateMcp
+```
+
+### External deletion and replacement
+
 In the pinned Rider, the no-save close suspends autosave while closing and skips both `saveAllDocuments` and
 `saveSettingsUnderModalProgress(project)`. An independent IDE save can already have started before the supervisor
 observes removal or before close begins. The save notification offers no per-project veto for all writers. Hence the
