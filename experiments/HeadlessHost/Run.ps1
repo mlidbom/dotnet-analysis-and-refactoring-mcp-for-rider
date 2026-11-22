@@ -1,12 +1,15 @@
 param(
    [string] $Solution = (Join-Path $PSScriptRoot '..\..\ReSharperMcp.sln'),
    [string] $Symbol = 'ToolBatch.Of',
-   [string] $Cache = (Join-Path $PSScriptRoot 'obj\state'),
+   [string] $Cache,
    [switch] $Listen,
    [switch] $Royder,
    [string] $JbHome = (Join-Path $env:USERPROFILE '.dotnet\tools\.store\jetbrains.resharper.globaltools\2026.3.0.1\jetbrains.resharper.globaltools\2026.3.0.1\tools\net10.0\any')
 )
 $ErrorActionPreference = 'Stop'
+if (!$Cache) {
+   $Cache = Join-Path $PSScriptRoot $(if ($Royder) { 'obj/live' } else { 'obj/state' })
+}
 dotnet build $PSScriptRoot --nologo -v:q "-p:JbHome=$JbHome"
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $Cache = [IO.Path]::GetFullPath($Cache)

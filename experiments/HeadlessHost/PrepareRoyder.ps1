@@ -18,6 +18,10 @@ if (!(Test-Path "$feed/Royder.LiveHost.$version.nupkg")) {
    if ($LASTEXITCODE) { throw 'Packing the local Royder extension failed.' }
 }
 $tools = [IO.Directory]::CreateDirectory("$Cache/tools/$hostHash/$toolsHash/live").FullName
-Copy-Item -LiteralPath $toolsFile -Destination $tools
-[IO.File]::WriteAllText("$tools/host.sha256", $hostHash)
+if (!(Test-Path -LiteralPath "$tools/$toolsName.dll")) {
+   Copy-Item -LiteralPath $toolsFile -Destination $tools
+}
+if (!(Test-Path -LiteralPath "$tools/host.sha256")) {
+   [IO.File]::WriteAllText("$tools/host.sha256", $hostHash)
+}
 return @{ Feed = $feed; Version = $version; Tools = (Split-Path $tools) }

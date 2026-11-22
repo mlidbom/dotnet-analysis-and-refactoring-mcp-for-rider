@@ -35,7 +35,7 @@ static class Program
          (ref int? _) => null, out var solution, out var exitCode, isLiveSession: true);
       if(exitCode.HasValue || solution == null) return exitCode ?? 1;
 
-      var session = new SolutionSession(solution, locks);
+      var session = new SolutionSession(solution, locks, lifetime.Lifetime);
       session.MeasureWhenIndexed();
       if(args[2] != "-" && !session.FindUsages(args[2])) return 1;
       if(args.Contains("--listen")) session.Listen();

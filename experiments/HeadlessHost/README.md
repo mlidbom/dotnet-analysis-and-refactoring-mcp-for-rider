@@ -24,6 +24,49 @@ pwsh -NoProfile -File .\experiments\HeadlessHost\Run.ps1 -Royder -Listen -Symbol
 
 This serves the worktree's `ReSharperMcp.sln` on loopback port **23910** until `exit` or end of input. The launcher builds the existing host and tools into the experiment's `obj/package-build`, packs only the host DLL in a local Wave 263 package and supplies a private tools build with its matching `host.sha256`. The live program uses InspectCode's `CommandLinePluginsMixin` for package discovery. Both `/health` and `list_solutions` answered with this checkout's solution, indexing complete and 25 tools. The built-in `document <absolute path>` command reads the engine's actual project document without invoking Royder's disk sync. `refactorings` reports the active zones and the two language helpers used by the rename and namespace-move workflows.
 
+### Reproducing the HTTP checks
+
+```powershell
+python -X utf8 experiments/HeadlessHost/Check.py all
+```
+
+To run a single check, replace `all` with `health`, `content`, `add`, `delete`, `move-file`, `rename`, `fix-usings` or `move-type`. The script uses Python's standard library. `health` opens the actual worktree solution. The other checks open a small SDK project under `experiments/HeadlessHost/checks/fixture` to keep every edited file inside the experiment. Each case gets a fresh engine, verifies the registered solution and the private build against the two built DLLs, then shuts down. The fixture uses a private Git index and objects under `obj/live/evidence` to restore its original bytes after each case and removes the files it created.
+
+The edit checks require this worktree's `ReSharperMcp.sln` open in everyday Rider. They use its Royder endpoint only to confirm the solution is open. Rider's native `read_file` then reads each fixture's frontend document with `rootFolder` set to the worktree. Its installed `ReadToolset` uses `FileDocumentManager.getDocument` and `Document.getText`. The checks compare complete document text with disk, normalizing line endings and BOM. The fixture is outside the everyday Rider solution's project model. Each evidence directory contains the engine console and a JSON-lines record of requests, replies, timings and document snapshots. A completed probe reports an observed limitation as a result. A setup or protocol failure exits with an error.
+
+### Freshness through Royder
+
+The searches below call `search_symbol` with the type name alone. We loaded the original file's document before each external edit, deletion or move. Times are local observations from 2026-11-22. The waits in the probe distinguish passive updates from an explicit tracker commit or project reload.
+
+| External change | First HTTP search | What made the result current |
+| --- | --- | --- |
+| Change the type name inside an existing file | The new name appeared in 0.199 s. The old name disappeared. | A document-change event recorded `DiskSync.Reconcile` calling `DocumentOperationsImpl.SynchronizeDocumentContentsWithStorage` and `SynchronizeDocumentContentsWithDiskFile`. Immediately before the call the raw document still held the old text. |
+| Add a new file containing a new type | Zero results after 10.102 s. | Additional searches and `IFileSystemTracker.CommitChanges()` still found zero. `reload_projects` on the owning project took 0.565 s. The next name-only search found the type at the new path. |
+| Delete a file containing an indexed type | The first search returned the old type and path. It was still visible after 12 s. | After `CommitChanges()` the symbol disappeared by the one-second retry. A direct lookup still found a project item with empty text. Reloading the project took 0.546 s and removed that item too. |
+| Move a file to another existing folder of the project | After 10.114 s the result still lacked the destination. Runs returned either the old path or `[generated]:0`. | `CommitChanges()` invalidated the old declaration. Only `reload_projects` (0.320 s) made a single declaration appear at the destination and removed the old project item. |
+
+For a changed or added path, the first frontend-specific failure in the engine log was **`Not bound: RdCall<RdFsRefreshRequest, Unit>`**. `Rescans.Request` catches it. For a new source the subsequent wait consumed ten seconds. `DiskSync` only reports missing project membership for a file named by the caller, so the name-only call returned zero without a warning. For deletion the first missed step is earlier: `DiskSync.Check` skips a path when `File.Exists` is false.
+
+### Real edits
+
+| Tool | Headless HTTP result | Headless document, disk and Rider |
+| --- | --- | --- |
+| `rename_symbol` | 0.045–0.092 s. `AtomicRenamesFactory.CheckRenameAvailability` returned `UnsupportedLanguage` for the source method. | The declaration and its caller kept their original names. The next search still found the old method. The preloaded Rider documents matched both disk files on the first comparison. |
+| `fix_usings` | 0.810–1.549 s. Added the missing namespace for an unambiguous source type. | The import appeared in the headless document and on disk. The next headless error check went from two diagnostics to zero. The preloaded Rider document initially showed the old text, then matched disk after 5.761, 6.336 and 12.120 s of polling on three runs. |
+| `move_type_to_namespace` | 0.051–0.055 s. `MoveToNamespaceWorkflow.Initialize` returned false for a valid top-level type. | The type and caller retained their original text. The source path still existed and the destination had no file or project item. Both preloaded Rider documents matched disk on the first comparison. |
+
+The save event in the 0.810-second run recorded `SolutionDocumentTransactionManager.SaveDocumentsAfterModification` → `DocumentOperationsImpl.SaveDocumentAfterModification` → `SaveDocumentInternal`. The command-line engine wrote the updated source as it committed the document transaction, before Royder needed to request a save. Rider subsequently reloaded the file in its separate process.
+
+The headless host reported `ILanguageCSharpZone` active and `ICodeEditingZone` absent. The live rename and move workflows selected `RenameHelperBase` and `MoveToNamespaceHelperBase` respectively. Both returned `IsLanguageSupported = false`. Inspection of the installed binaries showed that rename checks language support during availability checking, and that namespace-move initialization checks each declaration's language helper. The C# refactoring assembly's zone marker requires both zones. Royder's move error suggests a nested type, type parameter or declaration error even when the required language service is missing.
+
+### Smallest proposed changes
+
+- Keep the existing document reconciliation for a headless content change. Skip the Rider-specific refresh request when the host has no frontend. For structural changes, retain missing paths through `DiskSync.Check`, commit the engine tracker, reload each affected project once and verify the old and new project items before answering. The existing `reload_projects` implementation supplies a tested reload and index wait. This also avoids spending ten seconds waiting on an unbound frontend. [DiskSync.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Disk/DiskSync.cs) · [ReloadProjectsTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/ReloadProjectsTool.cs)
+- For rename and namespace moves, first make the headless product supply supported, licensed C# code-editing services. Keep the existing symbol and refactoring checks. If the selected language helper still reports unsupported, report that capability directly, especially in `MoveTypeToNamespaceTool`. Whether enabling the normal editing configuration is sufficient for the whole refactoring remains open. [RenameSymbolTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/RenameSymbolTool.cs) · [MoveTypeToNamespaceTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/MoveTypeToNamespaceTool.cs)
+- `fix_usings` needs no persistence change for the tested file. InspectCode's `InspectCodeDaemonManual.OnPsiTransactionStarted` logged `Unexpected transaction in command line` during a successful edit. A live editing host should select a daemon that supports edit transactions. The experiment left production Royder unchanged.
+
+Changes to project references and generated files, refactoring rollback and edits racing another writer remain open. The failed rename and namespace move did not reach their mutation or save paths.
+
 ## How the engine starts and stops
 
 These calls were traced in the installed binaries with Sherlock and exercised by this experiment.
