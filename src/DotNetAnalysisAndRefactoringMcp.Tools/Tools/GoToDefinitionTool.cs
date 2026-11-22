@@ -11,6 +11,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 
 public class GoToDefinitionTool : IMcpTool
 {
+   const int DefaultSourceTextLength = 200;
    readonly ISolution _solution;
 
    public GoToDefinitionTool(ISolution solution) => _solution = solution;
@@ -36,7 +37,7 @@ public class GoToDefinitionTool : IMcpTool
                                                 {
                                                    symbolName = new { type = "string", description = "Symbol name to find the definition of (e.g. 'MyClass', 'Namespace.MyClass'). Alternative to filePath+line+column." },
                                                    kind = new { type = "string", description = "Filter by symbol kind when using symbolName: 'type', 'method', 'property', 'field', 'event'. Helps disambiguate when multiple symbols share a name." },
-                                                   maxTextLength = new { type = "integer", description = "Maximum length of the returned source text. Default: 200. Set higher (e.g. 2000) to get full declaration bodies." },
+                                                   maxTextLength = new { type = "integer", @default = DefaultSourceTextLength, description = $"Maximum source characters in the text reply. Default: {DefaultSourceTextLength}. Set higher for a longer declaration." },
                                                    filePath = new { type = "string", description = "Absolute path to the file containing a usage of the symbol" },
                                                    line = new { type = "integer", description = "1-based line number of the symbol usage" },
                                                    column = new { type = "integer", description = "1-based column number of the symbol usage" },
@@ -103,8 +104,8 @@ public class GoToDefinitionTool : IMcpTool
       if(error != null) return error;
       using var context = CompilationContexts.For(declaredElement);
 
-      var maxTextLength = arguments["maxTextLength"]?.Value<int>() ?? PsiHelpers.MaxSnippetLength;
-      if(maxTextLength <= 0) maxTextLength = PsiHelpers.MaxSnippetLength;
+      var maxTextLength = arguments["maxTextLength"]?.Value<int>() ?? DefaultSourceTextLength;
+      if(maxTextLength <= 0) maxTextLength = DefaultSourceTextLength;
       if(maxTextLength > 50000) maxTextLength = 50000;
 
       var declarations = declaredElement.GetDeclarations();

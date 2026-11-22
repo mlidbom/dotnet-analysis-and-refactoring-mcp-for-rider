@@ -15,7 +15,7 @@ Supports C#, F#, VB, and any language with a ReSharper PSI implementation.
 | `find_implementations` | Find implementations of interfaces/abstract classes and overrides |
 | `get_file_errors` | Fast compile check: syntax errors and unresolved references; `changedSince: "<git ref>"` checks every changed file |
 | `search_symbol` | Search symbols by name (substring match) across the solution; `includeLibraries` adds referenced DLLs |
-| `go_to_definition` | Navigate to a symbol's declaration with source text |
+| `go_to_definition` | Navigate to a declaration. Text replies include up to 200 source characters by default. Set `maxTextLength` for a longer excerpt or use `get_symbol_source` for the declaration. |
 | `get_solution_structure` | List projects, target frameworks, and project references |
 | `browse_namespace` | Browse namespace hierarchy: child namespaces and types |
 | `list_symbols_in_file` | List all declarations in a file |
