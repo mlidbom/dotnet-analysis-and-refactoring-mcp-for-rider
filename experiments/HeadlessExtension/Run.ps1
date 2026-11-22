@@ -1,5 +1,5 @@
 #requires -Version 7
-param([switch]$UseJbLauncher)
+param([switch]$UseJbLauncher, [switch]$CompareReadTools)
 
 $ErrorActionPreference = 'Stop'
 $repository = (Resolve-Path "$PSScriptRoot/../..").Path
@@ -19,13 +19,30 @@ Write-Host "Evidence directory: $scratch"
 
 $hostName = 'DotNetAnalysisAndRefactoringMcp'
 $toolsName = "$hostName.Tools"
-dotnet build "$repository/src/$toolsName" -c Debug --nologo
-if ($LASTEXITCODE -ne 0) { throw 'Could not build the Royder host and tools.' }
-dotnet pack "$PSScriptRoot/Royder.HeadlessExtension.csproj" -c Debug "-p:JbDirectory=$jbDirectory" -o "$scratch/feed" --nologo
+function Get-RiderToolsForWorktree {
+   $health = Invoke-RestMethod 'http://127.0.0.1:23751/health' -TimeoutSec 10 -NoProxy
+   $matching = @($health.solutions | Where-Object path -eq $solution)
+   if ($matching.Count -ne 1) { throw "Expected one Rider open on $solution." }
+   return $matching[0].tools
+}
+
+if ($CompareReadTools) {
+   $riderTools = Get-RiderToolsForWorktree
+   $hostAssembly = Get-ChildItem "$env:APPDATA/JetBrains/Rider*/plugins/$hostName/dotnet/$hostName.dll" -File |
+      Where-Object { (Get-FileHash -LiteralPath $_.FullName).Hash -eq $riderTools.host } |
+      Select-Object -First 1 -ExpandProperty FullName
+   if (!$hostAssembly) { throw "No installed host matches Rider's running host $($riderTools.host)." }
+   $toolsAssembly = Join-Path $riderTools.folder "$($riderTools.build)/$toolsName.dll"
+} else {
+   dotnet build "$repository/src/$toolsName" -c Debug --nologo
+   if ($LASTEXITCODE -ne 0) { throw 'Could not build the Royder host and tools.' }
+   $hostAssembly = "$repository/src/$hostName/bin/Debug/net472/$hostName.dll"
+   $toolsAssembly = "$repository/src/$toolsName/bin/Debug/net472/$toolsName.dll"
+}
+dotnet pack "$PSScriptRoot/Royder.HeadlessExtension.csproj" -c Debug "-p:JbDirectory=$jbDirectory" "-p:RoyderHostAssembly=$hostAssembly" -o "$scratch/feed" --nologo
 if ($LASTEXITCODE -ne 0) { throw 'Could not pack the InspectCode extension.' }
-$hostAssembly = "$repository/src/$hostName/bin/Debug/net472/$hostName.dll"
 $hostHash = (Get-FileHash -LiteralPath $hostAssembly).Hash.ToLowerInvariant()
-Copy-Item -LiteralPath "$repository/src/$toolsName/bin/Debug/net472/$toolsName.dll" -Destination $toolsBuild
+Copy-Item -LiteralPath $toolsAssembly -Destination $toolsBuild
 [IO.File]::WriteAllText("$toolsBuild/host.sha256", $hostHash)
 
 $port = 23900
@@ -54,13 +71,18 @@ $start.RedirectStandardError = $true
 $start.Environment['DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT'] = [string]$port
 $start.Environment['DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS'] = "$scratch/tools"
 $start.Environment['ROYDER_PROBE_DIRECTORY'] = $scratch
+$analysis = '--no-swea'
+if ($CompareReadTools) {
+   $start.Environment['ROYDER_COMPARE_READ_TOOLS'] = '1'
+   $analysis = '--swea'
+}
 $start.Environment['JET_LOCAL_APPDATA_DIR'] = "$scratch/local"
 $start.Environment['JET_ROAMING_APPDATA_DIR'] = "$scratch/roaming"
 $start.Environment['JET_TEMP_DIR'] = "$scratch/temp"
 $start.Environment['TEMP'] = "$scratch/temp"
 $start.Environment['TMP'] = "$scratch/temp"
 foreach ($argument in @(
-   $solution, '--no-build', '--no-swea', '--no-updates', '--jobs=1', '--include=**/ZoneMarker.cs',
+   $solution, '--no-build', $analysis, '--no-updates', '--jobs=1', '--include=**/ZoneMarker.cs',
    '-x=Royder.HeadlessExtension', "--source=$scratch/feed", "--caches-home=$scratch/caches",
    "--LogFolder=$scratch/logs", "--output=$scratch/issues.sarif"
 )) {
@@ -74,7 +96,7 @@ try {
    $timer = [Diagnostics.Stopwatch]::StartNew()
    while (!(Test-Path -LiteralPath "$scratch/waiting.txt")) {
       if ($process.HasExited) { throw "InspectCode exited with $($process.ExitCode) before the report consumer ran. See $scratch/logs." }
-      if ($timer.Elapsed.TotalMinutes -ge 3) { throw 'Timed out opening the solution.' }
+      if ($timer.Elapsed.TotalMinutes -ge 6) { throw 'Timed out opening and inspecting the solution.' }
       Start-Sleep -Milliseconds 200
    }
    $marker = Get-Content -LiteralPath "$scratch/shell.txt"
@@ -106,6 +128,18 @@ try {
       throw "Symbol query failed. See $scratch/symbols.json."
    }
    Write-Host 'list_symbols_in_file found McpShellComponent.WatchdogPing.'
+   if ($CompareReadTools) {
+      $toolsHash = (Get-FileHash -LiteralPath "$toolsBuild/$toolsName.dll").Hash
+      if ($hostHash -ne $riderTools.host -or (Get-FileHash -LiteralPath $toolsAssembly).Hash -ne $toolsHash) {
+         throw 'The copied Royder assemblies differ from the Rider build.'
+      }
+      @{ riderBuild = $riderTools.build; hostSHA256 = $hostHash; toolsSHA256 = $toolsHash } |
+         ConvertTo-Json | Set-Content "$scratch/assemblies.json"
+      python "$PSScriptRoot/compare_read_tools.py" $scratch
+      if ($LASTEXITCODE -ne 0) { throw "Comparison driver failed. See $scratch." }
+      $after = Get-RiderToolsForWorktree
+      if ($after.host -ne $riderTools.host -or $after.build -ne $riderTools.build) { throw 'Rider changed builds during the comparison.' }
+   }
 } finally {
    [IO.File]::WriteAllText("$scratch/stop", '')
    if (!$process.WaitForExit(30000)) {

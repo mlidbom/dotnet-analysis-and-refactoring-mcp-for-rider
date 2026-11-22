@@ -22,6 +22,13 @@ Both modes use `--no-build`, a private solution cache and port 23900. After the 
 signals InspectCode to finish inspecting `ZoneMarker.cs`, checks its exit status, and checks
 that the listener has closed.
 
+To compare the read tools with this checkout's open Rider, run
+`pwsh -NoProfile -File experiments/HeadlessExtension/Run.ps1 -CompareReadTools` with Python 3 on PATH.
+The comparison packs the running Rider's host and copies its tools build into the private tools folder.
+It checks both assembly hashes, enables solution-wide analysis, holds the dispatcher after that analysis, and issues matching
+requests to ports 23751 and 23900. Each case writes its request and both raw replies under
+`comparison/` in the evidence directory. [Recorded comparison](read-tool-results.md)
+
 ## Observed in the running process
 
 | Question | Observation |

@@ -5,6 +5,7 @@
     <Description>Checks the lifetime of Royder inside InspectCode.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RoyderHostAssembly Condition="'$(RoyderHostAssembly)' == ''">../../src/DotNetAnalysisAndRefactoringMcp/bin/$(Configuration)/net472/DotNetAnalysisAndRefactoringMcp.dll</RoyderHostAssembly>
     <!-- InspectCode reads DotFiles. NuGet's lib/ref layout checks apply to library packages. -->
     <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
   </PropertyGroup>
@@ -14,14 +15,22 @@
     <Reference Include="$(JbDirectory)/JetBrains.Platform.Core.dll" Private="false" />
     <Reference Include="$(JbDirectory)/JetBrains.Platform.Shell.dll" Private="false" />
     <Reference Include="$(JbDirectory)/JetBrains.Platform.ProjectModel.dll" Private="false" />
+    <Reference Include="$(JbDirectory)/JetBrains.Platform.ProjectModel.Host.dll" Private="false" />
+    <Reference Include="$(JbDirectory)/JetBrains.Platform.DocumentModel.dll" Private="false" />
+    <Reference Include="$(JbDirectory)/JetBrains.Platform.TextControl.dll" Private="false" />
+    <Reference Include="$(JbDirectory)/JetBrains.ReSharper.Psi.dll" Private="false" />
+    <Reference Include="$(JbDirectory)/JetBrains.ReSharper.Psi.CSharp.dll" Private="false" />
+    <Reference Include="$(JbDirectory)/JetBrains.ReSharper.Daemon.dll" Private="false" />
+    <Reference Include="$(JbDirectory)/JetBrains.ReSharper.SolutionAnalysis.dll" Private="false" />
+    <Reference Include="$(JbDirectory)/JetBrains.ReSharper.ExternalSources.dll" Private="false" />
+    <Reference Include="$(JbDirectory)/JetBrains.ReSharper.Feature.Services.ExternalSources.dll" Private="false" />
     <Reference Include="$(JbDirectory)/JetBrains.Platform.Util.dll" Private="false" />
     <Reference Include="$(JbDirectory)/JetBrains.ReSharper.Feature.Services.dll" Private="false" />
     <Reference Include="$(JbDirectory)/JetBrains.Lifetimes.dll" Private="false" />
     <!-- Wave is an empty compatibility marker. InspectCode uses the dependency to generate its package metadata. -->
     <PackageReference Include="Wave" Version="[263.0.0]" NoWarn="NU1701" />
     <None Include="bin/$(Configuration)/net10.0/$(MSBuildProjectName).dll" Pack="true" PackagePath="DotFiles/" />
-    <None Include="../../src/DotNetAnalysisAndRefactoringMcp/bin/$(Configuration)/net472/DotNetAnalysisAndRefactoringMcp.dll"
-          Pack="true" PackagePath="DotFiles/" />
+    <None Include="$(RoyderHostAssembly)" Pack="true" PackagePath="DotFiles/" />
     <None Update="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>
