@@ -488,13 +488,37 @@ The second round, under way:
     - **A plain `git worktree remove` failed** on the Roslyn worker's working directory, and the host wrote
       `.idea` files back into the emptied tree.
     - **Memory:** 4.4 GiB for the host once indexed, its JVM 2.1 GiB of that, in 21 s cold.
+  - **royder-codex-3's round 8, done** (a829dbf, "Round 8" in `remote-dev-server-lifecycle.md`):
+    - **Starting Java directly keeps the host's profile private.** The argument file is built from
+      `product-info.json`'s Windows entry, with private `APPDATA`, `LOCALAPPDATA` and the four `idea.*.path` folders.
+      The status files and both ID files were written only there, and nothing in Magnus's profile changed.
+    - **A deleted file is gone at the first call,** by name, in all four trials, with the build of 4a3cd7f. The JVM
+      received Royder's rescan of its folder during that call.
+    - **The heap cap barely matters:** at `-Xmx768m` and `-Xmx1024m`, 4.26 and 4.28 GiB private for the whole host,
+      the JVM 1.8 GiB in both, with no full collection. About 1 GiB of the JVM is not heap.
+    - **What outlives the JVM:** a private `jetbrainsd.exe`, ended by the job. The host also changed the worktree's
+      tracked `.idea/.idea.ReSharperMcp/.idea/vcs.xml`.
+  - **royder-codex-2's round 6, read-only, done** (9cfc8f5,
+    `dev_docs/headless-royder/remote-dev-server-closing-one-project.md`):
+    - **No stock request lets a .NET backend close its own project.** `Solution.CloseRequested` goes from the JVM to
+      the backend.
+    - **The route:** a JVM `RestService` on IntelliJ's built-in HTTP server, called by Royder's primary with the
+      solution's absolute path and a per-host token, which calls `ProjectManager.closeAndDispose`. Closing a project
+      releases its backend's protocol, which should end that backend alone: inferred from the code, not run.
+    - **Opening another solution in a running server is supported:** `run` with the same config and system folders
+      hands the path to the running JVM, which opens it in a new frame.
+  - **royder-codex-1's round 8, done** (ad80651, `experiments/RemoteRoslynPatcher`, "Round 8" in
+    `rider-remote-dev-server.md`): the patcher, as a plugin of its own for agents' servers, built and not run. `.idea`
+    is beside the solution, in the worktree, with no setting to move it, and is written on project save and close.
   - **Next, under way:**
-    - **royder-codex-3's round 8, a run:** starting Java directly with private `APPDATA` and `LOCALAPPDATA`, so the
-      status and ID files stay private; the deletion again, with the fix; a heap of 1024 and 768 MiB.
-    - **royder-codex-1's round 8:** the Roslyn worker's working directory in Rider's backend, and a patcher for it
-      as a plugin of its own for agents' servers; where the host keeps `.idea`, and what writes it.
-    - **royder-codex-2's round 6, read-only:** closing one solution of a shared server with no client, from Royder's
-      backend or a small JVM plugin of our own.
+    - **royder-codex-3:** its launch harness as a committed tool, `experiments/RemoteDevHost`, for the runs to come;
+      what `jetbrainsd.exe` is, and what the host changed in `vcs.xml`.
+    - **royder-codex-2:** its close request built as a plugin of its own for agents' servers, not in Royder's jar,
+      which every Rider of Magnus's would load.
+    - **royder-codex-1:** then the patcher's run, with that tool: a worktree removed while its host runs, and the
+      `.idea` files written back after.
+    - **After those:** two worktrees in one server, one closed and removed while the other goes on serving; a JVM
+      with Rider's unneeded bundled plugins disabled, for its non-heap gigabyte; a host that runs for hours.
   - **royder-codex-3's round 7, read-only, done** (0cc8a05,
     `dev_docs/headless-royder/remote-dev-server-lifecycle.md`):
     - **The status files can't be redirected with the stock launcher:** it resets `APPDATA` and `LOCALAPPDATA` to
