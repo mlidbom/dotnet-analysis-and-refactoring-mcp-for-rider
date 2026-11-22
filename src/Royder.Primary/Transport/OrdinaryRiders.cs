@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Newtonsoft.Json.Linq;
@@ -10,10 +11,13 @@ sealed class OrdinaryRiders(HttpClient http, PrimarySettings settings)
 {
    readonly RiderEndpoint? _endpoint = settings.DesktopPort is { } port ? new(http, port) : null;
 
-   // A refused loopback connection took two seconds on Windows. A fresh OS snapshot sees a newly opened
-   // Rider on the next request, including an HTTP.sys listener owned by the kernel.
+   static readonly IPAddress[] AddressesServingLocalhost = [IPAddress.Loopback, IPAddress.Loopback.MapToIPv6(), IPAddress.Any, IPAddress.IPv6Any];
+
+   /// <summary>A refused connection took two seconds on Windows. A fresh listener snapshot sees ordinary Rider open
+   /// on the next request, including HTTP.sys listening on a wildcard address.</summary>
    RiderEndpoint? ListeningEndpoint =>
-      _endpoint != null && IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Any(it => it.Port == _endpoint.Port)
+      _endpoint != null && IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners()
+                                             .Any(it => it.Port == _endpoint.Port && AddressesServingLocalhost.Contains(it.Address))
          ? _endpoint : null;
 
    public async Task<ServingSolution[]> Solutions(CancellationToken cancel)
