@@ -53,8 +53,8 @@ static class Program
          hostInfo, isEverythingOnStdErr: true, loadAllPackages: false, options);
       if(extensions.Length > 0)
       {
-         if(Environment.GetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT") != "23910")
-            throw new InvalidOperationException("This host loads Royder only on port 23910.");
+         if(Environment.GetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT") is not ("23910" or "23920"))
+            throw new InvalidOperationException("This host loads Royder only with experimental base port 23910 or 23920.");
          host = host.CustomAdd(new CommandLinePluginsMixin<InspectCodeSettingsData>(hostInfo, options));
       }
       var timeout = TimeSpan.FromMinutes(3);
