@@ -25,10 +25,17 @@ sealed class RequestedPath
       }
 
       var folder = File.Exists(existing) ? Path.GetDirectoryName(existing) : existing;
-      var root = SolutionRoot.Of(folder).Workspace;
-      if(root == null) return;
-      var marker = Path.Combine(root, ".git");
-      if(Directory.Exists(marker) || File.Exists(marker)) GitWorkTree = root;
+      GitWorkTree = WorkTreeOf(folder);
+   }
+
+   public static string? WorkTreeOf(string? directory)
+   {
+      for(var folder = directory; folder != null; folder = Path.GetDirectoryName(folder))
+      {
+         var marker = Path.Combine(folder, ".git");
+         if(Directory.Exists(marker) || File.Exists(marker)) return folder;
+      }
+      return null;
    }
 
    public string DescribeWorkTree() => GitWorkTree ?? $"{Absolute} (outside a Git work tree)";

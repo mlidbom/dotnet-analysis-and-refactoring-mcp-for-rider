@@ -10,27 +10,13 @@ namespace DotNetAnalysisAndRefactoringMcp.Serving;
 ///   A solution open in a Rider on this machine, this one's (<see cref="LocalSolution"/>) or a peer's
 ///   (<see cref="PeerSolution"/>): what a <c>tools/call</c> is routed to, by its name or by the files the call names.
 /// </summary>
-abstract class OpenSolution(string name, string filePath)
+abstract class OpenSolution(string name, string filePath) : SolutionLocation(name, filePath)
 {
    SolutionRoot _root;
-
-   /// <summary>The solution file's name without its extension.</summary>
-   public string Name { get; } = name;
-
-   /// <summary>The solution file's full path.</summary>
-   public string FilePath { get; } = filePath;
-
-   /// <summary>
-   ///   The work tree the solution is in, not the solution file's folder: a solution in <c>Client/TPS</c> still owns
-   ///   files under <c>Shared/</c>.
-   /// </summary>
-   public string WorkTree => Root.Workspace;
-
-   /// <summary>The solution directory and work tree against which its tools resolve relative paths.</summary>
-   public SolutionRoot Root => _root ??= SolutionRoot.Of(Folder);
-
-   /// <summary>The solution file's folder.</summary>
-   string Folder => Path.GetDirectoryName(FilePath);
+   SolutionRoot Root => _root ??= SolutionRoot.Of(Folder);
+   public override string WorkTree => Root.Workspace;
+   public override string Absolute(string path) => Root.Absolute(path);
+   public override int ToolCount => Tools.Count;
 
    /// <summary>The tools it is served with, as <c>tools/list</c> describes them.</summary>
    public abstract IReadOnlyList<ToolDefinition> Tools { get; }
@@ -40,43 +26,4 @@ abstract class OpenSolution(string name, string filePath)
 
    /// <summary>What <c>/health</c> says of it: whether it is indexing, the disk changes not synced yet, the tools builds.</summary>
    public abstract JObject Health();
-
-   /// <summary>Whether <paramref name="solutionName"/> is its name or its file's path, in any case.</summary>
-   public bool IsNamed(string solutionName) =>
-      Name.Equals(solutionName, StringComparison.OrdinalIgnoreCase) || FilePath.Equals(solutionName, StringComparison.OrdinalIgnoreCase);
-
-   /// <summary>
-   ///   Whether <paramref name="segment"/> is whole segments of its file's path: <c>tps-project</c> is one of
-   ///   <c>.../tps-project/...</c> but not of <c>.../tps-project-dyn/...</c>, and <c>tps-project/Client</c> is two.
-   /// </summary>
-   public bool HasPathSegment(string segment) => Segmented(FilePath).IndexOf(Segmented(segment), StringComparison.OrdinalIgnoreCase) >= 0;
-
-   /// <summary>Whether this solution owns the path's Git work tree. Outside Git, its own folder defines its reach.</summary>
-   public bool Holds(RequestedPath path) =>
-      path.GitWorkTree != null
-         ? string.Equals(path.GitWorkTree.TrimEnd(Path.DirectorySeparatorChar), WorkTree.TrimEnd(Path.DirectorySeparatorChar), PathComparison)
-         : IsUnder(path.Absolute, Folder);
-
-   /// <summary>
-   ///   How closely it holds the absolute <paramref name="path"/>, which it <see cref="Holds"/>: by its own folder, when
-   ///   the path is under it, more closely than by the work tree around it, and by a deeper folder more closely than by
-   ///   a shallower one. Two solutions in one work tree, such as a client's and a server's, then each hold their own
-   ///   files more closely than the other does. A relative path is held by none more closely than by another.
-   /// </summary>
-   public int Closeness(string path)
-   {
-      if(!Path.IsPathRooted(path)) return 0;
-      return IsUnder(Path.GetFullPath(path), Folder) ? Folder.Length : WorkTree.Length;
-   }
-
-   static readonly StringComparison PathComparison = Path.DirectorySeparatorChar == '\\' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-   static bool IsUnder(string path, string folder) =>
-      (path.Replace('\\', '/').TrimEnd('/') + "/").StartsWith(folder.Replace('\\', '/').TrimEnd('/') + "/", PathComparison);
-
-   /// <summary>Its name and path, as every listing of the solutions starts.</summary>
-   public JObject NameAndPath() => new() { ["name"] = Name, ["path"] = FilePath };
-
-   /// <summary>A path with slashes, between slashes, so that searching it for another finds only whole segments.</summary>
-   static string Segmented(string path) => "/" + path.Replace('\\', '/') + "/";
 }
