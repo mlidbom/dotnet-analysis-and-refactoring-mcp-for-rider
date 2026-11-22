@@ -180,34 +180,30 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   `Outer.NewName.cs`; and the outer type's rename renaming each `Outer.*.cs` with it, as in the bullet above. The
   subagent renamed it with `git mv` (`~/.claude` cef7332).
 
-- **`go_to_definition` returns the whole source where `maxTextLength` advertises a default of 200**
-  (codex-tool-call-size, a Codex session in Magnus's usage investigation, 2026-11-22, on 0.13.0, through the tooling
-  owner). `go_to_definition(solutionName: '.claude', symbolName: 'ProcessTypingIntoASession.LoggingWhatStopsIt')`
-  returned the method's full 1,238 characters of source; with `maxTextLength: 200` given explicitly, the same call
-  returned 200 characters and an ellipsis. Wanted: the default the schema advertises and the one the tool applies made
-  the same, one way or the other. Magnus asked for no particular default.
-- **In Codex, the server's instructions are paid once for each tool** (the same session and date). 0.13.0's
-  `initialize` reply carries 1,852 characters of instructions once, and `tools/list` has 26 descriptions. Codex's
-  tool list shows each description as its own text, two newlines, and the whole of those instructions: 48,152
-  characters of repeated instructions when every tool is listed. No claim yet of what that costs of a quota. It bears
-  on what goes into the server's instructions and what into each tool's description.
-- **Every request to the headless primary takes 2 seconds, `/health` included** (codex-usage-explorer, 2026-11-22,
-  the production smoke test after the cutover, through the tooling owner). Identical warm `get_symbol_source` calls
-  over loopback HTTP took 2,016 and 2,009 ms; `/health` took 2,014 ms and `tools/list` 2,020 ms. The same call through
-  Codex's MCP took 2,019 ms. One ready solution, no pending disk changes. The tooling owner measured the same at 17:26:
-  `curl` to `127.0.0.1:23751/health` connected in under 1 ms, with the first byte at 2.02 s, and the same over
-  `localhost`. So the time is spent in the server, not in resolving or connecting. At that moment no `rider64.exe`
-  ran, the desktop cluster's 23761 refused connections, and the primary served only ClaudeTooling. Cause not
-  established. A wait of a fixed 2 seconds on each request is the shape to look for, such as a call to a peer that
-  isn't there. Important for interactive navigation.
-- **On a cold start, nothing says that a path opens a worktree** (the same smoke test). `list_solutions` returned no
-  solutions. A `search_symbol` with `solutionName` set to the absolute path of owner-helper-3's `ClaudeTooling.slnx`
-  then opened that worktree in 32.6 s, and all three declarations it returned matched the disk. Yet both the server's
-  instructions and the empty `list_solutions` reply still describe the tools as working on the solutions open in
-  Rider. Nothing hints that an absolute solution or file path opens a trusted worktree. Wanted: the instructions say
-  so, and an empty `list_solutions` reply says how to open one. The live catalog has 28 tools, `warm_worktree` and
-  `close_worktree` among them. A Codex session opened before the cutover still lists 26 after the MCP reload: the
-  tooling's side of that is in `~/.claude/dev_docs/backlog.md`.
+- **An existing Codex session can retain an older tool list.** A session opened before the everyday cutover
+  kept 26 deferred tool names after an MCP reload. HTTP `tools/list` and a fresh session showed 28. File-based
+  calls from the old session still opened checkouts. This client behavior was reported to `gpt-collaborators`;
+  the home tooling backlog records it in `c8c26f56`.
+- **An external Git removal occasionally fails during the Windows integration fixture.** On 22 November,
+  plain `git worktree remove` returned 255 with “Permission denied” for the open sibling directory in
+  `royder-on-demand-mrmv80mi`. Git had forgotten the sibling by final inspection. The full repeated run
+  passed both removal orders and same-path reuse. The process holding the directory at failure is unknown.
+
+### Headless usage reports resolved on 22 November 2026
+
+- **Two-second requests with desktop Rider closed.** The ordinary endpoint's loopback connect took 2.00 s from
+  the .NET socket start event to refusal. The standalone primary now checks the OS listener table for its IPv4
+  loopback endpoint on each request. It sees a desktop Rider appear on the next request. Five production samples
+  after deployment gave median latencies of 12.68 ms for `/health`, 14.38 ms for `tools/list` and 12.26 ms for
+  `list_solutions`; warm `get_symbol_source` on ClaudeTooling took 4.61–14.76 ms. Earlier, each was about 2.01 s.
+- **Cold-start discovery.** The standalone handshake, tool description and `list_solutions` reply explain absolute
+  `filePath` and full solution paths in `solutionName`. The listing continues to describe only the solutions
+  actually open. Both symbol-linker consumers ignore the additional `hint` field.
+- **Repeated instructions and source excerpts.** The live standalone handshake is 156 characters, down from 1,852.
+  Codex has been observed to repeat the guide on tool descriptions. Quota effects were not measured.
+  `go_to_definition` now defaults to 200 source characters plus an ellipsis in text mode. On
+  `ProcessTypingIntoASession.LoggingWhatStopsIt` the default matched explicit 200; explicit 2,000 returned the
+  full 1,238 characters. The JSON declaration shape is unchanged.
 
 ## The rename to Royder
 
