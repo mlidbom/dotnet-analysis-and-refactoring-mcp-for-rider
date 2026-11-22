@@ -1,4 +1,4 @@
-#requires -Version 7.4
+#requires -Version 5.1
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$PrimaryExecutable,
       [Parameter(Mandatory)][string]$SettingsFile,
@@ -23,7 +23,8 @@ if ($existing -and $existing.Description -ne $description) { throw "A different 
 $runner = Join-Path $folder 'Run-RoyderPrimary.ps1'
 Copy-Item -LiteralPath $PSCommandPath -Destination $runner -Force
 $arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -File "{0}" -PrimaryExecutable "{1}" -SettingsFile "{2}" -Serve' -f $runner,$executable,$config
-$action = New-ScheduledTaskAction -Execute (Join-Path $PSHOME 'pwsh.exe') -Argument $arguments -WorkingDirectory $folder
+$windowsPowerShell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
+$action = New-ScheduledTaskAction -Execute $windowsPowerShell -Argument $arguments -WorkingDirectory $folder
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
