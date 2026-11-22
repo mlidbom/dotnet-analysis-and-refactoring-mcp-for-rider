@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>1.0.0</Version>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoWarn>$(NoWarn);NU5100;NU5128;NU1701</NoWarn>
+    <JbHome>$(UserProfile)\.dotnet\tools\.store\jetbrains.resharper.globaltools\2026.3.0.1\jetbrains.resharper.globaltools\2026.3.0.1\tools\net10.0\any</JbHome>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="$(JbHome)\inspectcode.exe;$(JbHome)\JetBrains.Platform.*.dll;$(JbHome)\JetBrains.Lifetimes.dll;$(JbHome)\JetBrains.Roslyn.Host.dll;$(JbHome)\JetBrains.ReSharperAutomationTools.CommandLine.Common.dll" Private="false" />
+    <PackageReference Include="Wave" Version="[263.0.0]" />
+    <None Include="bin/$(Configuration)/net10.0/$(MSBuildProjectName).dll" Pack="true" PackagePath="DotFiles/" />
+  </ItemGroup>
+</Project>

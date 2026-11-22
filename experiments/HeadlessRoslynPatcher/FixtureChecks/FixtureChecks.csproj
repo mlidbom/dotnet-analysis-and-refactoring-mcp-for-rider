@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <JbHome>$(UserProfile)\.dotnet\tools\.store\jetbrains.resharper.globaltools\2026.3.0.1\jetbrains.resharper.globaltools\2026.3.0.1\tools\net10.0\any</JbHome>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="$(JbHome)/Microsoft.CodeAnalysis.dll;$(JbHome)/Microsoft.CodeAnalysis.CSharp.dll" Private="false" />
+  </ItemGroup>
+</Project>
