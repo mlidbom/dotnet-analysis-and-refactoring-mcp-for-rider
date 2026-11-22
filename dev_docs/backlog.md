@@ -55,12 +55,14 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   "The design, as decided so far") brings: remove the registrations the refused call saw, by reference, under the
   registrations' lock (royder-codex-3's `RemovePeerIfStillRegistered`, which it wrote and I held back as a host
   change).
-- **Suspected in Rider, seen headless: a deleted file may not get the rescan** (royder-codex-1's reading of the source,
-  2026-11-22). `DiskChanges` records a delete, but `DiskSync.Check` skips the paths that no longer exist, so a deleted
-  path doesn't itself ask the frontend to rescan. Headless, with no frontend, a deleted file's type was still found
-  12 s later (royder-codex-2). In Rider, its own project-model tracking removes it: Rider found none some seconds
-  later, in royder-codex-2's paired check. Whether the first call after the delete still finds it is unchecked: delete
-  a file declaring a type, then at once `search_symbol` the type by name alone.
+- **Headless project membership after a deletion** (2026-11-22). The first-call bug was reproduced and fixed in Rider.
+  `DiskSync` asks the frontend to rescan the containing folder when a deleted file is still in the project model,
+  then waits for the item to disappear. The sandbox specifications check the first `search_symbol`, `find_usages`
+  and `get_file_errors` independently, including an unresolved reference in another project.
+  [Deletion specifications](../tests/DotNetAnalysisAndRefactoringMcp.Specifications/Serving/When_a_file_declaring_a_type_is_deleted_on_disk.cs)
+  The headless host has no frontend to service that rescan. In the spike a tracker commit removed the symbol and
+  reloading the owning project removed the remaining empty project item.
+  [Headless observations](../experiments/HeadlessHost/README.md#freshness-in-the-standalone-fixture)
 - `search_symbol` with `includeLibraries` finds a compiled member only as `Type.Member`, not by its name alone
   (`GetProjectMark` gives none): scanning every compiled type's members takes seconds. An index of member names
   would do it.

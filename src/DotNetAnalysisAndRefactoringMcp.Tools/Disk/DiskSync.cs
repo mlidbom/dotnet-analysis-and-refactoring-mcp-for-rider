@@ -25,10 +25,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Disk;
 /// <remarks>
 ///   <para>
 ///     Suspects are the files a call names, the files <see cref="DiskChanges"/> saw change, and the files that
-///     differed before. For a suspect whose document differs from disk, or a file on disk in no project yet that the
-///     call names or that is in a project's folder, the frontend is asked to rescan it (and the folder of a new file),
-///     and the call waits until the backend has the new text. A file still different after that wait is not waited on
-///     again until its disk time changes.
+///     differed before. The frontend rescans changed files and the folders of added or deleted files. The call waits
+///     for current document text, for a new file the call names or a project should include, and for a deleted file
+///     to leave the project model. A file still different after that wait is not waited on again until its disk time changes.
 ///   </para>
 ///   <para>
 ///     The frontend's rescan alone lands anywhere from 0.1 s to 9 s later (measured). So stale documents are
@@ -76,15 +75,16 @@ public sealed class DiskSync
       var before = await execution.Read(() => Check(suspects));
 
       var stale = before.Stale.Where(x => IsUnsettled(it => it.Stale, x)).ToList();
-      if(stale.Count > 0)
-         await Reconcile(lifetime, stale);
+      var changedOnDisk = stale.Where(File.Exists).ToList();
+      if(changedOnDisk.Count > 0)
+         await Reconcile(lifetime, changedOnDisk);
 
       var absent = before.Absent.Where(x => IsUnsettled(it => it.Absent, x)).ToList();
-      var rescan = stale
+      var rescan = stale.Select(PathToRescan)
                   .Concat(absent)
                   .Concat(absent.Select(Path.GetDirectoryName))
                   .Concat(changes.Directories)
-                  .Concat(unverified)
+                  .Concat(unverified.Select(PathToRescan))
                   .Distinct()
                   .ToList();
 
@@ -106,6 +106,9 @@ public sealed class DiskSync
          named.Contains(file)
       || projectFolders.Any(folder => file.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
    }
+
+   /// <summary>Rescanning the containing folder lets Rider discover that a file has disappeared.</summary>
+   static string PathToRescan(string file) => File.Exists(file) ? file : Path.GetDirectoryName(file)!;
 
    /// <summary>The folders of the solution's project files.</summary>
    IReadOnlyList<string> ProjectFolders() =>
@@ -191,7 +194,11 @@ public sealed class DiskSync
       {
          Interruption.Current.CheckAndThrow();
          if(!File.Exists(file))
+         {
+            if(ProjectFilesAt(file).Any())
+               stale.Add(file);
             continue;
+         }
 
          var document = Document(file);
          if(document == null)
@@ -203,12 +210,12 @@ public sealed class DiskSync
       return new DiskState(stale, absent);
    }
 
+   IEnumerable<IProjectFile> ProjectFilesAt(string file) => _solution.FindProjectItemsByLocation(Parse(file)).OfType<IProjectFile>();
+
    IDocument? Document(string file) =>
-      _solution.FindProjectItemsByLocation(Parse(file))
-               .OfType<IProjectFile>()
-               .Select(x => x.ToSourceFiles().FirstOrDefault())
-               .FirstOrDefault(x => x != null)
-              ?.Document;
+      ProjectFilesAt(file).Select(it => it.ToSourceFiles().FirstOrDefault())
+                          .FirstOrDefault(it => it != null)
+                          ?.Document;
 
    /// <summary>
    ///   Whether a file is worth a reload and a wait: it was not left in <paramref name="settled"/> by an earlier
@@ -243,8 +250,8 @@ public sealed class DiskSync
 }
 
 /// <summary>
-///   What a sync could not fix: files whose Rider copy still differs from disk (unsaved edits in Rider, or a reload
-///   Rider has not finished), and named files that are on disk but in no project yet.
+///   What a sync could not fix: files whose Rider copy still differs from disk (including deleted files still in a
+///   project), and named files that are on disk but in no project yet.
 /// </summary>
 public sealed class DiskReport
 {
