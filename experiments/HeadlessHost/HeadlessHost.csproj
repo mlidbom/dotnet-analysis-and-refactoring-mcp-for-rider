@@ -6,12 +6,12 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <DefaultItemExcludes>$(DefaultItemExcludes);checks/fixture/**;ZoneProbe/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);checks/fixture/**;ZoneProbe/**;LiveDaemon/**</DefaultItemExcludes>
     <JbHome Condition="'$(JbHome)' == ''">$(UserProfile)\.dotnet\tools\.store\jetbrains.resharper.globaltools\2026.3.0.1\jetbrains.resharper.globaltools\2026.3.0.1\tools\net10.0\any</JbHome>
   </PropertyGroup>
   <ItemGroup>
     <RuntimeHostConfigurationOption Include="Microsoft.NETCore.DotNetHostPolicy.SetAppPaths" Value="true" />
     <Reference Include="$(JbHome)\inspectcode.exe;$(JbHome)\JetBrains.Platform.*.dll;$(JbHome)\JetBrains.Lifetimes.dll;$(JbHome)\JetBrains.ReSharper.Psi.dll;$(JbHome)\JetBrains.ReSharperAutomationTools.CommandLine.Common.dll" Private="false" />
-    <Reference Include="$(JbHome)\JetBrains.ReSharper.Feature.Services.dll;$(JbHome)\JetBrains.ReSharper.NewRefactorings.dll;$(JbHome)\JetBrains.ReSharper.Psi.CSharp.dll" Private="false" />
+    <Reference Include="$(JbHome)\JetBrains.ReSharper.Feature.Services.dll;$(JbHome)\JetBrains.ReSharper.Daemon.dll;$(JbHome)\JetBrains.ReSharper.NewRefactorings.dll;$(JbHome)\JetBrains.ReSharper.Psi.CSharp.dll" Private="false" />
   </ItemGroup>
 </Project>

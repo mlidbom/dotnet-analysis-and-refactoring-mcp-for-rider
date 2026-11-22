@@ -44,14 +44,14 @@ static class Program
 
    /// <summary>Uses InspectCode's product packages and settings. Selecting <see cref="IInspectCodeEnvironmentZone"/>
    /// lets our process decide what to do with the composed shell.</summary>
-   static IComponentContainer StartShell(Lifetime lifetime, string solutionPath, string cacheDirectory, string[] extensions)
+   static IComponentContainer StartShell(Lifetime lifetime, string solutionPath, string cacheDirectory, string[] startupArguments)
    {
       Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-      string[] options = [Path.GetFullPath(solutionPath), "--no-build", "--caches-home=" + Path.GetFullPath(cacheDirectory), .. extensions];
+      string[] options = [Path.GetFullPath(solutionPath), "--no-build", "--caches-home=" + Path.GetFullPath(cacheDirectory), .. startupArguments];
       var hostInfo = HostInfo.CreateForCurrentWave("HeadlessHost");
       var host = CommandLineProgram.Prepare<IInspectCodeEnvironmentZone>(typeof(InspectCodeProgram).Assembly,
          hostInfo, isEverythingOnStdErr: true, loadAllPackages: false, options);
-      if(extensions.Length > 0)
+      if(startupArguments.Any(it => it.StartsWith("-x=", StringComparison.Ordinal)))
       {
          if(Environment.GetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT") is not ("23910" or "23920"))
             throw new InvalidOperationException("This host loads Royder only with experimental base port 23910 or 23920.");

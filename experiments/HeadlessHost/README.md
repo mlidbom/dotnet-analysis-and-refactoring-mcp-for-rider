@@ -64,13 +64,15 @@ python -X utf8 experiments/HeadlessHost/Check.py zones --request-zones both
 
 Enabling external sources also activated `NavigationZone`, `ResultListImplZone` and `SymbolsImplZone`. Royder returned the class declaration and member signatures. Method bodies require acceptance of the decompiler notice in the applicable settings.
 
-For code editing, `ZoneLicenseChecker.IsZoneAllowed` returned **false** for the zone itself in all four runs. `ZoneUserPreferenceChecker.IsZoneExplicitlyDisabled` returned null and the expiry filter allowed it. The external-sources zone was license-allowed throughout. These are the free InspectCode host's decisions on this machine. Using an existing paid subscription in a separately licensed headless host remains unverified. [JetBrains InspectCode documentation](https://www.jetbrains.com/help/resharper/InspectCode.html)
+During shell composition, `RunsProducts.CollectModuleZonesForShell` collects both the requested activations and the zones excluded by the license, preference and expiry checks. For code editing, `ZoneLicenseChecker.IsZoneAllowed` returned **false** for the zone itself in all four runs. `ZoneUserPreferenceChecker.IsZoneExplicitlyDisabled` returned null and the expiry filter allowed it. The external-sources zone was license-allowed throughout. These are the free InspectCode host's decisions on this machine. Using an existing paid subscription in a separately licensed headless host remains unverified. [JetBrains InspectCode documentation](https://www.jetbrains.com/help/resharper/InspectCode.html)
 
 With both zones requested, C# rename and namespace move still selected `RenameHelperBase` and `MoveToNamespaceHelperBase`. Both returned `IsLanguageSupported = false`. The three diagnostics in `McpShellComponent.cs` (`ConvertClosureToMethodGroup`, `UseUtf8StringLiteral` and `AssignNullToNotNullAttribute`) still had no quick fixes. The engine logged non-explicit universal compilation-context warnings during the read probes. The table reports the actual HTTP replies.
 
 We repeated all three real edits on paired DevelopmentEnvironment sources. `rename_symbol` stopped at `UnsupportedLanguage` in 0.078 s. `move_type_to_namespace` stopped at workflow initialization in 0.055 s. Both retained the original declaration and caller. `fix_usings` saved the import in 1.047 s, headless diagnostics went from two to zero, and the preloaded Rider frontend matched disk after 2.436 s. The project built before and after each case, and Git restored the probe files. To repeat, run `Check.py rename --paired --request-zones both`, substituting `fix-usings` or `move-type` for the other edits.
 
 ### Both ReSharper backends on the worktree solution
+
+The fixture-only editing and daemon probes below can also run with Rider closed. The paired measurements in this section used Rider.
 
 One paired run on 2026-11-22 produced the following results. The Rider column describes the read after the headless check. The frontend delay for `fix_usings` was measured separately by polling the document that was read before the edit.
 
@@ -109,11 +111,49 @@ The save event in the 0.810-second run recorded `SolutionDocumentTransactionMana
 
 The headless host reported `ILanguageCSharpZone` active and `ICodeEditingZone` absent. The live rename and move workflows selected `RenameHelperBase` and `MoveToNamespaceHelperBase` respectively. Both returned `IsLanguageSupported = false`. Inspection of the installed binaries showed that rename checks language support during availability checking, and that namespace-move initialization checks each declaration's language helper. The C# refactoring assembly's zone marker requires both zones. Royder's move error suggests a nested type, type parameter or declaration error even when the required language service is missing.
 
+### Editing tools on the fixture
+
+```powershell
+python -X utf8 experiments/HeadlessHost/Check.py editing-services --request-zones both --live-daemon
+python -X utf8 experiments/HeadlessHost/Check.py daemon --request-zones both
+python -X utf8 experiments/HeadlessHost/Check.py daemon --request-zones both --no-swea
+```
+
+These commands use only the experiment's SDK fixture. Omit `--live-daemon` from the first command to run the same matrix with InspectCode's stock daemon. Each editing scenario checks the headless documents and disk bytes, closes its engine, restores the sources through its private Git index and removes the temporary directory. `Run.ps1` checks for at least 4 GiB of available physical memory before launch, samples availability while the engine runs and stops its own process tree if a sample is below 2 GiB. It redirects JetBrains settings, caches and temporary files and sets `JETBRAINS_NO_CHECK_FOR_UPDATES`.
+
+Both zones were **requested** for these calls. `ExternalSourcesZone` ran, and `ICodeEditingZone` was denied by InspectCode's license checker. We did not sign in to a JetBrains account, initiate a license-server check or install a license. Testing the licensed editing services still requires a supported product context that grants the zone.
+
+| Tool and case | Observed result |
+| --- | --- |
+| `rename_symbol`, real and dry run | Both returned `UnsupportedLanguage` before the workflow started. The method and its caller in a second file kept their original names and bytes. The dry run never reached rollback. |
+| `move_type_to_namespace` | Workflow initialization returned false for a top-level type. The source and caller stayed in place, and the destination file and project item remained absent. |
+| `list_quick_fixes` and `apply_quick_fix` | The `ConvertClosureToMethodGroup` highlighting covered the caret. The list was empty. Applying the known `ToMethodGroupFix` returned `applied=false` and left the source intact. |
+| `apply_suggestions` | The same inspection ID in file scope returned zero applied fix types. The lambda remained on disk and in the engine. |
+| `generate_members` | Generated a constructor assigning its argument to a writable property. The equality case generated the typed and object `Equals` methods and `GetHashCode`. The generated text was saved. |
+| `format_file` | The default formatter corrected whitespace. The full-cleanup and code-style profiles also reformatted the test method and saved it. In the tested profiles, the explicit `private` modifier and `int` local remained. |
+| `complete_at` | Returned zero candidates after `this.` where a known instance member was in scope. A direct probe created an `AnonymousTextControl` on the correct document, moved it to offset 196 and read back 196. ReSharper produced a C# completion context and a non-null result. The sole registered provider for that evaluation was `BaseRelevanceRule`, which decorates existing items. |
+| `get_symbol_source` on a compiled type | Returned the C# metadata declaration and member signatures of `System.InvalidOperationException`. The private settings retained the decompiler notice setting, so this did not exercise method-body decompilation. |
+
+Both daemon configurations gave the same capabilities in these cases. No frontend was needed for the successful writes. The failed rename, move and quick-fix requests stopped before an interactive step. The installed `JetBrains.ReSharper.Features.Intellisense` namespace requires `ICodeEditingZone`, and its C# completion namespace also requires `ILanguageCSharpZone`. This is consistent with finding a C# context but no member-producing rule. Which interactions a fully licensed composition would require remains open. [JetBrains SDK namespace zone markers](https://www.jetbrains.com/help/resharper/sdk/Zones_Usage.html)
+
+### Choosing the daemon for an editing host
+
+**Use the platform's ordinary `DaemonImpl` and `DaemonThread` for the live host.** `InspectCodeDaemonManual.OnPsiTransactionStarted` calls `Logger.Fail` on a normal PSI transaction, and `InspectCodeDaemonThread` executes queued daemon jobs synchronously. With `-LiveDaemon`, the local Royder package includes `Royder.LiveDaemon.dll`. Its two subclasses select the ordinary implementations through the SDK's `IHideImplementation<T>` mechanism and inherit their behavior with no overrides. The experiment verifies the concrete `IDaemon` and `IDaemonThread` resolved from the solution container. [JetBrains SDK component replacement](https://www.jetbrains.com/help/resharper/sdk/ContainersPartsCatalogues.html)
+
+The comparison opens the same solution and identical fixture sources in each configuration, runs `get_diagnostics` and file- and solution-scope `inspect_code`, applies a real `fix_usings`, verifies the saved bytes and repeats both inspections. The edit produced byte-identical files. Only the manual daemon logged **Unexpected transaction in command line**. The full `get_diagnostics` JSON matched before and after the edit.
+
+| Solution-wide analysis | `inspect_code` outcome |
+| --- | --- |
+| Enabled | The manual daemon still reported incomplete after each 15 s wait. The live daemon completed analysis. Its reports included global unused-member and unused-type findings. One pre-edit sample also differed on two Roslyn `CA1822` hints. The reports at these different readiness states differed. |
+| Explicitly off in both engines | File results matched at 10 findings before the edit and nine afterward. Whole-solution results matched at 13 before and 11 afterward. Each comparison includes file, position, severity, ID, message and multiplicity. The raw text could order a Roslyn finding differently at a tied position, even after removing elapsed time. |
+
+The raw replies, analysis-readiness samples, concrete service types, issue differences and both daemon logs remain under the printed evidence directory. Full solution-wide parity when both daemons have completed remains unverified. The fixture timings do not establish large-solution behavior.
+
 ### Smallest proposed changes
 
 - Keep the existing document reconciliation for a headless content change. Skip the Rider-specific refresh request when the host has no frontend. For structural changes, retain missing paths through `DiskSync.Check`, commit the engine tracker, reload each affected project once and verify the old and new project items before answering. The existing `reload_projects` implementation supplies a tested reload and index wait. This also avoids spending ten seconds waiting on an unbound frontend. [DiskSync.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Disk/DiskSync.cs) · [ReloadProjectsTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/ReloadProjectsTool.cs)
 - For rename and namespace moves, the headless product needs a host licensed for C# code editing. The explicit zone request above confirmed the first blocker. Keep the existing symbol and refactoring checks and report the missing capability directly, especially in `MoveTypeToNamespaceTool`. The later steps of these workflows remain untested in a licensed headless host. [RenameSymbolTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/RenameSymbolTool.cs) · [MoveTypeToNamespaceTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/MoveTypeToNamespaceTool.cs)
-- `fix_usings` needs no persistence change for the tested file. InspectCode's `InspectCodeDaemonManual.OnPsiTransactionStarted` logged `Unexpected transaction in command line` during a successful edit. A live editing host should select a daemon that supports edit transactions. The experiment left production Royder unchanged.
+- `fix_usings` needs no persistence change for the tested file. Selecting the ordinary daemon and daemon thread removed InspectCode's transaction error in the controlled comparison above. The experiment left production Royder unchanged.
 
 Changes to project references and generated files, refactoring rollback and edits racing another writer remain open. The failed rename and namespace move did not reach their mutation or save paths.
 

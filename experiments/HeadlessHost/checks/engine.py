@@ -28,12 +28,17 @@ def request(port, path, data=None):
 
 
 class LiveEngine:
-    def __init__(self, evidence, solution=SOLUTION, probe_missing_import=False, request_zones=None):
+    def __init__(self, evidence, solution=SOLUTION, probe_missing_import=False, request_zones=None, live_daemon=False,
+                 no_swea=False):
         self.evidence = evidence
         self.solution = solution
         self.probe_missing_import = probe_missing_import
         self.request_zones = request_zones
         self.cache = CACHE / ("zones-" + request_zones) if request_zones else CACHE
+        self.live_daemon = live_daemon
+        self.no_swea = no_swea
+        if live_daemon:
+            self.cache = self.cache / "live-daemon"
         self.lines = queue.Queue()
         self.observations = []
 
@@ -44,6 +49,10 @@ class LiveEngine:
             command.append("-ProbeMissingImport")
         if self.request_zones:
             command.extend(["-RequestZones", self.request_zones])
+        if self.live_daemon:
+            command.append("-LiveDaemon")
+        if self.no_swea:
+            command.append("-NoSolutionWideAnalysis")
         self.process = subprocess.Popen(command, cwd=ROOT, stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
         self.reader = threading.Thread(target=self._record_console, daemon=True)
@@ -103,6 +112,16 @@ class LiveEngine:
     def document(self, path):
         output = self.console("document " + str(path))
         return json.loads(next(line[9:] for line in output if line.startswith("DOCUMENT ")))
+
+    def services(self):
+        lines = self.console("services")
+        services = json.loads(next(line[9:] for line in lines if line.startswith("SERVICES ")))
+        expected = (("Royder.LiveDaemon.LiveSolutionDaemon", "Royder.LiveDaemon.LiveDaemonThread") if self.live_daemon else
+                    ("JetBrains.CommandLine.InspectCode.Unattended.InspectCodeDaemonManual",
+                     "JetBrains.CommandLine.InspectCode.Unattended.InspectCodeDaemonThread"))
+        if (services["daemon"], services["daemonThread"]) != expected:
+            raise RuntimeError(f"Unexpected daemon selection: {services}")
+        return services
 
     def require_solution(self, port, expected=None):
         answer = self.call("list_solutions", port=port)

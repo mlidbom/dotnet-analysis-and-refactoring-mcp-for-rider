@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="$(JbHome)/inspectcode.exe;$(JbHome)/JetBrains.Platform.*.dll;$(JbHome)/JetBrains.ReSharper.Daemon.dll;$(JbHome)/JetBrains.ReSharper.Daemon.Engine.dll;$(JbHome)/JetBrains.ReSharper.Feature.Services.dll;$(JbHome)/JetBrains.ReSharper.Psi.dll;$(JbHome)/JetBrains.ReSharper.Resources.dll;$(JbHome)/JetBrains.ReSharperAutomationTools.CommandLine.Common.dll;$(JbHome)/JetBrains.Lifetimes.dll" Private="false" />
+  </ItemGroup>
+</Project>

@@ -7,8 +7,13 @@ using JetBrains.DocumentModel;
 using JetBrains.DocumentModel.Storage;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
+using JetBrains.ReSharper.Daemon;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Caches;
+using JetBrains.ReSharper.Feature.Services.Daemon;
+using JetBrains.ReSharper.Feature.Services.CodeCompletion;
+using JetBrains.ReSharper.Feature.Services.CodeCompletion.Infrastructure;
+using JetBrains.TextControl;
 using JetBrains.Threading;
 using JetBrains.Util;
 
@@ -54,6 +59,23 @@ sealed class SolutionSession(ISolution solution, IShellLocks locks, Lifetime lif
          if(input.Result is null or "exit") return;
          if(input.Result == "refresh")
             locks.ReentrancyGuard.Execute("Commit file system changes", () => _tracker.CommitChanges());
+         else if(input.Result == "wait-swea")
+            WaitForSolutionWideAnalysis();
+         else if(input.Result.StartsWith("completion-context ", StringComparison.Ordinal))
+         {
+            var position = input.Result["completion-context ".Length..].Split(' ', 2);
+            InspectCompletionContext(position[1], int.Parse(position[0]));
+         }
+         else if(input.Result == "services")
+            locks.ReentrancyGuard.Execute("Read editing services", () =>
+            {
+               using var read = locks.UsingReadLock();
+               Console.WriteLine("SERVICES " + JsonSerializer.Serialize(new {
+                  daemon = solution.GetComponent<IDaemon>().GetType().FullName,
+                  daemonThread = solution.GetComponent<IDaemonThread>().GetType().FullName,
+                  textControls = solution.GetComponent<ITextControlManager>().GetType().FullName
+               }));
+            });
          else if(input.Result == "refactorings")
             locks.ReentrancyGuard.Execute("Read C# refactoring support", () =>
             {
@@ -69,13 +91,49 @@ sealed class SolutionSession(ISolution solution, IShellLocks locks, Lifetime lif
       }
    }
 
+   /// <summary>Checks the document, actual caret offset and applicable contexts used by basic completion.</summary>
+   void InspectCompletionContext(string path, int offset) => locks.ReentrancyGuard.Execute("Inspect completion context", () =>
+   {
+      using var read = locks.UsingReadLock();
+      locks.ExecuteWithWriteLock(() => Lifetime.Using(controlLifetime =>
+      {
+         var document = DocumentOf(ProjectFiles(path)) ?? throw new InvalidOperationException("No project document for " + path);
+         var control = solution.GetComponent<ITextControlManager>().CreateTextControl(controlLifetime, document);
+         control.Caret.MoveTo(offset, CaretVisualPlacement.DontScrollIfVisible);
+         var manager = solution.GetComponent<IntellisenseManager>();
+         var parameters = new CodeCompletionParameters(CodeCompletionType.BasicCompletion);
+         var contexts = manager.SpecificCodeCompletionContexts(parameters, control);
+         var providers = contexts.SelectMany(context => LanguageManager.Instance.GetServices<ICodeCompletionItemsProvider>(context.Language))
+                                 .Where(it => (it.SupportedEvaluationMode & parameters.EvaluationMode) != 0)
+                                 .Select(it => it.GetType().FullName).Distinct().Order().ToArray();
+         var result = manager.GetCompletionResult(parameters, control);
+         Console.WriteLine("COMPLETION-CONTEXT " + JsonSerializer.Serialize(new {
+            control = control.GetType().FullName, sameDocument = control.Document == document,
+            requestedOffset = offset, actualOffset = (int)control.Caret.Position.Value.ToDocOffset(),
+            contexts = contexts.Select(it => it.GetType().FullName).ToArray(), providers,
+            result = result?.GetType().FullName, itemCount = result?.LookupItems?.Count
+         }));
+      }));
+   });
+
+   /// <summary>Allows solution-wide analysis to catch up before comparing daemon inspection results.</summary>
+   void WaitForSolutionWideAnalysis()
+   {
+      var analysis = SolutionAnalysisConfiguration.GetInstance(solution);
+      var timer = Stopwatch.StartNew();
+      JetDispatcher.Run(() => analysis.Enabled.Value && !analysis.Completed.Value,
+                        TimeSpan.FromSeconds(15), bThrowOnTimeout: false);
+      Console.WriteLine("SWEA " + JsonSerializer.Serialize(new {
+         enabled = analysis.Enabled.Value, completed = analysis.Completed.Value, elapsedMs = timer.ElapsedMilliseconds
+      }));
+   }
+
    /// <summary>Reads a project document directly, without Royder's pre-call disk synchronization.</summary>
    void PrintDocument(string path, bool trace = false) => locks.ReentrancyGuard.Execute("Read experiment document", () =>
    {
       using var read = locks.UsingReadLock();
-      var file = VirtualFileSystemPath.Parse(path, InteractionContext.SolutionContext);
-      var items = solution.FindProjectItemsByLocation(file).OfType<IProjectFile>().ToArray();
-      var document = items.Select(it => it.ToSourceFiles().FirstOrDefault()).FirstOrDefault(it => it != null)?.Document;
+      var items = ProjectFiles(path);
+      var document = DocumentOf(items);
       var storage = solution.GetComponent<IDocumentStorageHelpers>();
       if(trace && document != null) TraceDocument(document, (DocumentOperationsImpl)storage);
       Console.WriteLine("DOCUMENT " + JsonSerializer.Serialize(new {
@@ -83,6 +141,13 @@ sealed class SolutionSession(ISolution solution, IShellLocks locks, Lifetime lif
          unsaved = document != null && ((DocumentOperationsImpl)storage).IsDocumentUnsaved(document)
       }));
    });
+
+   IProjectFile[] ProjectFiles(string path) =>
+      solution.FindProjectItemsByLocation(VirtualFileSystemPath.Parse(path, InteractionContext.SolutionContext))
+              .OfType<IProjectFile>().ToArray();
+
+   static IDocument? DocumentOf(IProjectFile[] items) =>
+      items.Select(it => it.ToSourceFiles().FirstOrDefault()).FirstOrDefault(it => it != null)?.Document;
 
    /// <summary>Records who first changes the document and who saves it in this session.</summary>
    void TraceDocument(IDocument document, DocumentOperationsImpl storage)

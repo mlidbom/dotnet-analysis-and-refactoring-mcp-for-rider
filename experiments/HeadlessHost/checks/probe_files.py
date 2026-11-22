@@ -47,19 +47,35 @@ class ProbeFiles:
         if self.check == "add":
             return
         self.write_type(source)
-        if self.check == "rename":
+        if self.check in {"rename", "rename-preview"}:
             self.write_type(source, body=f"   internal int {BEFORE_METHOD}() => 7;\n")
             self.write_type(caller, "ProbeCaller", body=f"   int Call() => new {self.subject}().{BEFORE_METHOD}();\n")
-        if self.check == "fix-usings":
+        if self.check in {"fix-usings", "daemon"}:
             self.write_type(source, body=f"#if ROYDER_HEADLESS_IMPORT_PROBE\n"
                                          f"   internal {self.import_name} Create() => new();\n"
-                                         f"#else\n   internal Dependency.{self.import_name} Create() => new();\n#endif\n")
+                                         f"#else\n   internal Dependency.{self.import_name} Create() => new();\n#endif\n"
+                                         + (self.method_group_source() if self.check == "daemon" else ""))
             self.write_type(staged / "Dependency" / (self.import_name + ".cs"), self.import_name, namespace=self.namespace + ".Dependency")
         if self.check in {"move-file", "move-type"}:
             self.write_type(staged / "Destination" / "Anchor.cs", "LiveRoyderProbeAnchor",
                             namespace=self.namespace + ".Destination")
         if self.check == "move-type":
             self.write_type(caller, "ProbeCaller", body=f"   internal {self.subject} Create() => new();\n")
+        if self.check in {"quick-fix", "scoped-fix"}:
+            self.write_type(source, body=self.method_group_source())
+        if self.check in {"generate", "generate-equality"}:
+            self.write_type(source, body="   internal int Quantity { get; set; }\n")
+        if self.check == "format":
+            self.write_type(source, body="   internal int Add( int left,int right ){return left+right;}\n")
+        if self.check in {"cleanup", "style"}:
+            self.write_type(source, body="   private int Identity( int value ){int result = value;return result;}\n")
+        if self.check == "complete":
+            self.write_type(source, body='   internal string KnownProbeMember() => "probe";\n'
+                                         '   internal string SelectValue() => this.KnownProbeMember();\n')
+
+    @staticmethod
+    def method_group_source():
+        return "   internal System.Action Handler() => () => Execute();\n   private void Execute() {}\n"
 
     @contextmanager
     def installed(self):

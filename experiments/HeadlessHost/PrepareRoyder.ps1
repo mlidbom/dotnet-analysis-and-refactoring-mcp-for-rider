@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string] $Cache, [string] $JbHome, [switch] $IncludeZoneProbe)
+param([Parameter(Mandatory)][string] $Cache, [string] $JbHome, [switch] $IncludeZoneProbe, [switch] $LiveDaemon)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 $artifacts = Join-Path $PSScriptRoot 'obj/package-build'
@@ -12,13 +12,17 @@ $toolsFile = "$artifacts/bin/$toolsName/debug/$toolsName.dll"
 $toolsHash = (Get-FileHash $toolsFile).Hash.ToLowerInvariant()
 $packageHash = $hostHash
 $packageFiles = @("$hostFolder/$hostName.dll")
-if ($IncludeZoneProbe) {
-   dotnet build "$PSScriptRoot/ZoneProbe" --artifacts-path $artifacts -c Debug "-p:JbHome=$JbHome" -v:q --nologo | Out-Host
-   if ($LASTEXITCODE) { throw 'The zone activator build failed.' }
-   $zoneFile = "$artifacts/bin/Royder.ZoneProbe/debug/Royder.ZoneProbe.dll"
-   $zoneHash = (Get-FileHash $zoneFile).Hash
-   $packageHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::ASCII.GetBytes($hostHash + $zoneHash))).ToLowerInvariant()
-   $packageFiles += $zoneFile
+$probeProjects = @()
+if ($IncludeZoneProbe) { $probeProjects += "$PSScriptRoot/ZoneProbe/Royder.ZoneProbe.csproj" }
+if ($LiveDaemon) { $probeProjects += "$PSScriptRoot/LiveDaemon/Royder.LiveDaemon.csproj" }
+foreach ($project in $probeProjects) {
+   dotnet build $project --artifacts-path $artifacts -c Debug "-p:JbHome=$JbHome" -v:q --nologo | Out-Host
+   if ($LASTEXITCODE) { throw "Could not build $project." }
+   $assemblyName = [IO.Path]::GetFileNameWithoutExtension($project)
+   $assemblyFile = "$artifacts/bin/$assemblyName/debug/$assemblyName.dll"
+   $hashInput = [Text.Encoding]::ASCII.GetBytes($packageHash + (Get-FileHash $assemblyFile).Hash)
+   $packageHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($hashInput)).ToLowerInvariant()
+   $packageFiles += $assemblyFile
 }
 $version = "1.0.0-host.$packageHash"
 $feed = [IO.Directory]::CreateDirectory("$Cache/feed/$packageHash").FullName
