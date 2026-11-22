@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Royder.RemoteRoslynPatcher</RootNamespace>
+    <AssemblyName>Royder.RemoteRoslynPatcher</AssemblyName>
+    <RiderHome Condition="'$(RiderHome)' == ''">$(LocalAppData)\Programs\Rider</RiderHome>
+    <RiderBackend>$(RiderHome)\lib\ReSharperHost</RiderBackend>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <RiderAssembly Include="JetBrains.Lifetimes;JetBrains.Platform.ComponentModel;JetBrains.Platform.Core;
+                            JetBrains.Platform.ProjectModel;JetBrains.Platform.Shell;JetBrains.RdBackend.Common;
+                            JetBrains.ReSharper.Feature.Services;JetBrains.Roslyn.Host" />
+    <Reference Include="@(RiderAssembly->'$(RiderBackend)\%(Identity).dll')" Private="false" />
+  </ItemGroup>
+
+  <Target Name="BuildPrivatePluginFolder" AfterTargets="Build">
+    <PropertyGroup>
+      <PluginDirectory>$(TargetDir)plugin\RemoteRoslynPatcher</PluginDirectory>
+    </PropertyGroup>
+    <MakeDir Directories="$(PluginDirectory)\dotnet;$(PluginDirectory)\lib" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginDirectory)\dotnet" />
+    <ZipDirectory SourceDirectory="$(MSBuildProjectDirectory)\descriptor"
+                  DestinationFile="$(PluginDirectory)\lib\RemoteRoslynPatcher.jar" Overwrite="true" />
+  </Target>
+</Project>

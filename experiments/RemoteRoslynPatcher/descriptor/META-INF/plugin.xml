@@ -1,0 +1,9 @@
+<idea-plugin require-restart="true">
+  <id>dev.magnus.royder.remote-roslyn-patcher</id>
+  <name>Royder Remote Roslyn Patcher</name>
+  <version>0.1</version>
+  <idea-version since-build="263.7307.325" until-build="263.7307.325" />
+  <vendor>Royder experiments</vendor>
+  <depends>com.intellij.modules.rider</depends>
+  <description>Starts the local Roslyn worker in an agent server's private directory so its working directory can outlive a Git worktree.</description>
+</idea-plugin>
