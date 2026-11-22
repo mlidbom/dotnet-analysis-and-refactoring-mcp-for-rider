@@ -26,6 +26,7 @@ public class ApplyQuickFixTool : IMcpAsyncTool, IMcpEditTool
    public ApplyQuickFixTool(ISolution solution) => _solution = solution;
 
    public string Name => "apply_quick_fix";
+   public ToolAnnotations Annotations => ToolAnnotations.OpenWorldChange;
 
    public string Description =>
       "Apply a ReSharper quick-fix (bulb action) at a position in a file. " +

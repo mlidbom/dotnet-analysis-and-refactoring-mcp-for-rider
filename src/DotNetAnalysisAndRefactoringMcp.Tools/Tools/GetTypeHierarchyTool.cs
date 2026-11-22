@@ -19,6 +19,7 @@ public class GetTypeHierarchyTool : IMcpTool
    public GetTypeHierarchyTool(ISolution solution) => _solution = solution;
 
    public string Name => "get_type_hierarchy";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Get the inheritance hierarchy of a type as a tree. " +

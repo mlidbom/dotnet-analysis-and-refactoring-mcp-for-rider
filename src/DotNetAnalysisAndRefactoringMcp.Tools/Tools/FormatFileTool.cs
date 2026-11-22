@@ -28,6 +28,7 @@ public class FormatFileTool : IMcpSelfTransactingWriteTool, IMcpEditTool
    }
 
    public string Name => "format_file";
+   public ToolAnnotations Annotations => ToolAnnotations.SolutionEdit;
 
    public string Description =>
       "Format a source file or run full code cleanup. " +

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using DotNetAnalysisAndRefactoringMcp.Protocol;
+using DotNetAnalysisAndRefactoringMcp.Tools;
 using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Serving;
@@ -26,6 +27,7 @@ static class ToolList
       new()
       {
          Name = "list_solutions",
+         Annotations = ToolAnnotations.ReadOnly,
          Description = "List all currently open solutions in Rider. "
                      + "Use this to discover available solution names when multiple solutions are open.",
          InputSchema = new JObject { ["type"] = "object", ["properties"] = new JObject(), ["required"] = new JArray() }
@@ -47,6 +49,6 @@ static class ToolList
                                    };
       schema["properties"] = properties;
 
-      return new ToolDefinition { Name = tool.Name, Description = tool.Description, InputSchema = schema };
+      return new ToolDefinition { Name = tool.Name, Description = tool.Description, InputSchema = schema, Annotations = tool.Annotations };
    }
 }

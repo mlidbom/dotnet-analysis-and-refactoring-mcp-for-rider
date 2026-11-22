@@ -37,6 +37,7 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
    public RenameSymbolTool(ISolution solution) => _solution = solution;
 
    public string Name => "rename_symbol";
+   public ToolAnnotations Annotations => ToolAnnotations.SolutionEdit;
 
    public string Description =>
       "Safely rename a code symbol (class, method, property, field, parameter, local, type parameter, etc.) " +

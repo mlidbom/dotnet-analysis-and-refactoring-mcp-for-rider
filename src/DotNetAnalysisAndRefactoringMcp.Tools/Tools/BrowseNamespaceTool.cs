@@ -18,6 +18,7 @@ public class BrowseNamespaceTool : IMcpTool
    public BrowseNamespaceTool(ISolution solution) => _solution = solution;
 
    public string Name => "browse_namespace";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Browse the namespace hierarchy. With no arguments, lists all top-level namespaces. " +

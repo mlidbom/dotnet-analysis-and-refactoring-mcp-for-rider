@@ -17,6 +17,7 @@ public class SearchSymbolTool : IMcpTool
    public SearchSymbolTool(ISolution solution) => _solution = solution;
 
    public string Name => "search_symbol";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Search for symbols (types, methods, properties, etc.) by name across the entire solution. " +

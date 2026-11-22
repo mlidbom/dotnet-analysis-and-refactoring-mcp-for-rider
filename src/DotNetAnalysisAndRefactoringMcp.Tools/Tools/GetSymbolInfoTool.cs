@@ -19,6 +19,7 @@ public class GetSymbolInfoTool : IMcpTool
    public GetSymbolInfoTool(ISolution solution) => _solution = solution;
 
    public string Name => "get_symbol_info";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Get detailed information about a code symbol: " +

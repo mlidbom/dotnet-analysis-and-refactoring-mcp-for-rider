@@ -55,6 +55,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool, IMcpExpandableTool
    public InspectCodeTool(ISolution solution) => _solution = solution;
 
    public string Name => "inspect_code";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Run ReSharper's inspections over files, folders, projects or the whole solution, as Rider's Inspect Code does, " +

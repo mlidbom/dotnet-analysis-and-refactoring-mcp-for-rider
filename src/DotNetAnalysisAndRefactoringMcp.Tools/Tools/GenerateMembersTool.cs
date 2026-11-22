@@ -40,6 +40,7 @@ public class GenerateMembersTool : IMcpWriteTool, IMcpEditTool
    public GenerateMembersTool(ISolution solution) => _solution = solution;
 
    public string Name => "generate_members";
+   public ToolAnnotations Annotations => ToolAnnotations.AdditiveEdit;
 
    public string Description =>
       "Generate members on a type (WRITE operation — modifies source files). " +

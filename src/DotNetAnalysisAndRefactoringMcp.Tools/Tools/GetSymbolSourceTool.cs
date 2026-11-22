@@ -18,6 +18,7 @@ public class GetSymbolSourceTool : IMcpTool
    public GetSymbolSourceTool(ISolution solution) => _solution = solution;
 
    public string Name => "get_symbol_source";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Get the FULL declaration source code of a symbol (class, method, property, etc.), " +

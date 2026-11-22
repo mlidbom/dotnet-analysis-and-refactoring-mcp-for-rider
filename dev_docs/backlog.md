@@ -175,16 +175,6 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   `Outer.NewName.cs`; and the outer type's rename renaming each `Outer.*.cs` with it, as in the bullet above. The
   subagent renamed it with `git mv` (`~/.claude` cef7332).
 
-## MCP tool annotations, for Codex
-
-Codex has Royder since 2026-11-21 (gpt-collaborators, `~/.claude` c794756), and it is a second client of the same
-server. None of the 26 tools carries MCP annotations, `readOnlyHint` included. Codex's default treats a tool not
-marked read-only as one needing approval, so every Royder call goes through its approvals reviewer, a model call of
-its own; that day the reviewer let each through without asking Magnus. Wanted: `readOnlyHint: true` on the tools that
-only read (`search_symbol`, `find_usages`, `get_diagnostics` and the like), so Codex skips the review for them; the
-edit tools left unmarked, or marked as the MCP specification's other hints fit. Not checked: what Claude Code does
-with the annotations.
-
 ## The rename to Royder
 
 Magnus, 2026-11-19: Royder MCP is the preliminary name (see `CLAUDE.md`). When it is final, everything that isn't hard

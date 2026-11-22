@@ -21,6 +21,7 @@ public class FixUsingsTool : IMcpWriteTool, IMcpEditTool
    public FixUsingsTool(ISolution solution) => _solution = solution;
 
    public string Name => "fix_usings";
+   public ToolAnnotations Annotations => ToolAnnotations.AdditiveEdit;
 
    public string Description =>
       "Fix missing using directives in a C# file. " +

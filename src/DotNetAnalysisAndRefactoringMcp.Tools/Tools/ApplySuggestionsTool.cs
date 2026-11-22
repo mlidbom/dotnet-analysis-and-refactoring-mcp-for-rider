@@ -51,6 +51,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
    public ApplySuggestionsTool(ISolution solution) => _solution = solution;
 
    public string Name => "apply_suggestions";
+   public ToolAnnotations Annotations => ToolAnnotations.OpenWorldChange;
 
    public string Description =>
       "Apply ReSharper's quick-fixes by inspection id across a file, or its folder, project or the whole " +

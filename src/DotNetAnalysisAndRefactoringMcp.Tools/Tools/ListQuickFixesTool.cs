@@ -27,6 +27,7 @@ public class ListQuickFixesTool : IMcpTool
    public ListQuickFixesTool(ISolution solution) => _solution = solution;
 
    public string Name => "list_quick_fixes";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "List the ReSharper quick-fixes (bulb actions) available at a position in a file. " +

@@ -25,6 +25,7 @@ public class GetDiagnosticsTool : IMcpTool
    public GetDiagnosticsTool(ISolution solution) => _solution = solution;
 
    public string Name => "get_diagnostics";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Run ReSharper's daemon inspections on a file and report diagnostics: severity, inspection id, " +

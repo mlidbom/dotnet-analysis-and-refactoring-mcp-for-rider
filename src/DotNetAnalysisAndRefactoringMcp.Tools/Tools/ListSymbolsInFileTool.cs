@@ -16,6 +16,7 @@ public class ListSymbolsInFileTool : IMcpTool
    public ListSymbolsInFileTool(ISolution solution) => _solution = solution;
 
    public string Name => "list_symbols_in_file";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "List all symbols declared in a file: types, methods, properties, fields, events. " +

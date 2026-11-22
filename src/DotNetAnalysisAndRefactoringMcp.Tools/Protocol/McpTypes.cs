@@ -56,6 +56,9 @@ public class ToolDefinition
 
    [JsonProperty("inputSchema")]
    public object InputSchema { get; set; }
+
+   [JsonProperty("annotations", NullValueHandling = NullValueHandling.Ignore)]
+   public object Annotations { get; set; }
 }
 
 public class CallToolResult

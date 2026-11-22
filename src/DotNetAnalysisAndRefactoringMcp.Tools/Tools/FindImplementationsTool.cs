@@ -17,6 +17,7 @@ public class FindImplementationsTool : IMcpTool
    public FindImplementationsTool(ISolution solution) => _solution = solution;
 
    public string Name => "find_implementations";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Find all implementations of an interface, abstract class, or virtual/abstract member. " +

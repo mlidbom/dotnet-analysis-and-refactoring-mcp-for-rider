@@ -23,6 +23,7 @@ sealed class LocalSolution(IMcpServer server, IMcpSolution solution) : OpenSolut
                               {
                                  Name = tool.Name,
                                  Description = tool.Description,
+                                 Annotations = tool.Annotations,
                                  InputSchema = JsonOf.Value(tool.InputSchema)
                               })
               .ToList();

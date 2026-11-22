@@ -45,6 +45,7 @@ public sealed class ReloadProjectsTool : IMcpAsyncTool
    public ReloadProjectsTool(ISolution solution) => _solution = solution;
 
    public string Name => "reload_projects";
+   public ToolAnnotations Annotations => ToolAnnotations.OpenWorldChange;
 
    public string Description =>
       "Reload projects in Rider, as its Reload Project does, and return once Rider has loaded them and ReSharper has " +

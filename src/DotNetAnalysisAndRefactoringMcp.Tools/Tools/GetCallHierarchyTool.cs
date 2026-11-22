@@ -24,6 +24,7 @@ public class GetCallHierarchyTool : IMcpTool
    public GetCallHierarchyTool(ISolution solution) => _solution = solution;
 
    public string Name => "get_call_hierarchy";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Build a call hierarchy tree for a method/function. " +

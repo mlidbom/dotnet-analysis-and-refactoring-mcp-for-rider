@@ -16,6 +16,7 @@ public class GoToDefinitionTool : IMcpTool
    public GoToDefinitionTool(ISolution solution) => _solution = solution;
 
    public string Name => "go_to_definition";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Navigate to the definition/declaration of a symbol. " +

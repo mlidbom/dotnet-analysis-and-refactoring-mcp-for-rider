@@ -15,6 +15,7 @@ public class GetSolutionStructureTool : IMcpTool
    public GetSolutionStructureTool(ISolution solution) => _solution = solution;
 
    public string Name => "get_solution_structure";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Get the solution structure: all projects with their paths, target frameworks, " +

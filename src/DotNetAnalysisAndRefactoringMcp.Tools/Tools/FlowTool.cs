@@ -22,6 +22,7 @@ public class FlowTool : IMcpTool
    public FlowTool(ISolution solution) => _solution = solution;
 
    public string Name => "flow";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Describe the control flow of a method or type: ordered execution steps, branch conditions, " +

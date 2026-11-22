@@ -53,6 +53,7 @@ public sealed class MoveTypeToNamespaceTool : IMcpMainThreadTool, IMcpFileMoving
    public MoveTypeToNamespaceTool(ISolution solution) => _solution = solution;
 
    public string Name => "move_type_to_namespace";
+   public ToolAnnotations Annotations => ToolAnnotations.SolutionEdit;
 
    public IReadOnlyList<FileMove> FileMoves => _fileMoves;
 

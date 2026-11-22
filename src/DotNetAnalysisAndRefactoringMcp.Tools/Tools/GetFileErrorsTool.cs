@@ -43,6 +43,7 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
    public GetFileErrorsTool(ISolution solution) => _solution = solution;
 
    public string Name => "get_file_errors";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Fast compile check: syntax errors and unresolved references in a file, from the PSI tree. " +

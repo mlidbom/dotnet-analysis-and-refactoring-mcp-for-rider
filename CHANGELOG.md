@@ -9,6 +9,10 @@ plugin is a fork of.
 
 ## [Unreleased]
 
+### Added
+
+- `tools/list` now tells MCP clients which tools only read the solution, including code completion, and which can edit files or reload projects. The same annotations reach clients when a peer supplies the tool list.
+
 ### Fixed
 
 - A call naming a file in a Git worktree no open solution is in now receives an immediate routing error unless it explicitly selects a solution. Previously the caller could wait 10 seconds for a reply that the file was in no project, with `isError` set to `false`.

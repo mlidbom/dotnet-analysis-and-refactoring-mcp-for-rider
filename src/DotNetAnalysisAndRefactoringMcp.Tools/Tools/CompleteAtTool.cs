@@ -37,6 +37,7 @@ public class CompleteAtTool : IMcpSelfTransactingWriteTool
    public CompleteAtTool(ISolution solution) => _solution = solution;
 
    public string Name => "complete_at";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Get code completion suggestions at a position (LSP textDocument/completion parity). " +

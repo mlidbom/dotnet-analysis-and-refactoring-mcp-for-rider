@@ -29,6 +29,7 @@ public class FindUsagesTool : IMcpTool
    const int SummarizedFiles = 20;
 
    public string Name => "find_usages";
+   public ToolAnnotations Annotations => ToolAnnotations.ReadOnly;
 
    public string Description =>
       "Find all usages/references of a code symbol (class, method, property, variable, etc.) " +
