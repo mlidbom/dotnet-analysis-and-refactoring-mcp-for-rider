@@ -1,0 +1,22 @@
+# Why: in a checkout other than the main one
+
+**The need, 2026-11-22.** Magnus gave this repository three Codex helpers, two of them in git worktrees, for the
+headless Royder spike (`dev_docs/codex-helpers.md`). Two facts of the environment do harm from a worktree, and a helper
+finds them out only by doing it:
+
+- **`everyday deploy` deploys the build of the checkout it runs in,** into the Royder every session uses: a helper's
+  unreviewed build would reach Magnus's Riders.
+- **Royder's tools route a call by the files it names** to the open solution holding them most closely. A helper's
+  checkout has its own solution only once a Rider has it open; until then, an edit tool's call goes to the main
+  checkout's solution and edits files there, in other sessions' work.
+
+The symbol linker has the same rule for its helpers (`030-in-a-checkout-other-than-the-main-one.md` there); this one
+differs where Royder differs: Magnus opens a Rider on each helper's checkout, so Royder's tools work there once its
+solution is open.
+
+**Written before it was discussed,** against the rules folder's guidance, since the helpers were about to start: put
+to Magnus to check the same day.
+
+**Untested:** whether `list_solutions` gives the worktrees' solutions the segments the rule names, `royder-codex-2`
+and the like, once Riders have them open. Whether a Codex helper keeps to it; if not, look first at whether its
+`AGENTS.override.md` was regenerated after the rule changed (`ClaudesSetupForCodex project`).

@@ -287,6 +287,19 @@ The spike, before any design:
    call reaches it, how it meets the tooling owner's requirements, and what of the tools moves behind a seam between
    the two hosts.
 
+Handed to the Codex helpers (`dev_docs/codex-helpers.md`), each an independent question in files of its own, as
+gpt-collaborators advised from its rounds; `headless-royder` coordinates, reviews and merges:
+
+- **`royder-codex-2`: our own host program.** A console program referencing the `jb` package's assemblies boots the
+  engine as `inspectcode.exe` does, loads a solution with no Rider, and answers a find-usages query. Measures the time
+  until indexed and the memory held. In `experiments/HeadlessHost`.
+- **`royder-codex-3`: the engine's own command line as the host.** Whether an extension that `jb` loads (`-x`) can add
+  a long-running command of its own, such as `jb royder serve`, or keep an InspectCode run alive as a server; and
+  whether a net472 plugin loads in `jb`'s .NET 10 platform at all. In `experiments/HeadlessExtension`.
+- **`royder-codex-1`, read-only in the main checkout: what Royder needs that only Rider gives.** A walk of the host
+  and the tools for what Rider's frontend or its protocol provides (rescans, saves, `ISolutionHost`, the Rd model,
+  Rider-only zones and components), what headless would lose, and what could stand in for each. A report, no edits.
+
 ## Decided against
 
 - **An agent Rider,** a Rider of its own per solution for the agents, so that a host change needs no restart of
