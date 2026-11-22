@@ -383,6 +383,12 @@ The second round, under way:
     changing nothing: the C# refactorings' zone marker needs `ICodeEditingZone`, absent headless, so the base helpers,
     which support no language, are chosen. InspectCode's daemon logs "Unexpected transaction in command line" at an
     edit: a host that edits needs another daemon.
+  - **The zones, its round 3** (`Check.py zones`): asked for through the SDK's zone activator
+    (`IActivateDynamic<T>`), `ExternalSourcesZone` runs headless, and `get_symbol_source` then gives a compiled type's
+    metadata view. `ICodeEditingZone` doesn't: the platform's `ZoneLicenseChecker` refuses it in the command line's
+    product, so rename and move stay unsupported. How a host could run under Magnus's own license, which covers
+    ReSharper, is being read from the installed code, contacting nothing; the choice goes to Magnus. The check is
+    never to be bypassed.
 - **royder-codex-3, done:** every read tool's answer headless against Rider's
   (`experiments/HeadlessExtension/read-tool-results.md`): 18 of 30 cases the same, 10 different, 2 failed. The
   navigation, search, hierarchy, flow and file-error tools match. Missing headless: quick fixes, completion items, a
