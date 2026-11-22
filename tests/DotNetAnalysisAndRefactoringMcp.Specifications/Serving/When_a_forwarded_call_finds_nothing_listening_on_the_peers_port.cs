@@ -7,12 +7,12 @@ using Compze.xUnitBDD;
 
 namespace DotNetAnalysisAndRefactoringMcp.Specifications.Serving;
 
-public class When_a_peer_refuses_a_forwarded_call
+public class When_a_forwarded_call_finds_nothing_listening_on_the_peers_port
 {
    readonly string _refusal;
    readonly string[] _stillListedOnThePort;
 
-   public When_a_peer_refuses_a_forwarded_call(TheSandboxWithTheFixtureSolution sandbox)
+   public When_a_forwarded_call_finds_nothing_listening_on_the_peers_port(TheSandboxWithTheFixtureSolution sandbox)
    {
       var calledSolution = sandbox.PathOf("CalledPeer.sln");
       var otherSolution = sandbox.PathOf("OtherPeer.sln");

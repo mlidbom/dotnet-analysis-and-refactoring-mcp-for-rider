@@ -48,9 +48,13 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
-- **Dead-peer cleanup** (royder-codex-3, 2026-11-22). `PeerSolution.Call` now recognises CoreCLR's refused connection and removes all registrations on the port.
-  A replacement that registers on the same port between refusal and removal can lose its registration too.
-  Close that race with the process incarnation in “A Royder primary of its own” under “The design, as decided so far”.
+- **A peer that registers on a dead peer's port, between a refused call and its removal, is removed too**
+  (royder-codex-3, 2026-11-22). A refused connection removes every registration on the port (`PeerSolution.Call`),
+  since nothing listens there. The window is under a millisecond, and a peer registers only once its solution has
+  opened. Closing it needs an identity for each registration in the host, which "A Royder primary of its own" (under
+  "The design, as decided so far") brings: remove the registrations the refused call saw, by reference, under the
+  registrations' lock (royder-codex-3's `RemovePeerIfStillRegistered`, which it wrote and I held back as a host
+  change).
 - **Suspected in Rider, seen headless: a deleted file may not get the rescan** (royder-codex-1's reading of the source,
   2026-11-22). `DiskChanges` records a delete, but `DiskSync.Check` skips the paths that no longer exist, so a deleted
   path doesn't itself ask the frontend to rescan. Headless, with no frontend, a deleted file's type was still found
@@ -415,8 +419,12 @@ The second round, under way:
     worktree nested in another's folder, as Claude Code's `.claude/worktrees/` are, gets the same answer from the
     outer one's host: safe here, since no project of the outer one took its files in, but wrong. Routing by the
     worktree a path is in, before the shortcut, is what the design has.
-  - **A dead peer stays registered** (under "Known bugs"): seen with a killed host; a replacement on the same port
-    registered and answered, and a host that exits normally deregisters at once.
+  - **A dead peer stays registered:** seen with a killed host; a replacement on the same port registered and
+    answered, and a host that exits normally deregisters at once.
+- **royder-codex-3, round 4, done:** the dead peer is forgotten (7aad054, deployed 2026-11-22). `PeerSolution.Call`
+  recognises CoreCLR's refused connection, and removes every solution on the port; the specification registers two
+  on a socket that is bound and not listening. Its first version also changed the host, to close the race now under
+  "Known bugs": held back, since a host change makes every later tools build wait for a restart of all the Riders.
 - **royder-codex-1, done:** the engine's footprint, on a private copy of the fixture solution
   (`experiments/HeadlessFootprint`, with the scripts that measured it).
   - **A plain `git worktree remove` succeeds only before the solution loads.** From indexing on, git deletes every
