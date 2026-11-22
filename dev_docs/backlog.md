@@ -60,6 +60,9 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   then waits for the item to disappear. The sandbox specifications check the first `search_symbol`, `find_usages`
   and `get_file_errors` independently, including an unresolved reference in another project.
   [Deletion specifications](../tests/DotNetAnalysisAndRefactoringMcp.Specifications/Serving/When_a_file_declaring_a_type_is_deleted_on_disk.cs)
+  Rider keeps a deleted linked `Compile` item in its project. Calls that wait for its removal report the deletion
+  and refuse edits if the wait expires. Later calls can edit other files without a warning about the missing item.
+  [Linked file specifications](../tests/DotNetAnalysisAndRefactoringMcp.Specifications/Serving/When_a_linked_compile_item_is_deleted_on_disk.cs)
   The headless host has no frontend to service that rescan. In the spike a tracker commit removed the symbol and
   reloading the owning project removed the remaining empty project item.
   [Headless observations](../experiments/HeadlessHost/README.md#freshness-in-the-standalone-fixture)

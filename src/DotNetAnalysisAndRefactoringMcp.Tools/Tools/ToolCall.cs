@@ -176,16 +176,17 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
    /// <summary>Why an edit tool may not run: an edit applied to Rider's old copy of a file would be saved over the newer text on disk.</summary>
    string Refusal(DiskReport disk, JObject arguments)
    {
-      if(!EditsFiles(arguments))
+      if(!EditsFiles(arguments) || (disk.Stale.Count == 0 && disk.Deleted.Count == 0))
          return null;
 
-      if(disk.Stale.Count == 0)
-         return null;
-
-      return $"Refused: {_tool.Name} edits Rider's copy of files and saves it, and Rider's copy of these "
-           + "differs from disk (unsaved edits in Rider, or Rider has not reloaded the file yet):"
-           + string.Concat(disk.Stale.Select(x => $"\n  {x}"))
-           + "\nSave or revert unsaved edits in Rider, or re-run in a few seconds.";
+      var reasons = new List<string>();
+      if(disk.Stale.Count > 0)
+         reasons.Add("Rider's copy of these files differs from disk (unsaved edits in Rider, or Rider has not reloaded the file yet):"
+                   + string.Concat(disk.Stale.Select(x => $"\n  {x}"))
+                   + "\nSave or revert unsaved edits in Rider, or re-run in a few seconds.");
+      if(disk.Deleted.Count > 0)
+         reasons.Add(Deletion(disk.Deleted) + ". Retry the edit.");
+      return $"Refused: {_tool.Name} edits Rider's copy of files and saves it.\n" + string.Join("\n", reasons);
    }
 
    List<string> Notes(DiskReport disk, IReadOnlyList<string> requested, bool indexingAsTheWorkBegan, List<DocumentNotSaved> notSaved)
@@ -194,6 +195,8 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       if(disk.Stale.Count > 0)
          notes.Add($"note: Rider's copy of {Listed(disk.Stale)} differs from disk (unsaved edits in Rider, or not "
                  + "reloaded yet); results reflect Rider's copy");
+      if(disk.Deleted.Count > 0)
+         notes.Add("note: " + Deletion(disk.Deleted));
 
       var absent = disk.Absent.Where(requested.Contains).ToList();
       if(absent.Count > 0)
@@ -209,6 +212,9 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       notes.AddRange(_solution.BuildNotes);
       return notes;
    }
+
+   string Deletion(IReadOnlyList<string> files) =>
+      $"{Listed(files)} {(files.Count == 1 ? "was" : "were")} deleted on disk, still in Rider's project model";
 
    string Listed(IReadOnlyList<string> files)
    {

@@ -27,7 +27,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Disk;
 ///     Suspects are the files a call names, the files <see cref="DiskChanges"/> saw change, and the files that
 ///     differed before. The frontend rescans changed files and the folders of added or deleted files. The call waits
 ///     for current document text, for a new file the call names or a project should include, and for a deleted file
-///     to leave the project model. A file still different after that wait is not waited on again until its disk time changes.
+///     to leave the project model. Rider keeps some explicitly included files as missing project items. A call that
+///     waited for such a deletion reports it. Later calls can edit other files while the item remains missing.
 ///   </para>
 ///   <para>
 ///     The frontend's rescan alone lands anywhere from 0.1 s to 9 s later (measured). So stale documents are
@@ -69,18 +70,17 @@ public sealed class DiskSync
    {
       await WatchProjects(execution);
 
-      var changes = _changes.Take();
-      var suspects = new HashSet<string>(named.Concat(Known()).Concat(changes.Files.Take(MaxChecked)), StringComparer.Ordinal);
+      var (changes, suspects) = TakeSuspects(named);
       var unverified = changes.Files.Where(x => !suspects.Contains(x)).ToList();
       var before = await execution.Read(() => Check(suspects));
 
       var stale = before.Stale.Where(x => IsUnsettled(it => it.Stale, x)).ToList();
-      var changedOnDisk = stale.Where(File.Exists).ToList();
-      if(changedOnDisk.Count > 0)
-         await Reconcile(lifetime, changedOnDisk);
+      if(stale.Count > 0)
+         await Reconcile(lifetime, stale);
 
+      var deleted = before.Deleted.Where(x => IsUnsettled(it => it.Absent, x)).ToList();
       var absent = before.Absent.Where(x => IsUnsettled(it => it.Absent, x)).ToList();
-      var rescan = stale.Select(PathToRescan)
+      var rescan = stale.Concat(deleted).Select(PathToRescan)
                   .Concat(absent)
                   .Concat(absent.Select(Path.GetDirectoryName))
                   .Concat(changes.Directories)
@@ -92,12 +92,12 @@ public sealed class DiskSync
          await new Rescans(_solution, _locks).Request(lifetime, rescan);
 
       IReadOnlyList<string> projectFolders = absent.Count == 0 ? [] : await execution.Read(ProjectFolders);
-      var waited = stale.Concat(absent.Where(WillJoinAProject)).ToList();
+      var waited = stale.Concat(deleted).Concat(absent.Where(WillJoinAProject)).ToList();
       var after = waited.Count > 0 ? await WaitForReload(execution, waited) : DiskState.Clean;
       var state = before.Without(waited).With(after);
       Remember(suspects, state);
 
-      return new DiskReport(state.Stale, state.Absent.Where(named.Contains).ToList());
+      return new DiskReport(state.Stale, state.Absent.Where(named.Contains).ToList(), after.Deleted);
 
       // A new file worth a wait: one the call names, or one in a project's folder, which an SDK-style project takes
       // in. A call that reaches its types by name, such as a search, finds them only once Rider has it. Not every new
@@ -118,7 +118,21 @@ public sealed class DiskSync
                .Distinct()
                .ToList();
 
-   IReadOnlyList<string> Known() => _settled.Locked(it => it.Stale.Keys.ToList());
+   /// <summary>
+   ///   Taking a watcher event consumes it. Share the paths to check in the same lock so that a concurrent edit
+   ///   also checks a deletion while the call that took the event waits for Rider.
+   /// </summary>
+   (DiskChangeSet Changes, HashSet<string> Suspects) TakeSuspects(IReadOnlyCollection<string> named) =>
+      _settled.Locked(state =>
+      {
+         var changes = _changes.Take();
+         foreach(var file in named.Concat(changes.Files.Take(MaxChecked)))
+            if(!state.Stale.ContainsKey(file))
+               // A path awaiting its first check has no settled disk time.
+               state.Stale.Add(file, DateTime.MinValue);
+
+         return (changes, new HashSet<string>(state.Stale.Keys, StringComparer.Ordinal));
+      });
 
    async Task WatchProjects(McpToolExecution execution)
    {
@@ -159,7 +173,7 @@ public sealed class DiskSync
                                                         foreach(var file in files)
                                                         {
                                                            var document = Document(file);
-                                                           if(document != null && !operations.IsDocumentUnsaved(document))
+                                                           if(document != null && File.Exists(file) && !operations.IsDocumentUnsaved(document))
                                                               operations.SynchronizeDocumentContentsWithStorage(document, Parse(file));
                                                         }
 
@@ -190,13 +204,14 @@ public sealed class DiskSync
    {
       var stale = new List<string>();
       var absent = new List<string>();
+      var deleted = new List<string>();
       foreach(var file in files)
       {
          Interruption.Current.CheckAndThrow();
          if(!File.Exists(file))
          {
             if(ProjectFilesAt(file).Any())
-               stale.Add(file);
+               deleted.Add(file);
             continue;
          }
 
@@ -207,7 +222,7 @@ public sealed class DiskSync
             stale.Add(file);
       }
 
-      return new DiskState(stale, absent);
+      return new DiskState(stale, absent, deleted);
    }
 
    IEnumerable<IProjectFile> ProjectFilesAt(string file) => _solution.FindProjectItemsByLocation(Parse(file)).OfType<IProjectFile>();
@@ -239,6 +254,10 @@ public sealed class DiskSync
 
          foreach(var file in state.Absent)
             it.Absent[file] = DiskTime(file);
+
+         // The host keeps disk times across tools swaps. A missing project item has no disk time.
+         foreach(var file in state.Deleted)
+            it.Absent[file] = DateTime.MinValue;
       });
    }
 
@@ -250,35 +269,39 @@ public sealed class DiskSync
 }
 
 /// <summary>
-///   What a sync could not fix: files whose Rider copy still differs from disk (including deleted files still in a
-///   project), and named files that are on disk but in no project yet.
+///   The differences a tool call reports after disk sync: stale documents, named files missing from the project,
+///   and files this call waited for Rider to remove from the project after deletion.
 /// </summary>
 public sealed class DiskReport
 {
-   public DiskReport(IReadOnlyList<string> stale, IReadOnlyList<string> absent) =>
-      (Stale, Absent) = (stale, absent);
+   public DiskReport(IReadOnlyList<string> stale, IReadOnlyList<string> absent, IReadOnlyList<string> deleted) =>
+      (Stale, Absent, Deleted) = (stale, absent, deleted);
 
    public IReadOnlyList<string> Stale { get; }
 
    public IReadOnlyList<string> Absent { get; }
+
+   public IReadOnlyList<string> Deleted { get; }
 }
 
 internal sealed class DiskState
 {
-   public static readonly DiskState Clean = new DiskState(new List<string>(), new List<string>());
+   public static readonly DiskState Clean = new DiskState([], [], []);
 
-   public DiskState(IReadOnlyList<string> stale, IReadOnlyList<string> absent) =>
-      (Stale, Absent) = (stale, absent);
+   public DiskState(IReadOnlyList<string> stale, IReadOnlyList<string> absent, IReadOnlyList<string> deleted) =>
+      (Stale, Absent, Deleted) = (stale, absent, deleted);
 
    public IReadOnlyList<string> Stale { get; }
 
    public IReadOnlyList<string> Absent { get; }
 
-   public bool IsClean => Stale.Count == 0 && Absent.Count == 0;
+   public IReadOnlyList<string> Deleted { get; }
+
+   public bool IsClean => Stale.Count == 0 && Absent.Count == 0 && Deleted.Count == 0;
 
    public DiskState Without(IReadOnlyCollection<string> files) =>
-      new DiskState(Stale.Except(files).ToList(), Absent.Except(files).ToList());
+      new DiskState(Stale.Except(files).ToList(), Absent.Except(files).ToList(), Deleted.Except(files).ToList());
 
    public DiskState With(DiskState other) =>
-      new DiskState(Stale.Concat(other.Stale).ToList(), Absent.Concat(other.Absent).ToList());
+      new DiskState(Stale.Concat(other.Stale).ToList(), Absent.Concat(other.Absent).ToList(), Deleted.Concat(other.Deleted).ToList());
 }
