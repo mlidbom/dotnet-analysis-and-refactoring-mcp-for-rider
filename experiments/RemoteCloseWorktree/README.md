@@ -121,6 +121,9 @@ under the private run's `project-stores/`. It supplies Rider's `SolutionInitiali
 `RdOpenSolution` constructed from the **real** solution filename during `OpenProjectTask` initialization.
 Project settings start from the private profile's defaults. The plugin neither imports nor restores personal tabs,
 run configurations or project-store files. The non-isolated standalone harness uses the ordinary Rider open path.
+Source-controlled IntelliJ project preferences in the checkout's `.idea` are likewise outside the private store.
+The real solution still determines ReSharper's source and solution-level inputs. The fixture watches the separate
+`.DotSettings.user` file for writes from the exercised operations.
 
 `CheckProjectStores.ps1` compares those two routes in disposable Git main checkouts. It seeds a personal
 `workspace.xml`, a shared run configuration, VCS settings, a project name, and a solution `.DotSettings.user` file.
@@ -130,15 +133,43 @@ in both checkouts. Run the two modes serially in a coordinated private-host slot
 ```powershell
 ./experiments/RemoteCloseWorktree/CheckProjectStores.ps1 -Mode Stock -ToolsBuild $build -RemoteDevPort $remote -RoyderPort $privateMcp
 ./experiments/RemoteCloseWorktree/CheckProjectStores.ps1 -Mode Private -ToolsBuild $build -RemoteDevPort $remote -RoyderPort $privateMcp
+./experiments/RemoteCloseWorktree/CheckProjectStores.ps1 -Mode Private -ExerciseHandoff -ToolsBuild $build -RemoteDevPort $remote -RoyderPort $privateMcp
 ```
+
+#### Results on Rider RD-263.7307.325
+
+Two separate disposable Git main checkouts each contained five seeded settings files. The first solution was
+`Alpha/Probe.sln`, the second `Beta/Probe.slnx`. With both stock and isolated opens, Royder located a caller and
+renamed its target method across the two real source files in each checkout. Both close requests used the ordinary
+saving close and the project instance's ETag.
+
+| Observation | Stock first open and stock management plugin route | Private store from the first open |
+|---|---|---|
+| Checkout settings snapshots after opening and renaming | Both still matched the seed at these checkpoints. | Both still matched the seed. |
+| Saving close and JVM shutdown | Both `workspace.xml` files and both `.name` files were rewritten. Each store gained `indexLayout.xml` and `projectSettingsUpdater.xml`. The watchers counted 36 events. | Zero checkout settings events. All ten files kept their original SHA-256 and last-write times through both saving closes and shutdown. Git reported only the two edited source files in each checkout. |
+| Where Rider saved the workspaces | Alpha's seeded `workspace.xml` grew from 390 to 3,223 bytes and Beta's from 387 to 3,221. | Two private `.idea/workspace.xml` files (3,482 and 3,436 bytes) were created under the generation's `project-stores/`, alongside files such as `.gitignore`, `.name`, `vcs.xml` and `indexLayout.xml`. |
+
+The private JVM announced its built-in HTTP listener before opening any solution. Its backend logs subsequently
+identified the real paths of Alpha and Beta. The supervisor recorded exactly two full Rider backends during the
+two-solution run. Each private JVM shut down with no surviving job members or reserved listeners. The standalone
+tests used the same empty-lobby launcher and authenticated private-open route as the packaged manager. Raw snapshots,
+rename replies and watcher events are under `%TEMP%/royder-project-stores-1dad6122765440b08078b5bd60a3a7ee`
+(private) and `%TEMP%/royder-project-stores-c45cda218e3e420284509e71a17e52e6` (stock).
+
+In the handoff check the fixture changed Alpha's personal changelist comment while both private projects were open.
+The two watcher events were both associated with that write. The new workspace hash (`9924F5D03C8651…`) and
+timestamp survived Beta's close, Alpha's close and JVM shutdown; the previous workspace was never restored.
+This simulated the owner's settings save without opening an everyday Rider. The preserved snapshots are under
+`%TEMP%/royder-project-stores-6ba25863fd3b40e89bfee8c9698f9eb8`.
 
 ### External deletion and replacement
 
 In the pinned Rider, the no-save close suspends autosave while closing and skips both `saveAllDocuments` and
 `saveSettingsUnderModalProgress(project)`. An independent IDE save can already have started before the supervisor
 observes removal or before close begins. The save notification offers no per-project veto for all writers. Hence the
-managed sequence remains close, observe backend/worker exit, then remove. Discard addresses the late close-time save;
-it cannot undo or exclude earlier writes. The plugin never cleans up a reused directory. [Round 9 measurements](../../dev_docs/headless-royder/rider-remote-dev-server.md#round-9--two-worktrees-in-one-rider-jvm-22-november-2026)
+managed sequence remains close, observe backend/worker exit, then remove. For private projects these project-store
+saves target the private directory throughout. Discard still protects against saving stale source documents.
+The plugin never cleans up a reused directory. [Round 9 measurements](../../dev_docs/headless-royder/rider-remote-dev-server.md#round-9--two-worktrees-in-one-rider-jvm-22-november-2026)
 
 With an already running private agent host containing both plugins, an indexed sibling solution and the management
 token in the test process environment, run the black-box fixture:

@@ -5,10 +5,12 @@ param(
    [Parameter(Mandatory)][string]$ToolsBuild,
    [Parameter(Mandatory)][int]$RemoteDevPort,
    [Parameter(Mandatory)][int]$RoyderPort,
+   [switch]$ExerciseHandoff,
    [string]$RiderHome = (Join-Path $env:LOCALAPPDATA 'Programs/Rider')
 )
 $harness = Join-Path (Split-Path -Parent $PSScriptRoot) RemoteDevHost
 . "$harness/Common.ps1"
+if ($ExerciseHandoff -and $Mode -ne 'Private') { throw 'The owner-edit handoff check requires Private mode.' }
 Add-Type -Path "$harness/ConnectedRiderRequest.cs"
 
 function New-Checkout($Name) {
@@ -163,6 +165,8 @@ $token = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::G
 $start = @{Profile=$profileDir; RiderHome=$RiderHome; Solution=(Get-Solution $checkouts[0]); RemoteDevPort=$RemoteDevPort; RoyderPort=$RoyderPort; ToolsBuild=$ToolsBuild
    ExtraPlugin=@((Resolve-Path "$PSScriptRoot/bin/plugin/RemoteCloseWorktree").Path); ExtraEnvironment=@{ROYDER_MANAGED_HOST_TOKEN=$token}; IsolateProjectStores=($Mode -eq 'Private')}
 Record-Phase '0-seeded'
+$expectedSnapshot = "$fixture/0-seeded.json"
+$ownerEventCount = 0
 try {
    $hostState = & "$harness/RemoteDevHost.ps1" start @start
    $run = $hostState.evidence
@@ -179,6 +183,27 @@ try {
       Record-Phase "2-open-$(Split-Path -Leaf $checkout)"
       Rename-InFixture $checkout
       Record-Phase "3-edited-$(Split-Path -Leaf $checkout)"
+   }
+   if ($ExerciseHandoff) {
+      # Mimic an ordinary Rider saving the owner's latest preference while the private JVM still owns Alpha.
+      Start-Sleep -Milliseconds 250
+      if (@(Get-Event | Where-Object SourceIdentifier -like 'ProjectStore.*').Count) { throw 'Checkout settings changed before the owner edit.' }
+      $workspace = Join-Path $checkouts[0] '.idea/.idea.Probe/.idea/workspace.xml'
+      $original = [IO.File]::ReadAllText($workspace)
+      $ownerText = $original.Replace('Unfinished work','Owner edit made after the private project opened')
+      if ($ownerText -ceq $original) { throw 'Expected the original personal changelist comment' }
+      [IO.File]::WriteAllText($workspace, $ownerText)
+      Start-Sleep -Milliseconds 350
+      $ownerEvents = @(Get-Event | Where-Object SourceIdentifier -like 'ProjectStore.*')
+      if (!$ownerEvents.Count -or @($ownerEvents | Where-Object {
+         $_.SourceIdentifier -ne 'ProjectStore.Alpha.idea.Changed' -or
+            [IO.Path]::GetFullPath($_.SourceEventArgs.FullPath) -ne [IO.Path]::GetFullPath($workspace)
+      }).Count) {
+         throw 'The watcher did not attribute the expected workspace write to the fixture.'
+      }
+      $ownerEventCount = $ownerEvents.Count
+      Record-Phase '3-owner-edit'
+      $expectedSnapshot = "$fixture/3-owner-edit.json"
    }
    foreach ($checkout in $checkouts[1,0]) {
       $null = Send-Management close (Get-Solution $checkout) $tags[$checkout]
@@ -200,13 +225,13 @@ try {
       foreach ($watcher in $watchers) { $watcher.Dispose() }
    }
 }
-$before = [IO.File]::ReadAllText("$fixture/0-seeded.json")
+$before = [IO.File]::ReadAllText($expectedSnapshot)
 $after = [IO.File]::ReadAllText("$fixture/5-stopped.json")
 $privateWorkspaces = if (Test-Path -LiteralPath "$run/project-stores") {
    @(Get-ChildItem -LiteralPath "$run/project-stores" -File -Recurse -Filter workspace.xml)
 }
 $privateWorkspaces = @($privateWorkspaces | Where-Object { $_ })
-[pscustomobject]@{mode=$Mode; checkoutStoreEvents=$events.Count; checkoutSnapshotsEqual=($before -ceq $after); privateWorkspaceFiles=@($privateWorkspaces | ForEach-Object FullName); evidence=$fixture}
-if ($Mode -eq 'Private' -and ($events.Count -ne 0 -or $before -cne $after -or $privateWorkspaces.Count -lt 2)) {
+[pscustomobject]@{mode=$Mode; checkoutStoreEvents=$events.Count; fixtureOwnerEvents=$ownerEventCount; checkoutSnapshotsEqual=($before -ceq $after); privateWorkspaceFiles=@($privateWorkspaces | ForEach-Object FullName); evidence=$fixture}
+if ($Mode -eq 'Private' -and ($events.Count -ne $ownerEventCount -or $before -cne $after -or $privateWorkspaces.Count -lt 2)) {
    throw "Private project stores failed verification. See $fixture."
 }

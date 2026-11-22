@@ -1,9 +1,15 @@
 # RemoteDevHost
 
 Run the installed Windows Rider Remote Development host on a worktree, with Royder as its own primary and private IDE,
-ReSharper, plugin and discovery directories. `start` returns after the requested solution is indexed and serving
-the specified tools build. The host stays up after the calling shell exits. Requires Windows x64, PowerShell 7.4 or
+ReSharper, plugin and discovery directories. With the default standalone options, `start` returns after the requested
+solution is indexed and serving the specified tools build. The host stays up after the calling shell exits. Requires Windows x64, PowerShell 7.4 or
 later, Git, an installed Rider with Royder, and a restored solution. Tested on Rider 2026.3.0.1, RD-263.7307.325.
+
+The packaged manager, and a standalone run using `-IsolateProjectStores`, start the JVM without a solution.
+For these runs, `start` returns when the private JVM owns both listeners. The primary's first authenticated
+`POST /api/royder-open-worktree/private` opens the real solution with private project settings. Later opens follow
+the same path. The primary still waits for the correct backend, tools build and readiness after the POST.
+[Project store implementation and fixture](../RemoteCloseWorktree/README.md#private-intellij-project-stores)
 
 ## Run
 
