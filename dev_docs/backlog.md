@@ -327,9 +327,9 @@ how to run it and what it found:
   start. The call that starts a host waits for it up to about a minute, and answers that it is indexing, with the
   solution's path, past that; no edit is queued. Agents handle "retry" poorly, so most first calls should just take
   longer.
-- **Stopping:** after ten idle minutes, counted from real calls, and at once when the worktree goes. That a plain
-  `git worktree remove` succeeds on its first try, during indexing and during a call, is to be tested before
-  anything is built on it.
+- **Stopping:** after ten idle minutes, counted from real calls, and at once when the worktree goes. A plain
+  `git worktree remove` fails once the solution has loaded, on the Roslyn worker's working directory (royder-codex-1's
+  footprint, below): the fix is to be built and tested before anything is built on stopping.
 - **Memory:** the primary reads the stall recorder's pipe all the time, the fields `at`, `availableMB`, `physicalMB`,
   `committedGB` and `commitLimitGB` (told to the tooling owner once read), and admits a start while memory has been
   green for 30 s, reserving the starts in progress, counted as process trees. When it's short, the least recently
@@ -355,9 +355,25 @@ The second round, under way:
   against 0.4 s, waiting on the Rider-only rescan.
 - **royder-codex-3, next:** settings parity: which of Rider's layers make the difference, whether a headless host can
   read them read-only, a positive EditorConfig check, and which side's line endings are faithful to disk.
-- **royder-codex-1:** with its design draft done, the engine's footprint, on a private fixture repository in its Temp
-  folder: whether a plain `git worktree remove` succeeds while a host has the worktree open, everything the worker
-  tree writes and where, whether `DisablePackageAssetsCache` stops the `obj` write, and which processes outlive it.
+- **royder-codex-1, done:** the engine's footprint, on a private copy of the fixture solution
+  (`experiments/HeadlessFootprint`, with the scripts that measured it).
+  - **A plain `git worktree remove` succeeds only before the solution loads.** From indexing on, git deletes every
+    file, forgets the worktree, and fails on the empty folder that is left (exit 255). The Roslyn worker holds it:
+    `RoslynExternalProcess` sets its working directory to the solution's folder. Ending that worker alone released it.
+  - **The fix it recommends, unbuilt:** a headless subclass of the public `CommandLineSolutionProcessStartInfoPatcher`
+    that gives the Roslyn worker alone a private working directory. To be tested with the worker running, with a
+    source generator's member, an analyzer's diagnostic and the team settings still there. The fallback, a private
+    copy of the solution file, changes the solution's identity, which its settings and Royder's routing hang on.
+  - **What it writes:** 7 files in each project's `obj`. `DisablePackageAssetsCache=true` stops the `assets.cache`
+    one, with the same usages found; 18 remain. Nothing in Magnus's JetBrains folders, and existing settings files
+    untouched. The caches, settings, temp and logs go where they are redirected.
+  - **What outlives it:** nothing, whether the engine exits or is killed. Two loopback listeners per host, for the
+    MSBuild and Roslyn workers, and nothing listening outside the machine.
+- **Open: the engine's connection to JetBrains.** About 2 s after start, before loading projects, the engine opens an
+  HTTPS connection to Amazon CloudFront (`server-65-9-46-76.arn52.r.cloudfront.net`), which JetBrains serves from. What
+  for is unknown: a license check, updates, feature flags or usage statistics. Magnus, 2026-11-22: "I would not be
+  terribly surprised if it was license related". It matters where there is no network: whether a host starts and
+  works fully offline is untested.
 
 ## Decided against
 
