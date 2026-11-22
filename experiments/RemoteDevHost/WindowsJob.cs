@@ -92,6 +92,22 @@ public sealed class WindowsJob : IDisposable
 
    public void Dispose() => job.Dispose();
 
+   // A parent PID is evidence only together with the child's and parent's recorded creation times.
+   public static int? ParentOf(int pid)
+   {
+      using var process = OpenProcess(0x1000, false, pid);
+      if(process.IsInvalid) return null;
+      return NtQueryInformationProcess(process, 0, out var info, Marshal.SizeOf<ProcessBasicInformation>(), out _) == 0
+               ? (int)info.ParentPid : null;
+   }
+
+   [StructLayout(LayoutKind.Sequential)] struct ProcessBasicInformation
+   {
+      public IntPtr ExitStatus, Peb, Affinity, Priority, Pid, ParentPid;
+   }
+   [DllImport("kernel32", SetLastError=true)] static extern SafeFileHandle OpenProcess(int access, bool inherit, int pid);
+   [DllImport("ntdll")] static extern int NtQueryInformationProcess(SafeFileHandle process, int kind, out ProcessBasicInformation info, int size, out int returned);
+
    [StructLayout(LayoutKind.Sequential)] struct BasicLimits
    {
       public long ProcessTime, JobTime;

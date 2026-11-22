@@ -20,9 +20,26 @@ try {
       $portLocks += [IO.File]::Open((Join-Path $lockDir "$port.lock"), 'OpenOrCreate', 'ReadWrite', 'None')
    }
    Assert-PortsFree $plan
+   $previousLock = Join-Path $plan.profile config/.lock
+   if ($plan.Contains('managedAssets') -and [IO.File]::Exists($previousLock)) {
+      $previousPid = 0
+      if (![int]::TryParse([IO.File]::ReadAllText($previousLock).Trim(), [ref]$previousPid) -or
+          (Get-Process -Id $previousPid -ErrorAction SilentlyContinue)) { throw "The private Rider config is locked. Inspect $previousLock before launching a JVM." }
+   }
    foreach ($name in 'JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS') { Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue }
    foreach ($setting in $plan.environment.GetEnumerator()) { [Environment]::SetEnvironmentVariable($setting.Key,$setting.Value) }
    $env:PATH = (Split-Path $plan.java) + ';' + $env:PATH
+   if ($plan.Contains('managedAssets')) {
+      $ownerFile = Join-Path $Run owner.json
+      $owner = $env:ROYDER_MANAGED_OWNER | ConvertFrom-Json -AsHashtable
+      if (!(Get-LiveIdentity $owner)) { throw 'The primary ended before its private Rider started.' }
+      Write-HostJson $ownerFile $owner
+      $orphaned = $null
+      $token = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+      $encrypted = [Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::ASCII.GetBytes($token), $null, 'CurrentUser')
+      [IO.File]::WriteAllBytes((Join-Path $Run host-token.dpapi), $encrypted)
+      $env:ROYDER_MANAGED_HOST_TOKEN = $token
+   }
    $state.startAvailableBytes = [RemoteDevHost.WindowsJob]::AvailablePhysicalBytes
    if ($state.startAvailableBytes -lt 8GB) { throw "Below 8 GiB before Java start ($($state.startAvailableBytes) bytes available)." }
    $javaPid = $job.StartJava($plan.java, (Join-Path $Run host.args), $Run, (Join-Path $Run host))
@@ -32,6 +49,7 @@ try {
    $state.phase = 'Running'
    Publish-State
    $deadline = $null
+   $checkOwner = [Diagnostics.Stopwatch]::StartNew()
    $previousMembers = ''
    while ($true) {
       $available = [RemoteDevHost.WindowsJob]::AvailablePhysicalBytes
@@ -43,17 +61,34 @@ try {
          if ($process) {
             $identity = Get-ProcessIdentity $process
             if (!$identity) { continue } # A short-lived worker can exit between enumeration and reading its start time.
-            $observed["$member/$($identity.started)"] = $identity
+            $identityKey = "$member/$($identity.started)"
+            if (!$observed.ContainsKey($identityKey)) {
+               $identity.parentPid = [RemoteDevHost.WindowsJob]::ParentOf($member)
+               $observed[$identityKey] = $identity
+            } else { $identity = $observed[$identityKey] }
             $identity
          }
       })
       $state.members = $members
       $key = $ids -join ','
-      if ($key -ne $previousMembers) { Publish-State; $previousMembers = $key }
+      $requested = $null
+      if ($plan.Contains('managedAssets') -and [IO.File]::Exists((Join-Path $Run observe.json))) { $requested = Read-HostJson (Join-Path $Run observe.json) }
+      if ($key -ne $previousMembers -or ($requested -and $requested -ne $state['observationRequest'])) {
+         $state.observationRequest = $requested
+         $state.observed = @($observed.Values)
+         Publish-State
+         $previousMembers = $key
+      }
       if ($javaProcess.WaitForExit(0)) {
          $state.exitCode = $javaProcess.ExitCode
          if ($state.phase -ne 'Stopping') { throw "Java exited unexpectedly with code $($state.exitCode)." }
          break
+      }
+      if ($plan.Contains('managedAssets') -and $checkOwner.Elapsed.TotalSeconds -ge 2) {
+         $checkOwner.Restart()
+         if (Get-LiveIdentity (Read-HostJson $ownerFile)) { $orphaned = $null }
+         elseif (!$orphaned) { $orphaned = [Diagnostics.Stopwatch]::StartNew() }
+         elseif ($orphaned.Elapsed.TotalSeconds -ge 60) { Request-HostStop $Run }
       }
       if (!$deadline -and [IO.File]::Exists((Join-Path $Run stop.request))) {
          $state.phase = 'Stopping'

@@ -10,6 +10,7 @@ param(
    [string]$ToolsBuild,
    [string[]]$ExtraPlugin = @(),
    [hashtable]$ExtraEnvironment = @{},
+   [string]$ManagedAssets,
    [string]$RiderHome = (Join-Path $env:LOCALAPPDATA 'Programs/Rider'),
    [ValidateSet('Before','After')][string]$Phase
 )
@@ -60,7 +61,7 @@ function Show-Host($Run, $State) {
       minAvailableGiB=[Math]::Round($State.minAvailableBytes / 1GB,2); evidence=$Run; error=$State.error }
 }
 
-$profilePath = Get-ProfilePath $Profile
+$profilePath = Get-ProfilePath $Profile -Managed:([bool]$ManagedAssets)
 if ($Command -in 'start','audit') { [IO.Directory]::CreateDirectory($profilePath) | Out-Null }
 $current = Join-Path $profilePath current.json
 if ($Command -eq 'status') {
@@ -101,7 +102,7 @@ try {
    if (!$Solution -or !$ToolsBuild -or !$RemoteDevPort -or !$RoyderPort) { throw 'Start requires -Solution, -ToolsBuild, -RemoteDevPort and -RoyderPort.' }
    . "$PSScriptRoot/HostProfile.ps1"
    $run = [IO.Directory]::CreateDirectory((Join-Path $profilePath "runs/$([guid]::NewGuid().ToString('N'))")).FullName
-   $plan = New-HostPlan $profilePath $run $Solution $RiderHome $ToolsBuild $RemoteDevPort $RoyderPort $HeapMiB $ExtraPlugin
+   $plan = New-HostPlan $profilePath $run $Solution $RiderHome $ToolsBuild $RemoteDevPort $RoyderPort $HeapMiB $ExtraPlugin $ManagedAssets
    foreach ($key in $ExtraEnvironment.Keys) {
       if ($plan.environment.ContainsKey($key) -or $key -in 'JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS') {
          throw "$key is set by the private launch profile."

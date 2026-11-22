@@ -15,7 +15,7 @@ function Copy-PluginTree([string]$Source, [string]$Target) {
    }
 }
 
-function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $RemoteDevPort, $RoyderPort, $HeapMiB, $ExtraPlugin) {
+function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $RemoteDevPort, $RoyderPort, $HeapMiB, $ExtraPlugin, $ManagedAssets) {
    $solutionFile = Get-Item -LiteralPath $Solution
    if ($solutionFile.PSIsContainer -or $solutionFile.Extension -notin '.sln','.slnx') { throw "Expected a solution file: $Solution" }
    if ($ToolsBuild -in '.', '..' -or $ToolsBuild -notmatch '^[A-Za-z0-9_.-]+$') { throw 'ToolsBuild must name one deployed build directory.' }
@@ -39,6 +39,15 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
    foreach ($name in 'plugins','tools','log') { $folders[$name] = [IO.Directory]::CreateDirectory((Join-Path $Run $name)).FullName }
    $plugin = 'DotNetAnalysisAndRefactoringMcp'
    $installedPlugin = Join-Path $env:APPDATA "JetBrains/$($product.dataDirectoryName)/plugins/$plugin"
+   $toolsSource = Join-Path $env:LOCALAPPDATA "$plugin/tools/$ToolsBuild"
+   if ($ManagedAssets) {
+      $package = Read-HostJson (Join-Path $ManagedAssets package.json)
+      if ($package.build -cne $ToolsBuild -or $package.riderBuild -cne $product.buildNumber) { throw 'Staged tools or Rider version does not match the configured pin.' }
+      $installedPlugin = Join-Path $ManagedAssets "plugins/$plugin"
+      $toolsSource = Join-Path $ManagedAssets "tools/$ToolsBuild"
+      $ExtraPlugin = @('RemoteCloseWorktree','RemoteRoslynPatcher' | ForEach-Object { Join-Path $ManagedAssets "plugins/$_" })
+      $plan.managedAssets = $ManagedAssets
+   }
    Copy-PluginTree $installedPlugin (Join-Path $folders.plugins $plugin)
    foreach ($source in $ExtraPlugin) {
       $dir = Get-Item -LiteralPath $source
@@ -46,9 +55,15 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
       Copy-PluginTree $dir.FullName (Join-Path $folders.plugins $dir.Name)
    }
    $buildDir = Join-Path $folders.tools $ToolsBuild
-   Copy-PluginTree (Join-Path $env:LOCALAPPDATA "$plugin/tools/$ToolsBuild") $buildDir
+   Copy-PluginTree $toolsSource $buildDir
    $plan.hostHash = (Get-FileHash -LiteralPath (Join-Path $folders.plugins "$plugin/dotnet/$plugin.dll")).Hash.ToLowerInvariant()
    if (([IO.File]::ReadAllText((Join-Path $buildDir host.sha256))).Trim() -ne $plan.hostHash) { throw 'Deployed build and copied host have different host.sha256.' }
+   if ($ManagedAssets -and ($package.hostHash -ne $plan.hostHash -or
+       $package.toolsHash -ne (Get-FileHash -LiteralPath (Join-Path $buildDir "$plugin.Tools.dll")).Hash -or
+       $package.lifecycleHash -ne (Get-FileHash -LiteralPath (Join-Path $folders.plugins 'RemoteCloseWorktree/lib/RemoteCloseWorktree.jar')).Hash -or
+       $package.patcherHash -ne (Get-FileHash -LiteralPath (Join-Path $folders.plugins 'RemoteRoslynPatcher/dotnet/Royder.RemoteRoslynPatcher.dll')).Hash)) {
+      throw 'A packaged plugin or tools assembly no longer matches the staged pin.'
+   }
    $optionsDir = [IO.Directory]::CreateDirectory((Join-Path $folders.config options)).FullName
    [IO.File]::WriteAllText((Join-Path $optionsDir updates.xml), '<application><component name="UpdatesConfigurable"><option name="CHECK_NEEDED" value="false"/><option name="PLUGINS_CHECK_NEEDED" value="false"/><option name="PLUGINS_AUTO_UPDATE" value="false"/></component></application>')
    $trusted = [Security.SecurityElement]::Escape($solutionFile.DirectoryName)
@@ -89,5 +104,6 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
       DOTNET_GENERATE_ASPNET_CERTIFICATE='false'; DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE='1'
       JETBRAINS_NO_CHECK_FOR_UPDATES='1'; RIDER_PROPERTIES=$properties; RIDER_VM_OPTIONS=(Join-Path $Run host.vmoptions)
       DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT=[string]$RoyderPort; DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS=$folders.tools }
+   if ($ManagedAssets) { $plan.environment.ROYDER_REMOTE_ROSLYN_WORKING_DIRECTORY = [IO.Directory]::CreateDirectory((Join-Path $Run roslyn)).FullName }
    return $plan
 }

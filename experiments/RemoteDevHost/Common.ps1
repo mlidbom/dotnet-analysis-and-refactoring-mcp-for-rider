@@ -28,13 +28,20 @@ function Read-HostJson($Path) {
    } finally { $stream.Dispose() }
 }
 
-function Get-ProfilePath([string]$Path) {
+function Get-ProfilePath([string]$Path, [switch]$Managed) {
    $tempRoot = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath([IO.Path]::GetTempPath()))
    $full = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($Path))
-   if (!$full.StartsWith($tempRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+   if (!$Managed -and !$full.StartsWith($tempRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
       throw "Choose a profile below $tempRoot."
    }
-   for ($dir = [IO.DirectoryInfo]::new($full); $dir.FullName -ne $tempRoot; $dir = $dir.Parent) {
+   if ($Managed) {
+      if ($full -eq [IO.Path]::GetPathRoot($full)) { throw 'Choose a dedicated managed profile directory.' }
+      foreach ($real in @($env:APPDATA, $env:LOCALAPPDATA)) {
+         $jetbrains = [IO.Path]::GetFullPath((Join-Path $real JetBrains))
+         if ($full -eq $jetbrains -or $full.StartsWith($jetbrains + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'The managed profile must be outside the JetBrains user directories.' }
+      }
+   }
+   for ($dir = [IO.DirectoryInfo]::new($full); $dir -and $dir.FullName -ne $tempRoot; $dir = $dir.Parent) {
       if ($dir.Exists -and ($dir.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
          throw "Profile path crosses a link: $($dir.FullName)"
       }
