@@ -7,14 +7,19 @@ sealed class PrimaryToolCatalog(ToolCatalog pinned, OrdinaryRiders ordinary)
 {
    public const string Warm = "warm_worktree";
    public const string Close = "close_worktree";
+   public const string OpenOnDemand = "Open a trusted checkout on demand with an absolute filePath or a full .sln/.slnx path as solutionName.";
+   public const string Instructions = "ReSharper code intelligence and refactoring for .NET. " + OpenOnDemand;
 
    public async Task<JArray> Listed(CancellationToken cancel)
    {
       var desktop = await ordinary.Tools(cancel) ?? [];
       var tools = desktop.Concat(pinned.Tools).OfType<JObject>().DistinctBy(it => (string?)it["name"]);
-      return new JArray(tools,
+      var listed = new JArray(tools,
          ManagementTool(Warm, "Open a trusted main checkout or linked worktree in the shared private Rider and wait for it to be ready. Pass its absolute solution filename."),
          ManagementTool(Close, "Close the managed Rider project and await its workers' exit. The worktree stays on disk."));
+      listed.OfType<JObject>().Single(it => (string?)it["name"] == "list_solutions")["description"] =
+         "List solutions currently open in ordinary or headless Rider. " + OpenOnDemand;
+      return listed;
    }
 
    static JObject ManagementTool(string name, string description) => new()

@@ -23,6 +23,7 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
             case "initialize":
                var result = (JObject)pinned.Initialize.DeepClone();
                result["protocolVersion"] = (string?)parameters["protocolVersion"] == "2024-11-05" ? "2024-11-05" : "2025-03-26";
+               result["instructions"] = PrimaryToolCatalog.Instructions;
                return Rpc.Result(id, result);
             case "ping": return Rpc.Result(id, new JObject());
             case "tools/list": return Rpc.Result(id, new JObject { ["tools"] = await catalog.Listed(cancel) });
@@ -50,7 +51,12 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
          pinned.Tools.Count - 1, backend, true));
       var all = desktop.Concat(managed).DistinctBy(it => it.FilePath, StringComparer.OrdinalIgnoreCase).ToList();
       var routing = new SolutionRouting<ServingSolution>(all);
-      if(tool == "list_solutions") return Rpc.ToolResult(id, routing.Listed().ToString(Formatting.Indented));
+      if(tool == "list_solutions")
+      {
+         var listed = routing.Listed();
+         listed["hint"] = PrimaryToolCatalog.OpenOnDemand;
+         return Rpc.ToolResult(id, listed.ToString(Formatting.Indented));
+      }
       if(tool is PrimaryToolCatalog.Warm or PrimaryToolCatalog.Close)
       {
          var path = managementPath ?? throw new ArgumentException("Expected an absolute solutionPath.");
@@ -85,11 +91,12 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
       if(!pinned.Tools.OfType<JObject>().Any(it => (string?)it["name"] == tool))
          return Rpc.ToolResult(id, $"The configured headless tools build does not provide '{tool}'.", true);
       var explicitPath = AbsoluteSolution(selector);
-      if(chosen == null && selector != null && explicitPath == null) return Rpc.ToolResult(id, refusal!, true);
+      if(chosen == null && selector != null && explicitPath == null) return Rpc.ToolResult(id, $"{refusal} {PrimaryToolCatalog.OpenOnDemand}", true);
       var absolutePaths = paths.Where(Path.IsPathFullyQualified).Select(Path.GetFullPath).ToArray();
       var anchor = chosen?.FilePath ?? explicitPath ?? absolutePaths.FirstOrDefault();
       var registration = anchor == null ? null : worktrees.Registration(anchor);
-      if(registration == null) return Rpc.ToolResult(id, refusal ?? "The managed worktree is no longer registered.", true);
+      if(registration == null) return Rpc.ToolResult(id, anchor == null ? $"{refusal} {PrimaryToolCatalog.OpenOnDemand}" :
+         refusal ?? "The managed worktree is no longer registered.", true);
       if(desktop.Any(it => RegisteredWorktree.SamePath(it.WorkTree, registration.Root)))
       {
          await worktrees.YieldToOrdinaryRider(registration.Root, cancel);

@@ -35,7 +35,10 @@ def main():
         proc = subprocess.Popen(["dotnet", str(args.primary.resolve()), "serve", str(config)], stdout=log, stderr=subprocess.STDOUT)
         try:
             wait_until(lambda: HTTP.open(f"http://127.0.0.1:{args.port}/health", timeout=3).status == 200, 25, "the primary")
-            assert call(args.desktop_port, "list_solutions", {}) == call(args.port, "list_solutions", {})
+            direct_list = call(args.desktop_port, "list_solutions", {})
+            routed_list = call(args.port, "list_solutions", {})
+            assert routed_list["solutions"] == direct_list["solutions"] and routed_list["solutionCount"] == direct_list["solutionCount"]
+            assert "filePath" in routed_list["hint"]
             query = dict(solutionName=args.solution, symbolName=args.symbol, format="json")
             direct = call(args.desktop_port, "go_to_definition", query)
             assert direct["declarations"] and direct == call(args.port, "go_to_definition", query)

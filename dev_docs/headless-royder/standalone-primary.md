@@ -72,6 +72,9 @@ Start-ScheduledTask -TaskName RoyderPrimary
   absolute `.sln` or `.slnx` in `solutionName` when solution discovery is ambiguous. Use `warm_worktree` with
   `solutionPath` to start it explicitly. Concurrent callers share one open. The first call waits up to 60 seconds.
   On timeout only the warm-up continues. Tool calls, including edits, are dispatched once.
+- `list_solutions` lists solutions open at the time of the call. Its `hint` explains how to open another trusted
+  checkout, including when the list is empty. The primary checks the local TCP listener table before contacting
+  ordinary Rider, so a closed desktop endpoint adds no connection-refusal wait.
 - A newly opened solution must report finished indexing and source generator synchronization or confirmed
   non-applicability. The primary checks that the staged tools are serving. Its health response also lists the
   worktrees currently opening.
@@ -100,5 +103,7 @@ python -B tests/headless/verify_on_demand.py --primary C:/Royder/packages/curren
 ~~~
 
 The ordinary Rider regression suite is `dotnet test tests/DotNetAnalysisAndRefactoringMcp.Specifications`.
+With the same installed settings, `tests/headless/verify_cold_discovery.py` exercises cold discovery, measures
+requests with an absent ordinary endpoint, and verifies detection when that endpoint appears and disappears.
 With an ordinary Rider running, `tests/headless/verify_ordinary_routing.py` also compares the two endpoints'
 solution lists and JSON declarations for a specified solution and symbol.
