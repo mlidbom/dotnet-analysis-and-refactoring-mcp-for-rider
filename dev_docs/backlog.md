@@ -311,6 +311,36 @@ how to run it and what it found:
   Royder uses ships in `jb`. Rider alone gives the frontend's rescans and saves, its document operations and project
   reload executor, and the text controls `complete_at` and `apply_quick_fix` use; `jb` has a candidate for each.
 
+**The design, as decided so far** (headless-royder, 2026-11-22, on royder-codex-1's proposal,
+`dev_docs/headless-royder/design-proposal.md`, which gives the alternatives and their tradeoffs):
+
+- **A Royder primary of its own** holds the MCP port, 23751, whether or not a Rider runs, and needs no ReSharper:
+  it routes, and lists the tools from a manifest of the released tools when no solution is open. Riders and
+  headless hosts all register with it as peers, on ports of their own. It also keeps Royder up across a Rider
+  restart, which the coordinated restarts above lack. Started at logon, as the stall recorder is: a new scheduled
+  task on Magnus's machine, to be put to him before it is installed. The Riders' hosts stop competing for the port,
+  a host change: batched, for a restart.
+- **Routing by the worktree** a call's absolute paths are in, before the shortcut to the only open solution.
+  Registrations get an identity of their own, not only the solution's path.
+- **Starting on demand:** one start, deduplicated by worktree and solution, from a call's first file or an explicit
+  start. The call that starts a host waits for it up to about a minute, and answers that it is indexing, with the
+  solution's path, past that; no edit is queued. Agents handle "retry" poorly, so most first calls should just take
+  longer.
+- **Stopping:** after ten idle minutes, counted from real calls, and at once when the worktree goes. That a plain
+  `git worktree remove` succeeds on its first try, during indexing and during a call, is to be tested before
+  anything is built on it.
+- **Memory:** the primary reads the stall recorder's pipe all the time, the fields `at`, `availableMB`, `physicalMB`,
+  `committedGB` and `commitLimitGB` (told to the tooling owner once read), and admits a start while memory has been
+  green for 30 s, reserving the starts in progress, counted as process trees. When it's short, the least recently
+  used idle headless host stops first. Riders are never stopped.
+- **Files:** each host's caches, settings, temp and logs are private, outside the worktree. A host loads only an agent's
+  own worktree, whose `obj` it may write: not the main checkout, nor any solution a Rider has open.
+- **One tools build for both hosts,** with what differs behind four abstractions chosen per call by which host
+  serves the solution: bringing the model up to date with disk, saving an edit's documents, reloading projects, and
+  text controls. The host DLL is the same bytes in both, so one `host.sha256` serves both.
+- **Royder owns the hosts' lifecycle;** the hub may ask it to warm one up or stop one, as any client may.
+- **Our own program** hosts the engine, with `isLiveSession: true`. The extension route stays a compatibility check.
+
 The second round, under way:
 
 - **royder-codex-2:** its program hosting Royder's unchanged host, on port 23910. Whether Royder stays correct between
