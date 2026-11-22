@@ -36,3 +36,10 @@ shows in `list_peers` once it has had a turn.
    and the code standards above all. Ask for changes, or make them.
 4. Merge: rebase its branch onto `main` if `main` has moved, then `git merge --ff-only royder-codex-2` in the main
    checkout. Run the specifications there, deploy, and push.
+
+**A message to a busy helper runs after its turn,** as a turn of its own, so it can cross the helper's report. A
+correction sent during a turn reached royder-codex-3 after it had reported the work done, and it set about redoing
+merged work, three times on 2026-11-22. So:
+- Steer a busy helper only when the turn under way would waste much without it.
+- Name in each message the commit it concerns ("about 42ee55c: ...").
+- After a merge, tell the helper that the merged commit stands, and that any message older than it is void.
