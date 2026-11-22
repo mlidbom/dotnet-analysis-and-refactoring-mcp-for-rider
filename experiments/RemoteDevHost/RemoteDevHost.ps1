@@ -58,7 +58,7 @@ function Show-Host($Run, $State) {
    [pscustomobject]@{ phase=$phaseName; indexed=$indexed; solution=$plan.solution; toolsBuild=$plan.build
       javaPid=$(if ($State.hostProcess) { $State.hostProcess.pid }); processIds=@($live | ForEach-Object { $_.pid })
       remoteDevPort=$plan.remoteDevPort; royderPort=$plan.royderPort; terminated=$State.terminated
-      minAvailableGiB=[Math]::Round($State.minAvailableBytes / 1GB,2); evidence=$Run; error=$State.error }
+      evidence=$Run; error=$State.error }
 }
 
 $profilePath = Get-ProfilePath $Profile -Managed:([bool]$ManagedAssets)

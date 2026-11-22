@@ -278,18 +278,9 @@ today, and go without Royder:
    indexing until it's ready, rather than failing. An explicit start as well, to warm one up before a subagent begins.
 3. **Stopped when unused,** after some minutes with no call, and at once when its worktree is removed. A host must
    never outlive its folder, holding files that block `git worktree remove`.
-4. **A budget of memory, not of hosts,** at 1 to 1.5 GB each. Magnus, 2026-11-19: "Check my machine's memory status
-   via the service provided by the stall monitor. If there is plenty and has been for a while. Don't block." The
-   machine stall recorder's live samples (`MachineStalls.LiveSamples`, a named pipe that hands a viewer the last five
-   minutes of samples, then each as it is taken; see `~/.claude/dev_docs/machine-stall-recorder.md`) say whether
-   memory has been plentiful for a while, by the recorder's own thresholds (`WarningThresholds.Default`: the memory
-   gauge turns yellow at 85% in use, about 14 GB free of 94). Then a host starts, however many run. Only when memory is
-   short does the least recently used one stop first, or the call is refused and says why. Memory did run out on
-   2026-11-18, twice: about 0 GB available, and the commit charge at its limit, from 08:00 to 09:00 and 19:00 to 21:00.
-   Open: what decides where no recorder runs, in cloud sessions and in CI. The tooling owner keeps the pipe and the
-   thresholds as a contract with Royder (`~/.claude` commit `fefc2af`): they change only by adding, and Royder's
-   session is told first. Once Royder reads them, tell it which of the samples' fields Royder relies on, so it names
-   them there.
+4. **Machine-wide memory decisions belong to the human or agent coordinating the machine.** Magnus revised the
+   original spike request on 2026-11-22. Royder owns the lifetime of its private projects and processes. Its clients
+   can request a warm-up or close a worktree. It releases idle projects automatically.
 5. **Separate from Magnus's Rider.** A host never writes into the solution's `.idea` folder or the user settings his
    Rider reads, so the two don't fight over the main checkout.
 
@@ -356,16 +347,9 @@ how to run it and what it found:
   worker's directory patched, it succeeds on its first try (royder-codex-1, below). The removal ends nothing by
   itself: an engine went on to announce its solution indexed after the worktree was gone, so the host must notice
   and stop.
-- **Memory:** the primary reads the stall recorder's pipe all the time, the fields `at`, `availableMB`, `physicalMB`,
-  `committedGB` and `commitLimitGB` (told to the tooling owner once read), and admits a start while memory has been
-  green for 30 s, reserving the starts in progress, counted as process trees. When it's short, the least recently
-  used idle headless host stops first. Riders are never stopped. Green means both gauges, physical memory and the
-  commit charge: on 2026-11-18 the commit charge alone was red at times. The 30 s are counted by the samples' own
-  timestamps, since a new reader first gets the last five minutes at once; with no recent samples, no host starts
-  (royder-codex-1's replay of 2026-11-18, `experiments/HeadlessMemoryAdmission`). Where no recorder runs, in cloud
-  sessions and CI, a configured budget of memory instead. About 14 GiB was available before the rounds' runs, so two or
-  three agents' servers at a time for now. Magnus, 2026-11-22, on why: partly the many Riders he keeps open, for want
-  of hosts started on demand, and partly the many agents running at the moment.
+- **Resource ownership.** One private Rider JVM shares its frontend across managed worktrees. Each worktree owns
+  a backend and workers that can be released independently. Machine-wide scheduling belongs to the human or agent
+  deciding which work should run. The recorder-based policy investigated in round 4 was superseded on 2026-11-22.
 - **Files:** each host's caches, settings, temp and logs are private, outside the worktree. A host loads only an agent's
   own worktree, whose `obj` it may write: not the main checkout, nor any solution a Rider has open. Its private global
   settings file injects Magnus's personal settings file, as Rider's does, read-only: the file itself, so it is never

@@ -7,7 +7,7 @@ $portLocks = @()
 $job = $null
 $activeProfile = $null
 $state = @{ phase='Starting'; supervisor=Get-ProcessIdentity (Get-Process -Id $PID); hostProcess=$null; members=@()
-            minAvailableBytes=[long]::MaxValue; error=$null; terminated=@(); survivors=@(); jobRemaining=@(); listeningAfter=@(); exitCode=$null }
+            error=$null; terminated=@(); survivors=@(); jobRemaining=@(); listeningAfter=@(); exitCode=$null }
 function Publish-State { Write-HostJson (Join-Path $Run state.json) $state }
 
 try {
@@ -40,8 +40,6 @@ try {
       [IO.File]::WriteAllBytes((Join-Path $Run host-token.dpapi), $encrypted)
       $env:ROYDER_MANAGED_HOST_TOKEN = $token
    }
-   $state.startAvailableBytes = [RemoteDevHost.WindowsJob]::AvailablePhysicalBytes
-   if ($state.startAvailableBytes -lt 8GB) { throw "Below 8 GiB before Java start ($($state.startAvailableBytes) bytes available)." }
    $javaPid = $job.StartJava($plan.java, (Join-Path $Run host.args), $Run, (Join-Path $Run host))
    $javaProcess = [Diagnostics.Process]::GetProcessById($javaPid)
    $null = $javaProcess.Handle # Retain the handle so its exit code is available after the PID disappears.
@@ -52,9 +50,6 @@ try {
    $checkOwner = [Diagnostics.Stopwatch]::StartNew()
    $previousMembers = ''
    while ($true) {
-      $available = [RemoteDevHost.WindowsJob]::AvailablePhysicalBytes
-      $state.minAvailableBytes = [Math]::Min($state.minAvailableBytes, $available)
-      if ($available -lt 2GB) { throw "Stopped the job below 2 GiB ($available bytes available)." }
       $ids = $job.ProcessIds()
       $members = @(foreach ($member in $ids) {
          $process = Get-Process -Id $member -ErrorAction SilentlyContinue
@@ -110,7 +105,7 @@ try {
          # Let processes already exiting finish; a disconnected jetbrainsd normally waits several minutes.
          if ($state.phase -eq 'Stopping' -and $javaProcess -and $javaProcess.HasExited) {
             $until = [datetime]::UtcNow.AddSeconds(2)
-            while ($job.ProcessIds().Count -and [datetime]::UtcNow -lt $until -and [RemoteDevHost.WindowsJob]::AvailablePhysicalBytes -ge 2GB) { Start-Sleep -Milliseconds 100 }
+            while ($job.ProcessIds().Count -and [datetime]::UtcNow -lt $until) { Start-Sleep -Milliseconds 100 }
          }
          $state.terminated = @($job.ProcessIds())
          if ($state.terminated.Count) { $job.Terminate() }

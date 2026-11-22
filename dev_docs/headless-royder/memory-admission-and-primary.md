@@ -2,6 +2,10 @@
 
 # Headless Royder round 4 — memory admission and a standalone primary
 
+**Historical proposal.** On 22 November 2026 Magnus assigned global memory decisions to the human or agent
+coordinating the machine. The measurements below document the experiment. The current implementation is described
+in [the standalone primary guide](standalone-primary.md).
+
 **Keep the 30-second recovery window and include commit pressure.** In the recorded part of 18 November, the two limits together identified 176 ten-second summaries under pressure. The 30-second rule would have deferred starts at 231 summary endpoints. Four summaries had green physical memory while the commit gauge was red. The window filtered short recoveries without imposing a limit on the number of hosts.
 
 **Make the primary a small `net10.0` executable that can answer MCP discovery with zero peers.** Give it the current primary URL, registration and routing, memory admission and ownership of headless workers. Keep ReSharper, solution evaluation and execution of tools in peers. The main migration issue is the sandbox: a reachable primary with an empty solution list becomes a normal state. One existing Symbol Linker check assumes a first solution.

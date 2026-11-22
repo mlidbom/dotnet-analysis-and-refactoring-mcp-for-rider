@@ -77,8 +77,7 @@ variables cannot replace the harness's private directories, ports or tools build
   remaining members of its Windows job. The supervisor records and verifies job membership, observed PID/creation-time
   identities and listeners. It never kills by process name or port. The OS also terminates the job if the supervisor
   exits unexpectedly.
-- The supervisor checks available physical RAM immediately before launching the host (8 GiB minimum) and polls while
-  the host runs (200 ms loop delay, stop below 2 GiB). Java is assigned to the job **before** its initial thread resumes.
+- Java is assigned to the job **before** its initial thread resumes.
   The RD port and Royder's ten-port fallback range must be free, disjoint and outside 23751–23760 and 23841–23842.
   Supervisors reserve these ports against other instances of this harness for the life of the job.
 

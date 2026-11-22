@@ -26,16 +26,6 @@ public sealed class WindowsJob : IDisposable
       }
    }
 
-   public static long AvailablePhysicalBytes
-   {
-      get
-      {
-         var memory = new MemoryStatus { Length = (uint)Marshal.SizeOf<MemoryStatus>() };
-         if(!GlobalMemoryStatusEx(ref memory)) throw new Win32Exception();
-         return (long)memory.AvailablePhysical;
-      }
-   }
-
    /// <summary>Starts the bundled Java executable suspended so its first child already belongs to this job.
    /// The child inherits the supervisor's private environment.</summary>
    public int StartJava(string java, string argumentsFile, string directory, string logPrefix)
@@ -123,11 +113,6 @@ public sealed class WindowsJob : IDisposable
       public ulong ReadOps, WriteOps, OtherOps, ReadBytes, WriteBytes, OtherBytes;
       public UIntPtr ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory;
    }
-   [StructLayout(LayoutKind.Sequential)] struct MemoryStatus
-   {
-      public uint Length, Load;
-      public ulong TotalPhysical, AvailablePhysical, TotalPageFile, AvailablePageFile, TotalVirtual, AvailableVirtual, AvailableExtended;
-   }
    [StructLayout(LayoutKind.Sequential)] struct StartupInfo
    {
       public int Size;
@@ -155,5 +140,4 @@ public sealed class WindowsJob : IDisposable
    [DllImport("kernel32", SetLastError=true)] static extern uint ResumeThread(SafeFileHandle thread);
    [DllImport("kernel32", SetLastError=true)] static extern bool TerminateProcess(SafeFileHandle process, uint code);
    [DllImport("kernel32", SetLastError=true)] static extern bool TerminateJobObject(SafeFileHandle job, uint code);
-   [DllImport("kernel32", SetLastError=true)] static extern bool GlobalMemoryStatusEx(ref MemoryStatus status);
 }

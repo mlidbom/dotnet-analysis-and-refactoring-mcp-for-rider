@@ -1,7 +1,7 @@
 # Shared Rider on Windows
 
-`SharedRiderHost` starts a private Rider JVM on the first admitted solution. The primary supplies the admission and
-routing policy. Subsequent opens and closes use the lifecycle plugin in that JVM. Call `StopAsync` to stop the
+`SharedRiderHost` starts a private Rider JVM when the first managed solution opens. The primary routes requests
+to that solution. Subsequent opens and closes use the lifecycle plugin in that JVM. Call `StopAsync` to stop the
 entire generation. It is safe to call again after a last-project close.
 
 ## Package the runtime assets
@@ -27,8 +27,8 @@ BackendMcpPort, HeapMiB)` with absolute paths. `AssetsDirectory` is the staged `
 Use a dedicated, private, current-user profile and disjoint loopback port ranges. Reserve the RD port and ten
 ports starting at `BackendMcpPort` for this host, separately from the public primary. Use a loopback HTTP client
 with proxies and automatic redirects disabled for MCP health/registration. The default heap is 768 MiB.
-The launch profile requires PowerShell 7.4+ x64. It retains the tested host’s 8 GiB cold-start check,
-2 GiB low-memory stop, private settings, temp and Roslyn working directory. [Launcher behavior](../../../experiments/RemoteDevHost/README.md)
+The launch profile requires PowerShell 7.4+ x64. Each managed JVM has private settings, temp files and a private
+Roslyn working directory. [Launcher behavior](../../../experiments/RemoteDevHost/README.md)
 
 ## Ownership and recovery
 
