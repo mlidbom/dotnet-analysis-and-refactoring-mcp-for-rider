@@ -28,9 +28,18 @@ internal sealed class SharedRiderHost
    public async Task OpenAsync(string solutionPath, CancellationToken cancellation)
    {
       var solution = SolutionFile(solutionPath);
-      if(!File.Exists(solution)) throw new FileNotFoundException("The solution to open does not exist.",solution);
       using var operation = await Acquire(cancellation).ConfigureAwait(false);
       var generation = await RiderGeneration.Current(settings,cancellation).ConfigureAwait(false);
+      if(!File.Exists(solution))
+      {
+         if(generation != null)
+         {
+            generation.Adopt(settings);
+            if(!File.Exists(generation.OpenIdentity(solution)) && !File.Exists(generation.Receipt(solution)) && !File.Exists(generation.Tag(solution)))
+               generation.BeginOpen(solution);
+         }
+         throw new FileNotFoundException("The solution to open does not exist.",solution);
+      }
       var newlyLaunched = generation == null;
       if(generation == null)
       {
@@ -53,6 +62,7 @@ internal sealed class SharedRiderHost
       // The first solution also needs the JVM's disk identity and ETag for a later discard after Git removes it.
       try
       {
+         generation.BeginOpen(solution);
          var status = await Post("open",solution,generation,cancellation).ConfigureAwait(false);
          if(status != 200) throw Rejected("open",solution,status);
       }
@@ -84,20 +94,26 @@ internal sealed class SharedRiderHost
       var siblings = before.Select(it => it.Solution).Concat((generation.Projects() ?? []).Where(IsSolutionFilename).Select(Path.GetFullPath))
          .Where(it => it.Length != 0 && !RiderGeneration.Same(it,solution)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
       var existing = before.SingleOrDefault(it => RiderGeneration.Same(it.Solution,solution));
-      // An open can succeed and lose its reply. Ask for the JVM's receipt for the persisted open ID.
-      if(!File.Exists(generation.Tag(solution)) && File.Exists(generation.OpenIntent(solution)))
-         await Post("status",solution,generation,cancellation).ConfigureAwait(false);
       var identity = File.Exists(receipt) ? receipt : generation.OpenIdentity(solution);
       var target = existing ?? (File.Exists(identity) ? RiderSupervisor.Read<RiderGeneration.Backend>(identity) : null);
       if(target == null)
       {
-         if(await Post("status",solution,generation,cancellation).ConfigureAwait(false) == 404)
-         {
-            File.Delete(generation.OpenIntent(solution));
-            return;
-         }
-         throw new InvalidOperationException($"The private JVM still has a project at '{solution}' with no confirmed backend identity.");
+         var intent = generation.OpenIntent(solution);
+         var absent = generation.AbsentOpen(solution);
+         if(!File.Exists(intent) && !File.Exists(absent))
+            throw new InvalidOperationException($"No open attempt for '{solution}' belongs to this private Rider generation. No close was dispatched.");
+         if(File.Exists(generation.Tag(solution)))
+            throw new InvalidOperationException($"The original project tag for '{solution}' exists without a confirmed backend identity. The tag was retained.");
+         if(await Post("status",solution,generation,cancellation).ConfigureAwait(false) != 404)
+            throw new InvalidOperationException($"The private JVM still has a project at '{solution}' with no confirmed backend identity.");
+         if(!await generation.ConfirmsNoBackend(solution,cancellation).ConfigureAwait(false))
+            throw new InvalidOperationException($"The private job could not confirm that all backends and workers belong elsewhere. The open evidence for '{solution}' was retained.");
+         if(File.Exists(intent)) File.Move(intent,absent,true);
+         return;
       }
+      // An open can succeed and lose its reply. Ask for the JVM's receipt for the persisted open ID.
+      if(!File.Exists(generation.Tag(solution)) && File.Exists(generation.OpenIntent(solution)))
+         await Post("status",solution,generation,cancellation).ConfigureAwait(false);
       if(!RiderGeneration.Same(target.Solution,solution))
          throw new InvalidOperationException($"Cannot confirm a safe close of '{solution}': the private job has no backend PID/start time with a matching RiderSolutionWatcher solution-open record.");
       if(existing == null)

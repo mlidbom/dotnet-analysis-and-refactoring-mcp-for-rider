@@ -45,8 +45,13 @@ $key = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Enc
 $tagFile = Join-Path $run "project-$key.etag"
 $tag = if ([IO.File]::Exists($tagFile)) { Read-HostJson $tagFile }
 $intentFile = Join-Path $run "project-$key.open-id"
-if ($Operation -eq 'open' -and ![IO.File]::Exists($intentFile)) { Write-HostJson $intentFile ([guid]::NewGuid().ToString('N')) }
+$absentFile = Join-Path $run "project-$key.absent-open-id"
+if ($Operation -eq 'open') {
+   if (![IO.File]::Exists($intentFile)) { Write-HostJson $intentFile ([guid]::NewGuid().ToString('N')) }
+   [IO.File]::Delete($absentFile)
+} elseif ($Operation -eq 'status' -and ![IO.File]::Exists($intentFile)) { $intentFile = $absentFile }
 $openId = if ($Operation -in 'open','status' -and [IO.File]::Exists($intentFile)) { Read-HostJson $intentFile } else { '' }
+if ($Operation -in 'open','status' -and $openId -cnotmatch '^[0-9a-f]{32}$') { throw 'A valid open ID from this Rider generation is required.' }
 if ($Operation -in 'close','discard' -and !$tag) { throw 'Missing the original IntelliJ project instance tag. Close was not dispatched.' }
 $client = [Net.Sockets.TcpClient]::new()
 try {
@@ -58,6 +63,9 @@ try {
    $token = [Text.Encoding]::ASCII.GetString([Security.Cryptography.ProtectedData]::Unprotect($encrypted, $null, 'CurrentUser'))
    $ifMatch = if ($Operation -ne 'open') { $tag } else { '' }
    $reply = [RemoteDevHost.ConnectedRiderRequest]::PostAsync($client, [uri]"http://127.0.0.1:$port/api/$path", $token, $Solution, $ifMatch, $openId).GetAwaiter().GetResult()
+   if ($Operation -eq 'status' -and $reply.Status -eq 404 -and $reply.Message -cne 'No open project for the solution') {
+      throw 'The private JVM did not confirm absence through its project status handler.'
+   }
    if (($Operation -eq 'open' -or ($Operation -eq 'status' -and $openId -and $reply.Status -eq 200)) -and $reply.ETag) {
       if ($tag -and $tag -cne $reply.ETag) { throw 'Rider returned a different project instance at the same path. The original close tag has been preserved.' }
       Write-HostJson $tagFile $reply.ETag

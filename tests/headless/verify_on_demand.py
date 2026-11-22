@@ -153,6 +153,31 @@ def verify(args):
         assert listing() == {first/SOLUTION}
         first_generation = generation()
         assert set((profile/"runs").glob("*")) - previous == {first_generation[0]}
+        if args.check_rejected_open:
+            # Git names this solution in B. Rider rejects its nonphysical path before opening a project.
+            alias = second / "rejected-junction"
+            physical = lab / "physical-solution"
+            physical.mkdir()
+            solution_name = "Rejected.slnx"
+            shutil.copyfile(second / SOLUTION, physical / solution_name)
+            subprocess.run(["pwsh", "-NoProfile", "-Command",
+                            "$null=New-Item -ErrorAction Stop -ItemType Junction -Path $env:CHECK_ALIAS -Target $env:CHECK_TARGET"],
+                           env={**os.environ, "CHECK_ALIAS": str(alias), "CHECK_TARGET": str(physical)}, check=True)
+            relative = f"{alias.name}/{solution_name}"
+            try:
+                blob = command("git", "rev-parse", "HEAD:" + SOLUTION, cwd=second).strip()
+                command("git", "update-index", "--add", "--cacheinfo", f"100644,{blob},{relative}", cwd=second)
+                denied = request("tools/call", dict(name="warm_worktree", arguments=dict(solutionPath=str(alias/solution_name))))
+                assert denied.get("isError") and "HTTP 400" in denied["content"][0]["text"], denied
+                records = json.loads((profile/"worktrees.json").read_text(encoding="utf-8-sig"))
+                assert [Path(it["Solution"]) for it in records] == [first/SOLUTION], records
+                assert listing() == {first/SOLUTION} and generation() == first_generation
+                generated(first)
+            finally:
+                command("git", "update-index", "--force-remove", "--", relative, cwd=second)
+                assert alias.is_junction() and alias.resolve() == physical.resolve()
+                alias.rmdir()
+            print("PASS: rejected B left the journal; A still serves in its original JVM", flush=True)
         generated(second)
         assert generation() == first_generation
         assert listing() == {first/SOLUTION, second/SOLUTION}
@@ -212,4 +237,5 @@ if __name__ == "__main__":
     parser.add_argument("--check-replacement", action="store_true", help="Immediately reuse an externally removed worktree path")
     parser.add_argument("--check-idle", action="store_true", help="Wait for the final idle solution and JVM to stop")
     parser.add_argument("--check-timeout", action="store_true", help="Verify a timed-out cold edit never executes")
+    parser.add_argument("--check-rejected-open", action="store_true", help="Verify a rejected second solution clears quarantine while the first stays ready")
     verify(parser.parse_args())

@@ -62,6 +62,17 @@ The profile retains a per-generation plan, private logs, PID history and shutdow
 backend logs can carry private project data. Package staging installs nothing in everyday Riders and registers no
 scheduled task.
 
+When an open is rejected before the project acquires an ETag or backend identity, cleanup checks the original
+open ID against that JVM's read-only project-status endpoint. On a confirmed absence it takes a fresh Windows-job
+sample and verifies that the remaining backends and workers are accounted for. This cleanup sends no close to Rider
+and can be repeated. The absent open ID stays in the run directory for these checks. The next open at that path uses
+a fresh ID. A pending open, a different project instance, a missing generation-local attempt or unassigned workers
+keep cleanup from reporting success.
+
+Run the [on-demand integration check](../../../tests/headless/verify_on_demand.py) with `--check-rejected-open`
+to exercise this through the public primary. It checks the original Rider refusal, the worktree journal and a
+generated-symbol query on the live sibling before opening the second worktree normally.
+
 ## Verification on Rider RD-263.7307.325
 
 Three isolated solutions named `SharedProbe.sln` shared one private JVM. The first launch and a second adoption of

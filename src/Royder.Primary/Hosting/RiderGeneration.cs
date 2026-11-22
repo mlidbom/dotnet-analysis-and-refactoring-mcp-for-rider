@@ -93,10 +93,12 @@ internal sealed class RiderGeneration
          throw new InvalidOperationException($"Private Rider stopped during the operation ({state.Phase}). {state.Error}");
    }
 
-   public IReadOnlyList<Backend> Backends()
+   public IReadOnlyList<Backend> Backends() => Backends(State);
+
+   IReadOnlyList<Backend> Backends(JobState state)
    {
       var found = new List<Backend>();
-      foreach(var member in State.Members.Where(it => it.Name.Equals("Rider.BackendHost", StringComparison.OrdinalIgnoreCase) && it.IsAlive()))
+      foreach(var member in state.Members.Where(it => IsFullBackend(it) && it.IsAlive()))
       {
          foreach(var log in Directory.EnumerateFiles(Path.Combine(Launch.Run,"log"), $"backend.*.{member.Pid}.log"))
          {
@@ -130,6 +132,48 @@ internal sealed class RiderGeneration
    public string OpenIdentity(string solution) => Path.Combine(Launch.Run,"opened-" + Key(solution) + ".json");
    public string Tag(string solution) => Path.Combine(Launch.Run,"project-" + Key(solution) + ".etag");
    public string OpenIntent(string solution) => Path.Combine(Launch.Run,"project-" + Key(solution) + ".open-id");
+   public string AbsentOpen(string solution) => Path.Combine(Launch.Run,"project-" + Key(solution) + ".absent-open-id");
+
+   /// <summary>Record the attempt in this generation before launcher preflight can reject it. A new open following
+   /// a confirmed absence gets a new ID. Retries of an unresolved open retain the original ID.</summary>
+   public void BeginOpen(string solution)
+   {
+      var intent = OpenIntent(solution);
+      if(!File.Exists(intent)) RiderSupervisor.Write(intent,Guid.NewGuid().ToString("N"));
+      File.Delete(AbsentOpen(solution));
+   }
+
+   static bool IsFullBackend(RiderProcessIdentity process) => process.Name.Equals("Rider.BackendHost",StringComparison.OrdinalIgnoreCase);
+
+   /// <summary>Corroborates the authenticated JVM's absent-project reply against a fresh kernel-job sample.
+   /// Every surviving backend or worker must be attributable to a sibling or a JVM-wide process.</summary>
+   public async Task<bool> ConfirmsNoBackend(string solution, CancellationToken cancellation)
+   {
+      AssertRunning();
+      var state = await ObserveJob(Stopwatch.StartNew(),cancellation).ConfigureAwait(false);
+      if(state.Phase != "Running" || state.HostProcess is not {} jvm || !jvm.IsAlive() ||
+         !state.Members.Any(jvm.SameProcess)) return false;
+      var backends = Backends(state);
+      if(backends.Any(it => Same(it.Solution,solution))) return false;
+      bool UnassignedBackend(RiderProcessIdentity process) => IsFullBackend(process) &&
+         !backends.Any(it => it.Process.SameProcess(process));
+      return !Unreleased(state,UnassignedBackend).Any() &&
+         Same(RiderSupervisor.Read<string>(Path.Combine(Launch.Profile,"current.json")),Launch.Run);
+   }
+
+   async Task<JobState> ObserveJob(Stopwatch timer, CancellationToken cancellation)
+   {
+      var nonce = Guid.NewGuid().ToString("N");
+      RiderSupervisor.Write(Path.Combine(Launch.Run,"observe.json"), nonce);
+      JobState state;
+      do
+      {
+         await Task.Delay(150,cancellation).ConfigureAwait(false);
+         state = State;
+         if(timer.Elapsed >= TimeSpan.FromSeconds(90)) throw new TimeoutException("Supervisor did not confirm fresh job membership.");
+      } while(state.ObservationRequest != nonce && state.Phase == "Running");
+      return state;
+   }
 
    /// <summary>The JVM's own discovery record. An empty result here distinguishes the last project closing from
    /// a gap in backend registrations during primary election.</summary>
@@ -167,16 +211,9 @@ internal sealed class RiderGeneration
          if(!target.Process.IsAlive())
          {
             // Require at least one new enumeration of the kernel job after the backend exited.
-            var nonce = Guid.NewGuid().ToString("N");
-            RiderSupervisor.Write(Path.Combine(Launch.Run,"observe.json"), nonce);
-            do
-            {
-               await Task.Delay(150,cancellation).ConfigureAwait(false);
-               state = State;
-               if(timer.Elapsed >= TimeSpan.FromSeconds(90)) throw new TimeoutException("Supervisor did not confirm fresh job membership after close.");
-            } while(state.ObservationRequest != nonce && state.Phase == "Running");
+            state = await ObserveJob(timer,cancellation).ConfigureAwait(false);
             if(state.Phase != "Running") continue;
-            var pending = Unreleased(state,target.Process).ToArray();
+            var pending = Unreleased(state,target.Process.SameProcess).ToArray();
             if(pending.Length == 0) return;
             evidence = string.Join(", ",pending);
          }
@@ -185,7 +222,7 @@ internal sealed class RiderGeneration
       throw new TimeoutException($"Cannot confirm removal is safe for '{target.Solution}': {evidence}.");
    }
 
-   static IEnumerable<string> Unreleased(JobState state, RiderProcessIdentity target)
+   static IEnumerable<string> Unreleased(JobState state, Func<RiderProcessIdentity,bool> isUnreleased)
    {
       var history = (state.Observed ?? state.Members).ToLookup(it => it.Pid);
       foreach(var live in state.Members.Where(it => it.IsAlive()))
@@ -193,7 +230,7 @@ internal sealed class RiderGeneration
          var current = live;
          while(true)
          {
-            if(current.SameProcess(target)) { yield return $"{live.Name} PID {live.Pid}"; break; }
+            if(isUnreleased(current)) { yield return $"{live.Name} PID {live.Pid}"; break; }
             if(state.HostProcess?.SameProcess(current) == true || current.Name.Equals("jetbrainsd",StringComparison.OrdinalIgnoreCase)) break;
             var parent = current.ParentPid is int id
                ? history[id].Where(it => it.Started < current.Started).MaxBy(it => it.Started) : null;
