@@ -346,8 +346,15 @@ The second round, under way:
 
 - **royder-codex-2:** its program hosting Royder's unchanged host, on port 23910. Whether Royder stays correct between
   calls (edited, new, deleted and moved files), and its edit tools for real, each reverted after.
-- **royder-codex-3:** every read tool's answer headless against Rider's, on port 23900, and which services and settings
-  the headless engine resolves.
+- **royder-codex-3, done:** every read tool's answer headless against Rider's
+  (`experiments/HeadlessExtension/read-tool-results.md`): 18 of 30 cases the same, 10 different, 2 failed. The
+  navigation, search, hierarchy, flow and file-error tools match. Missing headless: quick fixes, completion items, a
+  compiled type's decompiled source (no C# metadata translator) and rename (`UnsupportedLanguage`), because
+  InspectCode's composition leaves out `ICodeEditingZone` and `ExternalSourcesZone`, though their assemblies ship.
+  Severities differ (UnusedMember a warning in Rider, a suggestion headless), and `changedSince` took 10 s headless
+  against 0.4 s, waiting on the Rider-only rescan.
+- **royder-codex-3, next:** settings parity: which of Rider's layers make the difference, whether a headless host can
+  read them read-only, a positive EditorConfig check, and which side's line endings are faithful to disk.
 - **royder-codex-1:** with its design draft done, the engine's footprint, on a private fixture repository in its Temp
   folder: whether a plain `git worktree remove` succeeds while a host has the worktree open, everything the worker
   tree writes and where, whether `DisablePackageAssetsCache` stops the `obj` write, and which processes outlive it.
