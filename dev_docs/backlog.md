@@ -298,8 +298,9 @@ how to run it and what it found:
 - **Our own program boots the engine headless** (`experiments/HeadlessHost`, royder-codex-2). It calls
   `CommandLineProductMain.Main` with `isLiveSession: true`, owns the dispatcher and the solution's lifetime, and its
   find-usages answer matched Rider's. A second query in the same process: 34 ms. Loading and indexing, cold and
-  warm: this repository 13 s and 14 s; a copy of Compze.AllProjects (125 projects) 46 s and 49 s, and 36 s in a third
-  run. Memory once indexed: the engine 0.7 to 1.2 GB private; with the MSBuild and .NET workers it starts while
+  warm, on a quiet machine (about 40% processor use): this repository 13 s and 11 s; a copy of Compze.AllProjects
+  (125 projects) 40 to 46 s cold, at 72 to 83% processor use, and 28 s warm. On a busy machine, near 90%, warm took
+  19 s and 49 s. Memory once indexed: the engine 0.7 to 1.2 GB private; with the MSBuild and .NET workers it starts while
   loading projects, 1.27 GB on Compze, so a budget counts the process tree. An edit on disk is seen only after
   `IFileSystemTracker.CommitChanges()`, even with the tracker enabled. Loading projects with `--no-build` still writes
   `obj\**\*.assets.cache` in the checkout, so a host only loads its own worktree.
