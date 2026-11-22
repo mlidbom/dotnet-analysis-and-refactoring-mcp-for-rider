@@ -329,8 +329,10 @@ how to run it and what it found:
   solution's path, past that; no edit is queued. Agents handle "retry" poorly, so most first calls should just take
   longer.
 - **Stopping:** after ten idle minutes, counted from real calls, and at once when the worktree goes. A plain
-  `git worktree remove` fails once the solution has loaded, on the Roslyn worker's working directory (royder-codex-1's
-  footprint, below): the fix is to be built and tested before anything is built on stopping.
+  `git worktree remove` failed once the solution had loaded, on the Roslyn worker's working directory; with the
+  worker's directory patched, it succeeds on its first try (royder-codex-1, below). The removal ends nothing by
+  itself: an engine went on to announce its solution indexed after the worktree was gone, so the host must notice
+  and stop.
 - **Memory:** the primary reads the stall recorder's pipe all the time, the fields `at`, `availableMB`, `physicalMB`,
   `committedGB` and `commitLimitGB` (told to the tooling owner once read), and admits a start while memory has been
   green for 30 s, reserving the starts in progress, counted as process trees. When it's short, the least recently
@@ -384,10 +386,13 @@ The second round, under way:
   - **A plain `git worktree remove` succeeds only before the solution loads.** From indexing on, git deletes every
     file, forgets the worktree, and fails on the empty folder that is left (exit 255). The Roslyn worker holds it:
     `RoslynExternalProcess` sets its working directory to the solution's folder. Ending that worker alone released it.
-  - **The fix it recommends, unbuilt:** a headless subclass of the public `CommandLineSolutionProcessStartInfoPatcher`
-    that gives the Roslyn worker alone a private working directory. To be tested with the worker running, with a
-    source generator's member, an analyzer's diagnostic and the team settings still there. The fallback, a private
-    copy of the solution file, changes the solution's identity, which its settings and Royder's routing hang on.
+  - **The fix, built and tested in its round 3** (`experiments/HeadlessRoslynPatcher`): a headless subclass of the
+    public `CommandLineSolutionProcessStartInfoPatcher` that gives the Roslyn worker alone a private working
+    directory, loaded as a package as Royder's host is. A plain `git worktree remove` then succeeded on its first
+    try, during indexing and idle, with the worker running. A source generator's member, a Roslyn analyzer's warning,
+    the projects and the team settings were the same as without it. The fallback it no longer needs, a private copy
+    of the solution file, would have changed the solution's identity, which its settings and Royder's routing hang
+    on.
   - **What it writes:** 7 files in each project's `obj`. `DisablePackageAssetsCache=true` stops the `assets.cache`
     one, with the same usages found; 18 remain. Nothing in Magnus's JetBrains folders, and existing settings files
     untouched. The caches, settings, temp and logs go where they are redirected.
@@ -397,9 +402,9 @@ The second round, under way:
   start, before loading projects, `UpdatesManager.CheckForUpdatesImpl`, on a thread of its own, fetches
   `https://www.jetbrains.com/dotnet/updates/dotnet.Updates.xslt` (served through Amazon CloudFront). The request may
   carry license details, but the answer it reads is the update list: not a license check, nor feature flags or usage
-  statistics. With it failing, or held unanswered, a host indexed and answered `find_usages` as before: nothing waits
-  on it. `UpdatesManager` honours
-  `JETBRAINS_NO_CHECK_FOR_UPDATES`, which a headless host is to set.
+  statistics. With it failing, a host indexed and answered `find_usages` as before; held unanswered, it gave up
+  after 10 s while the projects went on loading. `UpdatesManager` honours `JETBRAINS_NO_CHECK_FOR_UPDATES`, which
+  stopped the request: a headless host is to set it.
 
 ## Decided against
 
