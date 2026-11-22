@@ -199,11 +199,16 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 - **Cold-start discovery.** The standalone handshake, tool description and `list_solutions` reply explain absolute
   `filePath` and full solution paths in `solutionName`. The listing continues to describe only the solutions
   actually open. Both symbol-linker consumers ignore the additional `hint` field.
-- **Repeated instructions and source excerpts.** The live standalone handshake is 156 characters, down from 1,852.
+- **Repeated instructions and source excerpts.** The first shortened standalone handshake was 156 characters, down from 1,852.
   Codex has been observed to repeat the guide on tool descriptions. Quota effects were not measured.
   `go_to_definition` now defaults to 200 source characters plus an ellipsis in text mode. On
   `ProcessTypingIntoASession.LoggingWhatStopsIt` the default matched explicit 200; explicit 2,000 returned the
   full 1,238 characters. The JSON declaration shape is unchanged.
+- **Choosing a tool before a checkout is open.** The shared agent guidance now explains when text search and
+  Royder each help. The standalone handshake explicitly covers desktop Rider being closed. Each headless analysis
+  tool's `solutionName` description explains how to open the target checkout directly. An idle `/health`
+  snapshot only counts projects open at that instant. Session records later that evening showed a successful
+  Cloyd specification lookup by symbol and a ClaudeTooling inspection of 17 changed files.
 
 ## The rename to Royder
 
