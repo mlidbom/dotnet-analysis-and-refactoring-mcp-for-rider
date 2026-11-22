@@ -480,12 +480,17 @@ The second round, under way:
     - **royder-codex-1's round 7:** the same host serving a worktree of this repository. Committed rename and move,
       quick fixes, suggestions, completion, disk sync of an edit, a new file and a delete, `reload_projects`, the
       memory and time to indexed, and a plain `git worktree remove` while it serves it.
-    - **royder-codex-3's round 7, read-only:**
-      - redirecting the status files;
-      - closing one project of a shared host;
-      - whether an idle host exits;
-      - several hosts at once;
-      - whether the host's JVM answers Royder's rescans and saves as the desktop frontend does.
+  - **royder-codex-3's round 7, read-only, done** (0cc8a05,
+    `dev_docs/headless-royder/remote-dev-server-lifecycle.md`):
+    - **The status files can't be redirected with the stock launcher:** it resets `APPDATA` and `LOCALAPPDATA` to
+      the real folders before starting the JVM. The JVM's ID files are always under `APPDATA\JetBrains`, and are
+      rewritten unchanged. Untested candidate: starting Java directly, as `rider.bat` does, with private folders.
+    - **`stop` ends the whole JVM,** whatever solution it names. Only a connected client can close one project. So
+      a host per worktree, in a JVM of its own, is what stops one worktree's host alone.
+    - **No idle exit** for a host no client connected to: the primary has to stop it.
+    - **Several JVMs at once:** distinct config and system folders and `--port` values.
+    - **Royder's rescans and saves have their handlers in the host's JVM**
+      (`FileSystemModelProtocolListener`, `DocumentHostHelper.saveFiles`), as in the desktop frontend.
 
 ## Decided against
 
