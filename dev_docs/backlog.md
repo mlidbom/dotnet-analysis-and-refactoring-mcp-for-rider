@@ -191,6 +191,23 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   tool list shows each description as its own text, two newlines, and the whole of those instructions: 48,152
   characters of repeated instructions when every tool is listed. No claim yet of what that costs of a quota. It bears
   on what goes into the server's instructions and what into each tool's description.
+- **Every request to the headless primary takes 2 seconds, `/health` included** (codex-usage-explorer, 2026-11-22,
+  the production smoke test after the cutover, through the tooling owner). Identical warm `get_symbol_source` calls
+  over loopback HTTP took 2,016 and 2,009 ms; `/health` took 2,014 ms and `tools/list` 2,020 ms. The same call through
+  Codex's MCP took 2,019 ms. One ready solution, no pending disk changes. The tooling owner measured the same at 17:26:
+  `curl` to `127.0.0.1:23751/health` connected in under 1 ms, with the first byte at 2.02 s, and the same over
+  `localhost`. So the time is spent in the server, not in resolving or connecting. At that moment no `rider64.exe`
+  ran, the desktop cluster's 23761 refused connections, and the primary served only ClaudeTooling. Cause not
+  established. A wait of a fixed 2 seconds on each request is the shape to look for, such as a call to a peer that
+  isn't there. Important for interactive navigation.
+- **On a cold start, nothing says that a path opens a worktree** (the same smoke test). `list_solutions` returned no
+  solutions. A `search_symbol` with `solutionName` set to the absolute path of owner-helper-3's `ClaudeTooling.slnx`
+  then opened that worktree in 32.6 s, and all three declarations it returned matched the disk. Yet both the server's
+  instructions and the empty `list_solutions` reply still describe the tools as working on the solutions open in
+  Rider. Nothing hints that an absolute solution or file path opens a trusted worktree. Wanted: the instructions say
+  so, and an empty `list_solutions` reply says how to open one. The live catalog has 28 tools, `warm_worktree` and
+  `close_worktree` among them. A Codex session opened before the cutover still lists 26 after the MCP reload: the
+  tooling's side of that is in `~/.claude/dev_docs/backlog.md`.
 
 ## The rename to Royder
 
