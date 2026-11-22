@@ -374,10 +374,11 @@ how to run it and what it found:
   private profile, and no client ever connected (Magnus, 2026-11-22, on the recommendation from its rounds 6 to 8:
   "Sounds good. Let's do it."). Royder's plugin runs in it unchanged, the editing tools included, so the tools need no
   second implementation, and it runs under his Rider license. Its backend registers with the primary as a peer.
-  - **One server per worktree** to start with: one start, one stop. About 4.3 GiB each on this repository, its JVM
-    1.8 GiB of that.
-  - **One shared server** if memory runs short: 1.8 GiB once, plus about 2.4 GiB per worktree, with
-    `experiments/RemoteCloseWorktree` closing one worktree's project.
+  - **One shared server for agents' worktrees** is the direction Magnus chose on 2026-11-22. This machine has
+    repeatedly run short of memory with 96 GB installed. A separate server for this repository used about 4.3 GiB
+    of private memory after indexing, including 1.8 GiB for its JVM. In a shared server, each worktree still has
+    its own .NET backend and workers. Measure the cost of adding a second real worktree, how much comes back on
+    closing it, and whether the first keeps serving through a second open and close.
   - What it needs is in "Rider's own headless host" below: the Roslyn worker out of the worktree
     (`experiments/RemoteRoslynPatcher`), no tracked file changed in the worktree, nothing listening beyond loopback.
 - **Our own program on `jb`'s engine** (`experiments/HeadlessHost`) leaves the design, decided with the host above:
@@ -533,22 +534,24 @@ The second round, under way:
   - **royder-codex-1's round 8, done** (ad80651, `experiments/RemoteRoslynPatcher`, "Round 8" in
     `rider-remote-dev-server.md`): the patcher, as a plugin of its own for agents' servers, built and not run. `.idea`
     is beside the solution, in the worktree, with no setting to move it, and is written on project save and close.
-  - **Next, under way:**
-    - **royder-codex-3:** its launch harness as a committed tool, `experiments/RemoteDevHost`, for the runs to come;
-      what `jetbrainsd.exe` is, and what the host changed in `vcs.xml`.
+  - **The shared-server experiment:**
+    - **royder-codex-3's launch harness is on main** (4239f08, `experiments/RemoteDevHost`). The private JVM keeps
+      the tracked `vcs.xml` intact with `vcs.root.auto.add=false`. The supervisor ends the private
+      `jetbrainsd.exe` that waits for another IDE after Java exits. A host in the smoke test returned the right
+      declaration from its own checkout after six hours. Shutdown left no job members or reserved listeners.
     - **royder-codex-2's round 7, done** (7d2b496, `experiments/RemoteCloseWorktree`): its close request, built as a
       plugin of its own for agents' servers, not in Royder's jar, which every Rider of Magnus's would load. The Plugin
-      Verifier found it compatible; not run yet. Asked: whether `RestService`'s trust check can show a dialog in a
-      server with no window, and whether the close gets the write intent it needs.
-    - **royder-codex-1:** then the patcher's run, with that tool: a worktree removed while its host runs, and the
-      `.idea` files written back after.
+      Verifier found it compatible. On RD-263.7307.325 the primary's authenticated loopback request with neither
+      Origin nor Referer passes the trust check without a dialog. The scheduled close receives the required write
+      intent. Both findings came from the installed code.
+    - **royder-codex-1:** use the launch harness and both plugins to measure two real worktrees in one JVM.
+      Verify which worktree answers each call, clean removal of one while the other serves, and memory returned
+      over two open/close cycles.
     - **Two network-access prompts from Windows' firewall** (Magnus, 2026-11-22): waiting when he came back to the
-      machine after a night of these runs, most likely from them. He allowed both. A prompt means a program listened
-      on more than loopback: to find which (the rules his Allow created name the programs), and to keep every listener
-      of an agents' server on loopback. Calls over loopback are likely not blocked while a prompt waits, so the runs'
-      results likely stand; unverified.
-    - **After those:** two worktrees in one server, one closed and removed while the other goes on serving; a JVM
-      with Rider's unneeded bundled plugins disabled, for its non-heap gigabyte; a host that runs for hours.
+      machine after a night of these runs. The Windows Firewall log identifies the two programs he allowed at 08:19
+      as `remote-dev-server.exe` and Rider's bundled `java.exe`. Which sockets prompted the approvals remains open.
+      The agent server's listeners should stay on loopback.
+    - **Later:** measure what disabling unused bundled plugins saves in the JVM.
   - **royder-codex-3's round 7, read-only, done** (0cc8a05,
     `dev_docs/headless-royder/remote-dev-server-lifecycle.md`):
     - **The status files can't be redirected with the stock launcher:** it resets `APPDATA` and `LOCALAPPDATA` to
