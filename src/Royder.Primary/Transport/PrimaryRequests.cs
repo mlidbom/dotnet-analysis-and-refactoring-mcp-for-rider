@@ -88,7 +88,7 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
          await worktrees.YieldToOrdinaryRider(chosen.WorkTree, cancel);
          return await Forward(chosen.Endpoint, chosen.FilePath);
       }
-      if(!pinned.Tools.OfType<JObject>().Any(it => (string?)it["name"] == tool))
+      if(!pinned.Provides(tool))
          return Rpc.ToolResult(id, $"The configured headless tools build does not provide '{tool}'.", true);
       var explicitPath = AbsoluteSolution(selector);
       if(chosen == null && selector != null && explicitPath == null) return Rpc.ToolResult(id, $"{refusal} {PrimaryToolCatalog.OpenOnDemand}", true);

@@ -6,15 +6,7 @@ finds them out only by doing it:
 
 - **`everyday deploy` deploys the build of the checkout it runs in,** into the Royder every session uses: a helper's
   unreviewed build would reach Magnus's Riders.
-- **Royder's tools route a call by the files it names** to the open solution holding them most closely. A helper's
-  checkout has its own solution only once a Rider has it open; until then, an edit tool's call goes to the main
-  checkout's solution and edits files there, in other sessions' work.
-
-The symbol linker has the same rule for its helpers (`030-in-a-checkout-other-than-the-main-one.md` there); this one
-differs where Royder differs: Magnus opens a Rider on each helper's checkout, so Royder's tools work there once its
-solution is open.
-
-**Verified 2026-11-22:** with Riders open on the helpers' checkouts, `list_solutions` gives their solutions the
-segments the rule names, `royder-codex-2` and `royder-codex-3`. **Untested:** whether a Codex helper keeps to the rule;
-if not, look first at whether its `AGENTS.override.md` was regenerated after the rule changed
-(`ClaudesSetupForCodex project`).
+- **Every helper has a solution named ReSharperMcp.** An untargeted symbol call can reach another checkout
+  when it is the only one open. An absolute file or solution path identifies the helper's checkout on its
+  first call, including when it has to open headlessly. The pilot verified this with a declaration lookup
+  across a headless → desktop Rider → headless handoff on the same checkout (2026-11-22).

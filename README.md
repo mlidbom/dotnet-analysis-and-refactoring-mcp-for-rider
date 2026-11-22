@@ -2,7 +2,9 @@
 
 A fork of Joshua Light's [MCP Server for Code Intelligence](https://github.com/joshua-light/resharper-mcp), renamed so that it can be developed and released on its own and installed beside the original.
 
-An MCP (Model Context Protocol) server that runs inside the ReSharper/Rider backend process, exposing code intelligence features to AI assistants via HTTP.
+Royder exposes ReSharper navigation, inspections and refactorings to AI assistants over MCP. With the standalone
+primary installed on Windows, call a tool directly with an absolute `filePath` or a full `.sln` or `.slnx` path
+as `solutionName`. It opens the trusted checkout on demand, even with desktop Rider closed.
 
 Supports C#, F#, VB, and any language with a ReSharper PSI implementation.
 
@@ -125,7 +127,7 @@ Add to your MCP client config (e.g. Claude Code `settings.json`):
 }
 ```
 
-The server starts automatically when you open a solution in Rider.
+With only the Rider plugin installed, the server starts when you open a solution in Rider.
 
 Set `DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT` environment variable to override the default port.
 

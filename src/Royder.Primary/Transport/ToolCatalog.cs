@@ -10,6 +10,8 @@ sealed class ToolCatalog
    public JObject Initialize { get; }
    public string HostHash { get; }
 
+   public bool Provides(string toolName) => Tools.OfType<JObject>().Any(it => (string?)it["name"] == toolName);
+
    public ToolCatalog(string file, string expectedBuild)
    {
       var manifest = JObject.Parse(File.ReadAllText(file));

@@ -36,6 +36,12 @@ def verify(primary, source_settings, port, desktop_port):
     def listing():
         return json.loads(rpc("tools/call", dict(name="list_solutions"))["content"][0]["text"])
 
+    def catalog():
+        return {tool["name"]: tool for tool in rpc("tools/list")["tools"]}
+
+    def selector_for(descriptors, name):
+        return descriptors[name]["inputSchema"]["properties"]["solutionName"]["description"]
+
     def health():
         with HTTP.open(public + "health", timeout=10) as response:
             return json.load(response)
@@ -53,15 +59,19 @@ def verify(primary, source_settings, port, desktop_port):
     class OrdinaryEndpoint(BaseHTTPRequestHandler):
         def do_POST(self):
             incoming = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            if incoming["params"]["name"] == "list_solutions":
-                text = json.dumps({"solutionCount": 1, "solutions": [{"name": "Ordinary", "path": solution, "toolCount": 25}]})
+            if incoming["method"] == "tools/list":
+                schema = {"type": "object", "properties": {"solutionName": {"type": "string", "description": "Desktop selector"}}}
+                result = {"tools": [{"name": name, "inputSchema": schema} for name in ("get_solution_structure", "desktop_only")]}
             else:
-                assert incoming["params"]["name"] == "get_solution_structure"
-                call_started.set()
-                assert finish_call.wait(9)
-                text = "completed ordinary call"
-            body = json.dumps({"jsonrpc": "2.0", "id": incoming["id"], "result": {
-                "content": [{"type": "text", "text": text}], "isError": False}}).encode()
+                if incoming["params"]["name"] == "list_solutions":
+                    text = json.dumps({"solutionCount": 1, "solutions": [{"name": "Ordinary", "path": solution, "toolCount": 25}]})
+                else:
+                    assert incoming["params"]["name"] == "get_solution_structure"
+                    call_started.set()
+                    assert finish_call.wait(9)
+                    text = "completed ordinary call"
+                result = {"content": [{"type": "text", "text": text}], "isError": False}
+            body = json.dumps({"jsonrpc": "2.0", "id": incoming["id"], "result": result}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -85,14 +95,20 @@ def verify(primary, source_settings, port, desktop_port):
             cold = listing()
             assert cold["solutions"] == [] and cold["solutionCount"] == 0
             assert "absolute filePath" in cold["hint"] and "solutionName" in cold["hint"]
-            assert "absolute filePath" in guide and len(guide) < 250, guide
-            descriptor = next(it for it in rpc("tools/list")["tools"] if it["name"] == "list_solutions")
-            assert "on demand" in descriptor["description"]
+            assert cold["hint"] in guide and "desktop Rider closed" in guide and len(guide) < 250, guide
+            tools = catalog()
+            assert cold["hint"] in tools["list_solutions"]["description"]
+            for name in tools.keys() - {"list_solutions", "warm_worktree", "close_worktree"}:
+                selector = selector_for(tools, name)
+                assert ".sln/.slnx" in selector and "on demand" in selector and "file paths" in selector, (name, selector)
             with ThreadingHTTPServer(("127.0.0.1", desktop_port), OrdinaryEndpoint) as ordinary:
                 threading.Thread(target=ordinary.serve_forever, daemon=True).start()
                 try:
                     warm = listing()
                     assert [row["path"] for row in warm["solutions"]] == [solution] and warm["hint"] == cold["hint"]
+                    with_desktop = catalog()
+                    assert selector_for(with_desktop, "get_solution_structure") == selector_for(tools, "get_solution_structure")
+                    assert selector_for(with_desktop, "desktop_only") == "Desktop selector"
                 finally:
                     ordinary.shutdown()
             assert listing()["solutions"] == []

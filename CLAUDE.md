@@ -7,8 +7,10 @@ refer to. The code, its folders and assemblies, the `dotnet-analysis-and-refacto
 Marketplace listing still carry that name, .NET Analysis&Refactoring MCP, until the rename is decided.
 
 A fork of Joshua Light's `resharper-mcp`, renamed on 2026-11-14 (see `dev_docs/swappable-tools.md`).
-An MCP (Model Context Protocol) server that runs **inside** the ReSharper/Rider backend process,
-exposing code intelligence features to AI assistants via HTTP.
+The standalone primary (`src/Royder.Primary`) serves the agent-facing MCP endpoint on this machine at
+`127.0.0.1:23751`. Call a tool directly with an absolute file path or a full `.sln` or `.slnx` path as
+`solutionName`. It opens a trusted checkout on demand or routes to desktop Rider when it has the checkout
+open. The analysis and editing tools run inside the ReSharper backend in both cases.
 
 ## Architecture
 
@@ -36,20 +38,21 @@ tools/<build>/                                # the tools build it was installed
 The official C# MCP SDK (`ModelContextProtocol` NuGet) requires .NET 8+ for HTTP transport,
 but ReSharper plugins target **net472**. So we implement a lightweight MCP server manually:
 
-- `McpHttpServer.cs` (host) — `HttpListener`-based HTTP server on `127.0.0.1:23751`; hands every request to the tools build
+- `McpHttpServer.cs` (host) — loopback HTTP listener on the backend's assigned port. It hands every request to the tools build.
 - `Serving/McpRequest.cs` (tools) — implements JSON-RPC 2.0 directly (`initialize`, `tools/list`, `tools/call`, the `internal/*` methods)
 - Protocol types in the tools' `Protocol/JsonRpc.cs` and `Protocol/McpTypes.cs`, written with `JsonOf`, never Newtonsoft's serializer
 - Uses `Newtonsoft.Json` (bundled with Rider's ReSharper host, no need to ship it)
 
-### Multi-solution support (primary/peer architecture)
+### Multi-solution support within a Rider plugin cluster
 
 Rider runs each solution's backend, where the plugin lives, in an OS process of its own (`Rider.BackendHost.exe`),
 under the one frontend process (`rider64.exe`) that holds every solution's window. So the backends compete for ports,
 and restarting Rider ends them all at once.
-The plugin uses a **primary/peer** model:
+The plugin uses a **primary/peer** model within each cluster. With the standalone primary installed, the
+desktop cluster uses port 23761 on this machine. The plugin alone uses its default base port of 23751.
 
-- **Primary** — the first Rider instance binds the base port (23751). It acts as the single MCP endpoint for all clients.
-- **Peer** — subsequent instances bind the next available port (23752, 23753, ...) and register themselves with the primary via `internal/register` / `internal/deregister` JSON-RPC methods.
+- **Primary** — the first backend binds the cluster's base port and routes requests for its solutions.
+- **Peer** — subsequent backends bind the next available port and register themselves with the cluster's primary via `internal/register` / `internal/deregister` JSON-RPC methods.
 - The primary proxies `tools/call` requests for peer solutions by forwarding HTTP requests to the peer's port. If a proxy fails (peer crashed), the stale registration is automatically removed.
 
 Component breakdown:

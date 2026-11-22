@@ -1,4 +1,4 @@
-# In a checkout other than the main one: deploy nothing, and edit only through a Rider that has your solution open
+# Working in a linked worktree
 
 The main checkout is `C:\Dev\resharper-mcp`. Others are git worktrees of it, such as the Codex helpers' under
 `C:\Dev\resharper-mcp.worktrees\` (`dev_docs/codex-helpers.md`). In one of those:
@@ -10,13 +10,9 @@ The main checkout is `C:\Dev\resharper-mcp`. Others are git worktrees of it, suc
 - **There is one sandbox Rider, taken in turns.** The specifications, `sandbox install` and `sandbox start` work from
   your checkout, with its build, but wait while another checkout's run holds the sandbox turn. Stop the sandbox when
   you are done with it (`sandbox stop`): it holds gigabytes.
-- **Royder's tools reach your files only through a Rider that has your checkout's solution open.** Magnus opens one
-  on each helper's checkout. A call that names a file in your checkout then goes to your solution, and its edits land
-  in your files. A call that names no file, such as `search_symbol`, needs `solutionName`: several solutions named
-  `ReSharperMcp` are open, and `list_solutions` gives each the segment of its path to name it by, such as
-  `royder-codex-2`. Before any of the editing tools (`rename_symbol`, `move_type_to_namespace`, `fix_usings`,
-  `format_file`, `apply_quick_fix`, `apply_suggestions`, `generate_members`), check with `list_solutions` that your
-  checkout's solution is open. If it isn't, use none of them: they would edit the main checkout, in other sessions'
-  work.
+- **Target your checkout in the Royder call itself.** For a file operation, pass the absolute path in your
+  worktree. For a symbol by name or a solution-wide operation, pass your worktree's absolute
+  `ReSharperMcp.sln` path as `solutionName`. This applies to edits too. Royder opens that checkout on
+  demand when desktop Rider is closed. `list_solutions` shows which solutions are already open.
 - **JetBrains' own `rider` MCP server:** use none of its editing tools. Which of Rider's open solutions it acts on
   hasn't been checked.

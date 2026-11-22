@@ -10,8 +10,8 @@ the first brief. What a helper's checkout can't do is in the rule "In a checkout
 - `royder-codex-1`, in the main checkout, `C:\Dev\resharper-mcp`, which three Claude sessions share: work that edits
   no tracked file, such as research, reading assemblies and measuring.
 - `royder-codex-2` and `royder-codex-3`, in `C:\Dev\resharper-mcp.worktrees\royder-codex-2` and `-3`, on the
-  branches of their names, made 2026-11-22 from `main`. Magnus opens a Rider on each one's `ReSharperMcp.sln`, so
-  Royder serves its files.
+  branches of their names, made 2026-11-22 from `main`. An absolute file path in the helper's checkout or its
+  full `ReSharperMcp.sln` as `solutionName` opens that solution on demand, even with desktop Rider closed.
 
 To make another:
 `git worktree add -b royder-codex-4 C:/Dev/resharper-mcp.worktrees/royder-codex-4 main`, then in it
