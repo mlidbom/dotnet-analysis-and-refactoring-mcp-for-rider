@@ -7,10 +7,10 @@ from contextlib import nullcontext
 from datetime import datetime
 
 sys.dont_write_bytecode = True
-from checks.engine import CACHE, SOLUTION, LiveEngine
+from checks.engine import CACHE, RIDER_PORT, SOLUTION, LiveEngine
 from checks.edits import check_edit
-from checks.freshness import check_freshness
-from checks.probe_files import MOVED, PROJECT_FILE, SOURCE, ProbeFiles
+from checks.freshness import check_freshness, finds_change
+from checks.probe_files import FIXTURE_PROJECT, PAIRED_PROJECT, ProbeFiles
 
 
 def main():
@@ -19,26 +19,32 @@ def main():
     edits = ["rename", "fix-usings", "move-type"]
     checks = ["health", *freshness, *edits]
     parser.add_argument("check", choices=[*checks, "all"])
-    check = parser.parse_args().check
-    if check != "health":
-        subprocess.run(["dotnet", "restore", PROJECT_FILE], check=True)
+    parser.add_argument("--paired", action="store_true", help="Use the checkout solution and verify both ReSharper backends.")
+    args = parser.parse_args()
+    check = args.check
+    project = PAIRED_PROJECT if args.paired else FIXTURE_PROJECT
+    if not args.paired and check != "health":
+        subprocess.run(["dotnet", "restore", project], check=True)
     for case in checks if check == "all" else [check]:
-        evidence = CACHE / "evidence" / (datetime.now().strftime("%Y%m%d-%H%M%S-%f") + "-" + case)
+        evidence = CACHE / "evidence" / (datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ("-paired-" if args.paired else "-") + case)
         evidence.mkdir(parents=True)
         print("Evidence:", evidence, flush=True)
-        with ProbeFiles(case, evidence) if case != "health" else nullcontext():
-            solution = SOLUTION if case == "health" else PROJECT_FILE.with_suffix(".slnx")
-            with LiveEngine(evidence, solution) as engine:
+        with ProbeFiles(case, evidence, project).installed() if case != "health" else nullcontext() as files:
+            solution = SOLUTION if args.paired or case == "health" else project.with_suffix(".slnx")
+            with LiveEngine(evidence, solution, probe_missing_import=case == "fix-usings") as engine:
                 if case in freshness:
-                    engine.observe("result", check_freshness(engine, case))
-                    source = engine.document(SOURCE)
+                    engine.observe("result", check_freshness(engine, case, files))
+                    source = engine.document(files.source)
                     if case == "delete" and source["projectItems"]:
-                        engine.call("reload_projects", filePath=str(PROJECT_FILE))
-                        engine.document(SOURCE)
+                        engine.call("reload_projects", filePath=str(project))
+                        engine.document(files.source)
                     if case == "move-file":
-                        engine.document(MOVED)
+                        engine.document(files.moved)
+                    if args.paired:
+                        engine.observe("Rider backend sees the change after the headless checks",
+                                       finds_change(engine, case, files, port=RIDER_PORT))
                 elif case in edits:
-                    engine.observe("edit persisted", check_edit(engine, case))
+                    engine.observe("edit persisted", check_edit(engine, case, files))
 
 
 if __name__ == "__main__":

@@ -30,11 +30,35 @@ This serves the worktree's `ReSharperMcp.sln` on loopback port **23910** until `
 python -X utf8 experiments/HeadlessHost/Check.py all
 ```
 
-To run a single check, replace `all` with `health`, `content`, `add`, `delete`, `move-file`, `rename`, `fix-usings` or `move-type`. The script uses Python's standard library. `health` opens the actual worktree solution. The other checks open a small SDK project under `experiments/HeadlessHost/checks/fixture` to keep every edited file inside the experiment. Each case gets a fresh engine, verifies the registered solution and the private build against the two built DLLs, then shuts down. The fixture uses a private Git index and objects under `obj/live/evidence` to restore its original bytes after each case and removes the files it created.
+To compare the two ReSharper backends with the same `ReSharperMcp.sln` open in the headless host and everyday Rider, run
 
-The edit checks require this worktree's `ReSharperMcp.sln` open in everyday Rider. They use its Royder endpoint only to confirm the solution is open. Rider's native `read_file` then reads each fixture's frontend document with `rootFolder` set to the worktree. Its installed `ReadToolset` uses `FileDocumentManager.getDocument` and `Document.getText`. The checks compare complete document text with disk, normalizing line endings and BOM. The fixture is outside the everyday Rider solution's project model. Each evidence directory contains the engine console and a JSON-lines record of requests, replies, timings and document snapshots. A completed probe reports an observed limitation as a result. A setup or protocol failure exits with an error.
+```powershell
+python -X utf8 experiments/HeadlessHost/Check.py all --paired
+```
 
-### Freshness through Royder
+Replace `all` in either command with `health`, `content`, `add`, `delete`, `move-file`, `rename`, `fix-usings` or `move-type` for a single check. The script uses Python's standard library. `health` always opens the actual worktree solution. By default the other cases use `checks/fixture/LiveProbe.slnx`. With `--paired` they use a uniquely named directory in `tools/DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment`. Each case starts a fresh headless engine, checks the registered solution and the selected host and tools DLLs, then shuts it down.
+
+The paired check prepares all sources outside the project, saves their exact bytes in a private Git index and publishes the directory with one rename. It builds DevelopmentEnvironment before the probe and after a completed probe. Only the headless MSBuild process receives `ROYDER_HEADLESS_IMPORT_PROBE` for the `fix-usings` case. Its method uses the unqualified type in that branch. Ordinary builds and Rider use the fully qualified type, so they compile while the import is missing. The check verifies that headless sees the unresolved type and ordinary Rider sees zero diagnostics before issuing the edit.
+
+On exit, including an exception, the check withdraws the whole directory, restores the saved sources with Git and verifies them byte for byte before removing the scratch directory. An injected failure after changing a source file exercised this path. It left the probe path absent and its Git status empty.
+
+The edit checks preload the actual Rider frontend documents through its native `read_file` with `rootFolder` set to the worktree. Its `ReadToolset` uses `FileDocumentManager.getDocument` and `Document.getText`. The checks compare complete text, normalizing line endings and BOM. Paired runs also read the files through the ordinary Royder backend before and after the edit and check for disk-sync notes. All mutations go to port 23910. Each evidence directory under `obj/live/evidence` contains the console, requests, replies, timings and snapshots. A completed probe records an observed limitation as a result. A setup or protocol failure exits with an error.
+
+### Both ReSharper backends on the worktree solution
+
+One paired run on 2026-11-22 produced the following results. The Rider column describes the read after the headless check. The frontend delay for `fix_usings` was measured separately by polling the document that was read before the edit.
+
+| Probe in DevelopmentEnvironment | Headless Royder | Everyday Rider |
+| --- | --- | --- |
+| External content change | The first name-only search found the new type in 0.189 s. A second search confirmed the old name had disappeared. | Found the new declaration in the edited file. |
+| Added file | The first search waited 10.234 s and missed the type. A tracker commit still missed it. Reloading the project took 0.472 s and exposed the new path. | Found the declaration in the new file. |
+| Deleted file | The old type survived the first search. The tracker commit removed the name, leaving one empty project item. Reloading the project took 0.247 s and removed the item. | Found zero declarations. |
+| File moved to an existing folder | The first search still reported the old location after 10.140 s. A tracker commit removed it. A 0.252 s project reload made the destination the only location. | Found the declaration only at the destination. |
+| `rename_symbol` | Refused with `UnsupportedLanguage` in 0.065 s. The method and caller retained their names. | Frontend and backend documents agreed with disk. |
+| `fix_usings` | Saved the import in 0.633 s. The headless file went from two diagnostics to zero. | The preloaded frontend document matched disk after 2.605 s. The backend matched the file and reported zero diagnostics both before and after. |
+| `move_type_to_namespace` | Workflow initialization returned false in 0.044 s. The source and caller stayed in place, and the destination was absent. | Frontend and backend documents agreed with disk. |
+
+### Freshness in the standalone fixture
 
 The searches below call `search_symbol` with the type name alone. We loaded the original file's document before each external edit, deletion or move. Times are local observations from 2026-11-22. The waits in the probe distinguish passive updates from an explicit tracker commit or project reload.
 

@@ -14,7 +14,8 @@ HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
 SOLUTION = ROOT / "ReSharperMcp.sln"
 CACHE = HERE / "obj" / "live"
-PORT = 23910
+HEADLESS_PORT = 23910
+RIDER_PORT = 23751
 _http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
@@ -27,22 +28,25 @@ def request(port, path, data=None):
 
 
 class LiveEngine:
-    def __init__(self, evidence, solution=SOLUTION):
+    def __init__(self, evidence, solution=SOLUTION, probe_missing_import=False):
         self.evidence = evidence
         self.solution = solution
+        self.probe_missing_import = probe_missing_import
         self.lines = queue.Queue()
         self.observations = []
 
     def __enter__(self):
-        self.process = subprocess.Popen(
-            ["pwsh", "-NoProfile", "-File", str(HERE / "Run.ps1"), "-Cache", str(CACHE),
-             "-Royder", "-Listen", "-Symbol", "-", "-Solution", str(self.solution)], cwd=ROOT, stdin=subprocess.PIPE,
+        command = ["pwsh", "-NoProfile", "-File", str(HERE / "Run.ps1"), "-Cache", str(CACHE),
+                   "-Royder", "-Listen", "-Symbol", "-", "-Solution", str(self.solution)]
+        if self.probe_missing_import:
+            command.append("-ProbeMissingImport")
+        self.process = subprocess.Popen(command, cwd=ROOT, stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
         self.reader = threading.Thread(target=self._record_console, daemon=True)
         self.reader.start()
         try:
             self._until_ready(240)
-            health = request(PORT, "health")
+            health = request(HEADLESS_PORT, "health")
             self.observe("health", health)
             registered, = health["solutions"]
             assert Path(registered["path"]) == self.solution, registered
@@ -57,7 +61,7 @@ class LiveEngine:
             assert Path(selected["folder"]) == folder, selected
             loaded_dll = folder / selected["build"] / "DotNetAnalysisAndRefactoringMcp.Tools.dll"
             assert hashlib.sha256(loaded_dll.read_bytes()).hexdigest() == tools_hash, selected
-            self.require_solution(PORT)
+            self.require_solution(HEADLESS_PORT)
         except BaseException:
             self.__exit__(None, None, None)
             raise
@@ -97,11 +101,12 @@ class LiveEngine:
         assert any(Path(item["path"]) == (expected or self.solution) for item in solutions), solutions
         return solutions
 
-    def call(self, tool, port=PORT, **arguments):
-        if port != PORT and tool != "list_solutions":
-            raise ValueError("The everyday Royder only verifies the open checkout.")
+    def call(self, tool, port=HEADLESS_PORT, **arguments):
+        rider_reads = {"list_solutions", "list_symbols_in_file", "search_symbol", "get_file_errors"}
+        if port != HEADLESS_PORT and (port != RIDER_PORT or tool not in rider_reads):
+            raise ValueError("The everyday Royder permits only read calls for this check.")
         if tool != "list_solutions":
-            arguments["solutionName"] = str(self.solution)
+            arguments["solutionName"] = str(self.solution if port == HEADLESS_PORT else SOLUTION)
         started = time.monotonic()
         response = request(port, "", {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                                       "params": {"name": tool, "arguments": arguments}})

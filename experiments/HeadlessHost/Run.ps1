@@ -4,6 +4,7 @@ param(
    [string] $Cache,
    [switch] $Listen,
    [switch] $Royder,
+   [switch] $ProbeMissingImport,
    [string] $JbHome = (Join-Path $env:USERPROFILE '.dotnet\tools\.store\jetbrains.resharper.globaltools\2026.3.0.1\jetbrains.resharper.globaltools\2026.3.0.1\tools\net10.0\any')
 )
 $ErrorActionPreference = 'Stop'
@@ -15,6 +16,10 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $Cache = [IO.Path]::GetFullPath($Cache)
 $engine = [Diagnostics.ProcessStartInfo]::new('dotnet')
 $engine.UseShellExecute = $false
+if ($ProbeMissingImport) {
+   $existingDefines = $engine.Environment['DefineConstants']
+   $engine.Environment['DefineConstants'] = "$existingDefines;ROYDER_HEADLESS_IMPORT_PROBE".TrimStart(';')
+}
 $engine.Environment['DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT'] = '23910'
 $engine.Environment['TEMP'] = [IO.Directory]::CreateDirectory((Join-Path $Cache 'temp')).FullName
 $engine.Environment['TMP'] = $engine.Environment['TEMP']

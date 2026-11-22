@@ -1,12 +1,13 @@
 import re
 import time
 
-from .probe_files import AFTER, MOVED, PROJECT_FILE, SOURCE, TYPE, write_type
+from .engine import HEADLESS_PORT, RIDER_PORT, SOLUTION
+from .rider_backend import require_document
 
 
-def locations(engine, name):
+def locations(engine, name, port=HEADLESS_PORT):
     # No file argument: the results must come from Royder's solution-wide symbol index.
-    answer = engine.call("search_symbol", query=name, kinds="type")
+    answer = engine.call("search_symbol", port=port, query=name, kinds="type")
     count = re.search(r"\b(\d+) results?", answer)
     if not count:
         return None
@@ -14,37 +15,46 @@ def locations(engine, name):
     return rows if len(rows) == int(count[1]) else None
 
 
-def check_freshness(engine, case):
-    before = locations(engine, TYPE)
+def finds_change(engine, case, files, port=HEADLESS_PORT):
+    name = files.changed_subject if case == "content" else files.subject
+    found = locations(engine, name, port)
+    if case == "delete":
+        return found == []
+    expected = files.moved if case == "move-file" else files.source
+    if found is None or len(found) != 1 or str(expected).lower() not in found[0].lower():
+        return False
+    return case != "content" or locations(engine, files.subject, port) == []
+
+
+def check_freshness(engine, case, files):
+    before = locations(engine, files.subject)
     assert before is not None and len(before) == (0 if case == "add" else 1), before
     if case != "add":
-        assert TYPE in engine.document(SOURCE)["text"]
+        assert files.subject in engine.document(files.source)["text"]
+    if files.paired:
+        engine.require_solution(RIDER_PORT, SOLUTION)
+        if case != "add":
+            require_document(engine, files.source)
     if case == "content":
-        engine.console("trace " + str(SOURCE))
+        engine.console("trace " + str(files.source))
 
-    name = AFTER if case == "content" else TYPE
-    expected = MOVED if case == "move-file" else SOURCE
     started = time.monotonic()
     if case == "content":
-        write_type(SOURCE, AFTER)
+        files.write_type(files.source, files.changed_subject)
     elif case == "add":
-        write_type(SOURCE)
+        files.write_type(files.source)
     elif case == "delete":
-        SOURCE.unlink()
+        files.source.unlink()
     elif case == "move-file":
-        SOURCE.rename(MOVED)
+        files.source.rename(files.moved)
 
     def read(phase):
-        found = locations(engine, name)
-        correct = found == [] if case == "delete" else (
-            found is not None and len(found) == 1 and str(expected).lower() in found[0].lower())
-        if correct and case == "content":
-            correct = locations(engine, TYPE) == []
+        correct = finds_change(engine, case, files)
         engine.observe("freshness", correct, phase=phase, sinceChange=round(time.monotonic() - started, 3))
         return correct
 
     if case == "content":
-        engine.document(SOURCE)
+        engine.document(files.source)
     for phase, delay in (("first call", 0), ("second call", 0), ("after 2 seconds", 2), ("after 12 seconds", 10)):
         time.sleep(delay)
         if read(phase):
@@ -55,7 +65,7 @@ def check_freshness(engine, case):
     time.sleep(1)
     if read("one second after CommitChanges"):
         return "one second after CommitChanges"
-    engine.call("reload_projects", filePath=str(PROJECT_FILE))
+    engine.call("reload_projects", filePath=str(files.project))
     if read("after reload_projects"):
         return "after reload_projects"
     return "not seen in this session"
