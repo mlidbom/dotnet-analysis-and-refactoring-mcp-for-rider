@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.IO;
 using Newtonsoft.Json.Linq;
@@ -9,7 +10,7 @@ abstract class SolutionLocation(string name, string filePath)
 {
    public string Name { get; } = name;
    public string FilePath { get; } = filePath;
-   protected string Folder => Path.GetDirectoryName(FilePath);
+   protected string Folder => Path.GetDirectoryName(FilePath)!;
    public abstract string WorkTree { get; }
    public abstract string Absolute(string path);
    public abstract int ToolCount { get; }

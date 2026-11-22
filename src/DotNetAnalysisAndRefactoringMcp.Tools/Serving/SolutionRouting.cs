@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,7 +15,7 @@ sealed class SolutionRouting<T>(IReadOnlyList<T> solutions) where T : SolutionLo
    ///   The solution a <c>tools/call</c> goes to: an explicit <paramref name="solutionName"/>, the owner of all named
    ///   files, or the only open solution for a call that names no files.
    /// </summary>
-   public (T Chosen, string Refusal) Choose(string solutionName, IReadOnlyList<string> paths)
+   public (T? Chosen, string? Refusal) Choose(string? solutionName, IReadOnlyList<string> paths)
    {
       if(All.Count == 0)
          return (null, "No solutions are currently open in Rider.");
@@ -53,7 +54,7 @@ sealed class SolutionRouting<T>(IReadOnlyList<T> solutions) where T : SolutionLo
    ///   The solution <paramref name="solutionName"/> names: by its name or path, or else by whole segments of its path,
    ///   which pick out one of several solutions of a name.
    /// </summary>
-   (T, string) Named(string solutionName)
+   (T?, string?) Named(string solutionName)
    {
       var matches = All.Where(it => it.IsNamed(solutionName)).ToList();
       if(matches.Count != 1)
@@ -83,7 +84,7 @@ sealed class SolutionRouting<T>(IReadOnlyList<T> solutions) where T : SolutionLo
    ///   <see cref="T.Closeness"/>. Only solutions of the file's own work tree compete on closeness.
    ///   A relative path found in several checkouts names none of them.
    /// </summary>
-   (T, string) HoldingEvery(IReadOnlyList<string> paths)
+   (T?, string?) HoldingEvery(IReadOnlyList<string> paths)
    {
       var requestedWorkTrees = new HashSet<string>();
       var candidates = new HashSet<T>(All);
