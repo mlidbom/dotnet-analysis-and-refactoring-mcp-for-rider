@@ -18,7 +18,7 @@ sealed class ToolCatalog
       Initialize = manifest["initialize"] as JObject ?? throw new InvalidDataException("Missing MCP handshake.");
       HostHash = (string?)manifest["host"] ?? throw new InvalidDataException("Missing catalog host identity.");
       if(!Tools.OfType<JObject>().Any(it => (string?)it["name"] == "list_solutions") || Tools.Count < 2)
-         throw new InvalidDataException("The cold catalog must come from an indexed Rider with its solution tools.");
+         throw new InvalidDataException("The cold catalog must come from a Rider serving its solution tools.");
    }
 
    public static async Task Capture(RiderEndpoint rider, string build, string output, CancellationToken cancel)
@@ -43,8 +43,8 @@ sealed class ToolCatalog
       {
          var health = await rider.Health(cancel);
          var rows = (health?["solutions"] as JArray)?.OfType<JObject>().ToArray() ?? [];
-         if(rows.Length == 0 || rows.Any(it => (bool?)it["indexing"] != false || (string?)it.SelectToken("tools.build") != build))
-            throw new InvalidDataException($"Capture from a Rider serving only indexed solutions on build '{build}'.");
+         if(rows.Length == 0 || rows.Any(it => (string?)it.SelectToken("tools.build") != build))
+            throw new InvalidDataException($"Capture from a Rider serving only solutions on tools build '{build}'.");
          return rows.Select(it => (string?)it.SelectToken("tools.host")).Distinct().Single()
                 ?? throw new InvalidDataException("Missing Rider host hash.");
       }
