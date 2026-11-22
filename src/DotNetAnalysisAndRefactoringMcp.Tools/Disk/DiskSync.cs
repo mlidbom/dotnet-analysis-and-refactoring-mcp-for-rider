@@ -128,7 +128,10 @@ public sealed class DiskSync
          var changes = _changes.Take();
          foreach(var file in named.Concat(changes.Files.Take(MaxChecked)))
             if(!state.Stale.ContainsKey(file))
-               // A path awaiting its first check has no settled disk time.
+               //refactor: DiskSyncState.Stale holds two things since 4a3cd7f: files still stale after a wait, with
+               //   their disk times, and paths awaiting their first check, as DateTime.MinValue, so that a concurrent
+               //   call checks them too. DiskSyncState should get a set of its own for the paths awaiting a check,
+               //   with the next host change: a change to the host waits for a restart of every Rider.
                state.Stale.Add(file, DateTime.MinValue);
 
          return (changes, new HashSet<string>(state.Stale.Keys, StringComparer.Ordinal));
@@ -255,7 +258,9 @@ public sealed class DiskSync
          foreach(var file in state.Absent)
             it.Absent[file] = DiskTime(file);
 
-         // The host keeps disk times across tools swaps. A missing project item has no disk time.
+         //refactor: DiskSyncState.Absent is for files on disk in no project. A file deleted on disk and still in its
+         //   project is the opposite, kept there, with no disk time, only so that it is settled without a host
+         //   change. DiskSyncState should get a dictionary of its own for it, with the next host change.
          foreach(var file in state.Deleted)
             it.Absent[file] = DateTime.MinValue;
       });
