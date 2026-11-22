@@ -33,8 +33,8 @@ sealed class OpenSolutions
    public IReadOnlyList<OpenSolution> All { get; }
 
    /// <summary>
-   ///   The solution a <c>tools/call</c> goes to: the one <paramref name="solutionName"/> names, or the only one open, or
-   ///   the one that holds every file the <paramref name="arguments"/> name. When none fits, a refusal that says why.
+   ///   The solution a <c>tools/call</c> goes to: an explicit <paramref name="solutionName"/>, the owner of all named
+   ///   files, or the only open solution for a call that names no files.
    /// </summary>
    public (OpenSolution Chosen, string Refusal) Choose(string solutionName, JObject arguments)
    {
@@ -44,11 +44,11 @@ sealed class OpenSolutions
       if(solutionName != null)
          return Named(solutionName);
 
-      if(All.Count == 1)
-         return (All[0], null);
-
       if(FileArguments.Of(arguments) is { Count: > 0 } paths)
          return HoldingEvery(paths);
+
+      if(All.Count == 1)
+         return (All[0], null);
 
       return (null, "Multiple solutions are open. Specify 'solutionName' in the arguments, "
                   + "or pass a filePath that exists in only one of them.\n"
@@ -118,24 +118,47 @@ sealed class OpenSolutions
 
    /// <summary>
    ///   The solution that holds every one of <paramref name="paths"/>, and most closely, by
-   ///   <see cref="OpenSolution.Closeness"/>: nested checkouts, and solutions of one work tree, each hold their own files
-   ///   most closely. A relative path found in several checkouts names none of them.
+   ///   <see cref="OpenSolution.Closeness"/>. Only solutions of the file's own work tree compete on closeness.
+   ///   A relative path found in several checkouts names none of them.
    /// </summary>
    (OpenSolution, string) HoldingEvery(IReadOnlyList<string> paths)
    {
-      var holders = All.Where(solution => paths.All(solution.Holds))
+      var requestedWorkTrees = new HashSet<string>();
+      var candidates = new HashSet<OpenSolution>(All);
+      var hasMissingRelativePath = false;
+      foreach(var path in paths)
+      {
+         var locations = LocationsOf(path);
+         if(!Path.IsPathRooted(path) && locations[0].Path.MissingComponents > 0) hasMissingRelativePath = true;
+         requestedWorkTrees.UnionWith(locations.Select(it => it.Path.DescribeWorkTree()));
+         candidates.IntersectWith(locations.Where(it => it.Solution.Holds(it.Path)).Select(it => it.Solution));
+      }
+      var holders = All.Where(candidates.Contains)
                        .OrderByDescending(solution => paths.Min(solution.Closeness))
                        .ToList();
 
       if(holders.Count > 1 && !paths.All(Path.IsPathRooted))
-         return (null, $"The relative path exists in several open solutions: {WithWorkTrees(holders)}. Pass 'solutionName' or an absolute path.");
+      {
+         var why = hasMissingRelativePath ? "The relative path could belong to" : "The relative path exists in";
+         return (null, $"{why} several open solutions: {WithWorkTrees(holders)}. Pass 'solutionName' or an absolute path.");
+      }
 
       if(holders.Count == 0)
-         return (null, $"Path is outside open solutions: {WithWorkTrees(All)}. Pass 'solutionName' to pick one anyway.");
+         return (null, $"Path is outside open solutions: {WithWorkTrees(All)}. Requested work trees: {string.Join(", ", requestedWorkTrees)}. Pass 'solutionName' to pick one anyway.");
 
       return (holders[0], null);
 
       static string WithWorkTrees(IEnumerable<OpenSolution> solutions) => string.Join(", ", solutions.Select(it => $"{it.Name} ({it.WorkTree})"));
+   }
+
+   /// <summary>Resolve a relative path as each solution would. Existing files take precedence, then the most
+   /// specific existing folder for a path that has yet to be created.</summary>
+   IReadOnlyList<(OpenSolution Solution, RequestedPath Path)> LocationsOf(string path)
+   {
+      var absolute = Path.IsPathRooted(path) ? new RequestedPath(path) : null;
+      var locations = All.Select(solution => (Solution: solution, Path: absolute ?? new RequestedPath(solution.Root.Absolute(path)))).ToList();
+      var missing = locations.Min(it => it.Path.MissingComponents);
+      return locations.Where(it => it.Path.MissingComponents == missing).ToList();
    }
 
    /// <summary>

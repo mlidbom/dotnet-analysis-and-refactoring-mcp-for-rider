@@ -337,8 +337,9 @@ how to run it and what it found:
     with Magnus, before it changes: its sandbox's primary is its own, on 23861, under the sandbox turn; and an
     answer with no solutions becomes normal, which its development tools' `SandboxRider` doesn't expect, reading
     `/health`'s first solution.
-- **Routing by the worktree** a call's absolute paths are in, before the shortcut to the only open solution.
-  Registrations get an identity of their own, not only the solution's path.
+- **Routing by the worktree** now precedes the only-solution shortcut for calls naming files. An unhosted nested or
+  sibling worktree gets a routing refusal naming the worktrees before disk sync. Starting its host on demand and
+  giving registrations a process identity remain part of the primary design.
 - **Starting on demand:** one start, deduplicated by worktree and solution, from a call's first file or an explicit
   start. The call that starts a host waits for it up to about a minute, and answers that it is indexing, with the
   solution's path, past that; no edit is queued. Agents handle "retry" poorly, so most first calls should just take

@@ -32,7 +32,7 @@ class Observations:
         with self.path.open("a", encoding="utf-8") as stream:
             print(json.dumps({"case": case, "atSeconds": time.monotonic() - self.origin, **data}), file=stream)
 
-    def call(self, case, tool, **arguments):
+    def call(self, case, tool, *, expect_refusal=False, **arguments):
         self.budget.check()
         start = time.monotonic()
         reply = post(PRIMARY, "tools/call", {"name": tool, "arguments": arguments})
@@ -41,6 +41,8 @@ class Observations:
         if "error" in reply:
             raise RuntimeError(f"JSON-RPC error: {reply}")
         answer = "\n".join(block["text"] for block in reply["result"]["content"])
+        if expect_refusal:
+            require(reply["result"].get("isError") is True, reply)
         print(f"{case} ({elapsed:.3f}s): {answer[:180]}", flush=True)
         return answer
 
@@ -49,6 +51,12 @@ class Observations:
 
     def symbols(self, case, path, **arguments):
         return self.call(case, "list_symbols_in_file", filePath=str(path), **arguments)
+
+    def unhosted(self, case, tool, tree, *open_trees):
+        answer = self.call(case, tool, filePath=str(tree.source), expect_refusal=True)
+        require("Path is outside open solutions" in answer and str(tree.root) in answer, answer)
+        for open_tree in open_trees:
+            require(f"ReSharperMcp ({open_tree.root})" in answer, answer)
 
 
 def snapshot(trees):
@@ -59,11 +67,6 @@ def differences(before, after):
     return sorted(path for path in before.keys() | after.keys() if before.get(path) != after.get(path))
 
 
-def require_no_project(answer, path):
-    value, _ = json.JSONDecoder().raw_decode(answer)
-    require(str(path) in value.get("error", "") and "no project" in value["error"], answer)
-
-
 def require_declaration(answer, name):
     require(re.search(rf"(?m)^sealed class {re.escape(name)} :\d+\r?$", answer), answer)
 
@@ -71,14 +74,13 @@ def require_declaration(answer, name):
 def check_unhosted(observe, trees):
     outer, peer, nested = trees
     require([Path(s["path"]) for s in observe.solutions("only outer")] == [outer.solution], "Expected one host.")
-    require_no_project(observe.symbols("unhosted sibling read", peer.source), peer.source)
-    require_no_project(observe.symbols("unhosted nested read", nested.source), nested.source)
+    observe.unhosted("unhosted sibling read", "list_symbols_in_file", peer, outer)
+    observe.unhosted("unhosted nested read", "list_symbols_in_file", nested, outer)
     before = snapshot(trees)
-    answer = observe.call("unhosted nested fix", "fix_usings", filePath=str(nested.source))
+    observe.unhosted("unhosted nested fix", "fix_usings", nested, outer)
     changed = differences(before, snapshot(trees))
     observe.record("disk after nested fix", changed=changed)
     require(not changed, f"Nested fix changed files: {changed}")
-    require_no_project(answer, nested.source)
 
 
 def check_pair(observe, trees):
@@ -95,7 +97,7 @@ def check_pair(observe, trees):
     outside.write_bytes(nested.files[nested.source])
     refusal = observe.symbols("file outside both roots", outside)
     require("Path is outside open solutions" in refusal, refusal)
-    require_no_project(observe.symbols("unhosted nested read with sibling live", nested.source), nested.source)
+    observe.unhosted("unhosted nested read with sibling live", "list_symbols_in_file", nested, outer, peer)
     relative = observe.symbols("shared relative path", SOURCE)
     require("relative path exists in several open solutions" in relative, relative)
     unique = observe.symbols("peer-only relative path", peer.unique.relative_to(peer.root))
@@ -181,7 +183,7 @@ def check(run):
                 require_declaration(recovered, peer.marker)
             entries = observe.solutions("list after graceful peer exit")
             require([Path(s["path"]) for s in entries] == [outer.solution], entries)
-            require_no_project(observe.symbols("file after deregistration", peer.source), peer.source)
+            observe.unhosted("file after deregistration", "list_symbols_in_file", peer, outer)
         observe.record("stopped", minimumAvailableGiB=budget.minimum/GIB)
     require(not open_test_ports(), "A routing port is still in use.")
     print(f"Completed; minimum available memory {budget.minimum/GIB:.2f} GiB. Evidence: {run}")

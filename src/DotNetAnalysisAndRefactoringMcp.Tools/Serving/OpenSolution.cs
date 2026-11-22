@@ -12,6 +12,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Serving;
 /// </summary>
 abstract class OpenSolution(string name, string filePath)
 {
+   SolutionRoot _root;
+
    /// <summary>The solution file's name without its extension.</summary>
    public string Name { get; } = name;
 
@@ -22,7 +24,10 @@ abstract class OpenSolution(string name, string filePath)
    ///   The work tree the solution is in, not the solution file's folder: a solution in <c>Client/TPS</c> still owns
    ///   files under <c>Shared/</c>.
    /// </summary>
-   public string WorkTree => SolutionRoot.Of(Folder).Workspace ?? Folder;
+   public string WorkTree => Root.Workspace;
+
+   /// <summary>The solution directory and work tree against which its tools resolve relative paths.</summary>
+   public SolutionRoot Root => _root ??= SolutionRoot.Of(Folder);
 
    /// <summary>The solution file's folder.</summary>
    string Folder => Path.GetDirectoryName(FilePath);
@@ -46,16 +51,11 @@ abstract class OpenSolution(string name, string filePath)
    /// </summary>
    public bool HasPathSegment(string segment) => Segmented(FilePath).IndexOf(Segmented(segment), StringComparison.OrdinalIgnoreCase) >= 0;
 
-   /// <summary>Whether <paramref name="path"/> is in it: an absolute path under its work tree, a relative one that exists in it.</summary>
-   public bool Holds(string path)
-   {
-      if(Path.IsPathRooted(path))
-         return IsUnder(path, WorkTree);
-
-      var absolute = SolutionRoot.Of(Folder).Absolute(path);
-
-      return absolute != null && (File.Exists(absolute) || Directory.Exists(absolute));
-   }
+   /// <summary>Whether this solution owns the path's Git work tree. Outside Git, its own folder defines its reach.</summary>
+   public bool Holds(RequestedPath path) =>
+      path.GitWorkTree != null
+         ? string.Equals(path.GitWorkTree.TrimEnd(Path.DirectorySeparatorChar), WorkTree.TrimEnd(Path.DirectorySeparatorChar), PathComparison)
+         : IsUnder(path.Absolute, Folder);
 
    /// <summary>
    ///   How closely it holds the absolute <paramref name="path"/>, which it <see cref="Holds"/>: by its own folder, when
@@ -63,13 +63,16 @@ abstract class OpenSolution(string name, string filePath)
    ///   a shallower one. Two solutions in one work tree, such as a client's and a server's, then each hold their own
    ///   files more closely than the other does. A relative path is held by none more closely than by another.
    /// </summary>
-   public int Closeness(string path) =>
-      !Path.IsPathRooted(path) ? 0
-    : IsUnder(path, Folder)    ? Folder.Length
-                               : WorkTree.Length;
+   public int Closeness(string path)
+   {
+      if(!Path.IsPathRooted(path)) return 0;
+      return IsUnder(Path.GetFullPath(path), Folder) ? Folder.Length : WorkTree.Length;
+   }
+
+   static readonly StringComparison PathComparison = Path.DirectorySeparatorChar == '\\' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
    static bool IsUnder(string path, string folder) =>
-      path.Replace('\\', '/').StartsWith(folder.Replace('\\', '/').TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase);
+      (path.Replace('\\', '/').TrimEnd('/') + "/").StartsWith(folder.Replace('\\', '/').TrimEnd('/') + "/", PathComparison);
 
    /// <summary>Its name and path, as every listing of the solutions starts.</summary>
    public JObject NameAndPath() => new() { ["name"] = Name, ["path"] = FilePath };

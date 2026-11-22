@@ -115,7 +115,7 @@ The server starts automatically when you open a solution in Rider.
 
 Set `DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT` environment variable to override the default port.
 
-With several solutions open, pass `solutionName`, or a `filePath` that picks one: an absolute path picks the solution whose git work tree contains it; a relative path picks the one solution where it exists (in several, the call asks for `solutionName`).
+File arguments pick a solution in their own Git work tree, even when only one solution is open. Files in a nested work tree need a solution there. A relative path shared by several open solutions needs an absolute path or `solutionName`. You can also select a solution explicitly for a linked file outside its work tree.
 
 ## Building
 

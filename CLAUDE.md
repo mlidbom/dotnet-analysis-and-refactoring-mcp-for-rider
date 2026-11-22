@@ -58,13 +58,18 @@ Component breakdown:
 - `McpServerComponent.cs` — `[SolutionComponent]` (per-solution). Registers/unregisters the solution with the server on solution open/close, and holds what of it outlives a tools build. Skips solutions without a file.
 - `ZoneMarker.cs` — the host's components require ReSharper's `DaemonZone`, so they aren't created in Rider 2026.3's lightweight backend, which loads the plugin too but runs no daemon.
 - In the tools, `Serving/`: `OpenSolutions` routes a call (`LocalSolution`, `PeerSolution`), `PrimaryServer` is a peer's registering with the primary, `OtherMcpServer` reaches another Rider's server.
-- When only one solution is open (across all Rider instances), all tool calls route to it automatically (backwards-compatible).
-- When multiple solutions are open, callers must specify `solutionName` in tool arguments.
+- A call naming no files and no solution goes to the only open solution. With several open it needs `solutionName`.
 - The `list_solutions` meta-tool returns all currently open solutions (local + peers).
 - `solutionName` matches case-insensitively against the solution filename (without `.sln`) or the full path, or else a
   unique segment of its path, which `list_solutions` gives each of several solutions of one name.
-- A call that names files and no solution goes to the solution holding them most closely: its own folder before the
-  work tree around it, so two solutions of one repository each get their own files.
+- For a call naming files and no solution, the nearest ancestor with a `.git` file or directory identifies each file's
+  own work tree. This applies even with one solution open and when the file does not exist yet. A nested work tree
+  needs its own open solution. If no open solution holds every path, the router refuses the call before disk sync
+  and names the requested work trees and open solutions. Outside Git, a solution uses its own directory as its root.
+- Relative paths try the solution directory and then the work tree, as in `SolutionRoot.Absolute`. An existing
+  path takes precedence. For a missing path the router compares its existing ancestor folders. If several solutions
+  still qualify, pass an absolute path or `solutionName`. For absolute paths in a shared work tree the closest
+  solution directory still wins. An explicit `solutionName` selects the solution, including for an external linked file.
 - The specifications in `Serving/WithAPeer` run a second sandbox Rider as the first one's peer (`peer start|stop|status`
   in the development tools).
 

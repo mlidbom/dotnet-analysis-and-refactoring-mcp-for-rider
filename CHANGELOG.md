@@ -11,6 +11,8 @@ plugin is a fork of.
 
 ### Fixed
 
+- Calls naming files in an unhosted Git worktree now receive a routing error before disk sync, including when the worktree is nested inside the only open solution's checkout.
+
 - A peer Rider that ended without deregistering, such as in a crash, is now forgotten at the first call to it: the call answers that the solution is no longer available, and `list_solutions` drops every solution registered on its port. Until now each call to it failed, and `list_solutions` went on listing it.
 
 ## [0.15.1]

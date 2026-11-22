@@ -1,6 +1,6 @@
 # Routing between headless Royder hosts
 
-**The primary routes absolute paths to the correct live worktree, including a real edit. Two cases need changes for on-demand hosts.** A file in an unhosted worktree can go to the outer or sole solution. The file tools rejected it in this layout, after dispatch. A killed peer stayed registered even after three connection refusals.
+**The original run found two routing problems.** At commit `aee4ed2`, a file in an unhosted worktree went to the outer or sole solution. The file tools rejected it after dispatch. A killed peer stayed registered even after three connection refusals. The current driver checks the subsequent fixes. The transcript and measurements below record the original behavior.
 
 ## Run
 
