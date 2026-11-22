@@ -401,6 +401,12 @@ The second round, under way:
     a plain `git worktree remove` of a worktree a host serves succeeded on its first try, while indexing (1.3 s,
     finishing 4 s before the host reported it indexed) and while idle after a real query (0.7 s), with the Roslyn
     worker alive across it. The host's binaries, caches and the caller must be outside the worktree.
+  - **Which product can take a real license, done** (eb07e99, offline, `experiments/HeadlessHost`, "Which product can
+    use a real license?"). InspectCode's licensed entity has no account, license-server or key source, and its options
+    none either. ReSharper for Visual Studio's registers all three, and Rider's frontend has them in Manage Licenses;
+    Rider's .NET backend has none, as its license is the frontend's. Nothing found lets the command line borrow a
+    running Rider's or Toolbox's license. So the editing zone headless takes either a product that holds the license,
+    such as Rider's `remote-dev-server` (royder-codex-1's round 6), or an integration JetBrains supports.
 - **royder-codex-3, done:** every read tool's answer headless against Rider's
   (`experiments/HeadlessExtension/read-tool-results.md`): 18 of 30 cases the same, 10 different, 2 failed. The
   navigation, search, hierarchy, flow and file-error tools match. Missing headless: quick fixes, completion items, a
