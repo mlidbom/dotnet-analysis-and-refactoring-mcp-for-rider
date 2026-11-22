@@ -329,7 +329,14 @@ how to run it and what it found:
   headless hosts all register with it as peers, on ports of their own. It also keeps Royder up across a Rider
   restart, which the coordinated restarts above lack. Started at logon, as the stall recorder is: a new scheduled
   task on Magnus's machine, to be put to him before it is installed. The Riders' hosts stop competing for the port,
-  a host change: batched, for a restart.
+  a host change: batched, for a restart. As royder-codex-1's draft has it (`dev_docs/headless-royder/
+  memory-admission-and-primary.md`, part 2): a `net10.0` program on Kestrel; a registration names the host's process
+  incarnation as well as its solution, so a dead or restarted host is told from a live one; and the manifest is
+  generated at build time from the same descriptions the tools give, and deployed with each tools build.
+  - **What it changes for the symbol linker,** to be agreed with whichever session works on the linker then, or
+    with Magnus, before it changes: its sandbox's primary is its own, on 23861, under the sandbox turn; and an
+    answer with no solutions becomes normal, which its development tools' `SandboxRider` doesn't expect, reading
+    `/health`'s first solution.
 - **Routing by the worktree** a call's absolute paths are in, before the shortcut to the only open solution.
   Registrations get an identity of their own, not only the solution's path.
 - **Starting on demand:** one start, deduplicated by worktree and solution, from a call's first file or an explicit
@@ -344,7 +351,11 @@ how to run it and what it found:
 - **Memory:** the primary reads the stall recorder's pipe all the time, the fields `at`, `availableMB`, `physicalMB`,
   `committedGB` and `commitLimitGB` (told to the tooling owner once read), and admits a start while memory has been
   green for 30 s, reserving the starts in progress, counted as process trees. When it's short, the least recently
-  used idle headless host stops first. Riders are never stopped.
+  used idle headless host stops first. Riders are never stopped. Green means both gauges, physical memory and the
+  commit charge: on 2026-11-18 the commit charge alone was red at times. The 30 s are counted by the samples' own
+  timestamps, since a new reader first gets the last five minutes at once; with no recent samples, no host starts
+  (royder-codex-1's replay of 2026-11-18, `experiments/HeadlessMemoryAdmission`). Where no recorder runs, in cloud
+  sessions and CI, a configured budget of memory instead.
 - **Files:** each host's caches, settings, temp and logs are private, outside the worktree. A host loads only an agent's
   own worktree, whose `obj` it may write: not the main checkout, nor any solution a Rider has open. Its private global
   settings file injects Magnus's personal settings file, as Rider's does, read-only: the file itself, so it is never
