@@ -62,6 +62,16 @@ sealed class LocalSolution(IMcpServer server, IMcpSolution solution) : OpenSolut
          health["healthFailed"] = ToolFailure.Logged(exception, $"the health of '{Name}'");
       }
 
+      try
+      {
+         health["sourceGeneratorsReady"] = SourceGeneratorReadiness.Of(_solution.Solution);
+      }
+      catch(Exception exception)
+      {
+         health["sourceGeneratorsReady"] = false;
+         health["sourceGeneratorHealthFailed"] = ToolFailure.Logged(exception, $"source-generator readiness of '{Name}'");
+      }
+
       return health;
    }
 }

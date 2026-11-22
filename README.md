@@ -77,10 +77,24 @@ Results are concatenated with `=== [N/total] label ===` separators. Shared optio
 `GET http://127.0.0.1:23751/health` answers plain JSON without an MCP session, e.g. for a session-start hook:
 
 ```json
-{"solutions":[{"name":"TPS.All","path":"/…/TPS.All.sln","indexing":false,"pendingDiskChanges":0}],"indexing":false,"pendingDiskChanges":0}
+{"solutions":[{"name":"TPS.All","path":"/…/TPS.All.sln","indexing":false,"sourceGeneratorsReady":true,"pendingDiskChanges":0}],"indexing":false,"pendingDiskChanges":0}
 ```
 
 When a call's work begins while ReSharper is indexing, its result ends with `(index still building — results may be incomplete)`. The `initialize` response carries a short usage guide in `instructions`.
+
+For a call that needs generated declarations, check the **target solution's** `indexing` and
+`sourceGeneratorsReady` fields. Wait for `indexing: false` and a readiness result of `true` or `null`.
+
+| `sourceGeneratorsReady` | Meaning |
+|---|---|
+| `true` | Rider has synchronized its Roslyn project model and ReSharper has processed the applicable projects' source-generator results. An analyzer-only project can return this after its empty generation result. |
+| `null` | The loaded solution has no analyzer references in a C# or VB project that supports source generators. |
+| `false` | Readiness is pending or could not be confirmed. A reload or a busy project model can return this again. |
+
+A missing field on an older or unreachable peer means readiness is unknown. On a readiness read failure,
+`sourceGeneratorHealthFailed` gives the error alongside `sourceGeneratorsReady: false`.
+Rider publishes worker state asynchronously. Treat health as an observation at startup. Edits, reloads and worker
+restarts can change readiness between a health response and the next tool call.
 
 ## Installation
 

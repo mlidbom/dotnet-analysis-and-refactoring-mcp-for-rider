@@ -140,3 +140,37 @@ found zero job members, surviving recorded identities or occupied experiment por
 roaming files, all 29 Local JetBrains top-level entries and Git status. The earlier audit spanned an everyday Rider
 restart and recorded concurrent settings and discovery changes. The target worktree stayed clean and plain
 `git worktree remove` removed it. Nothing was deployed. [Round 8 measurements](../../dev_docs/headless-royder/remote-dev-server-lifecycle.md#round-8--direct-java-launch-deletion-and-heap-size)
+
+## Checking source-generator readiness
+
+On Windows with Python 3 and the project SDK installed, run
+`python -B experiments/RemoteDevHost/TestSourceGeneratorReadiness.py` from the repository root.
+It builds this checkout's host and tools, stages private copies, and runs one host at a time. By default it makes
+two cold opens of each fixture on loopback 25031 and 25041–25050. Use `--remote-port` and `--port` to choose
+another free set. Every open has its own solution copy, profile and indexes.
+
+The generator case uses the real DevelopmentEnvironment project and the round 3 generator/analyzer sources. At
+the first `indexing: false`, `sourceGeneratorsReady: true` response, the checks resolve the generated member and read its analyzer
+warning, alternating which tool goes first. The two controls cover an analyzer that generates no code and a
+project without any analyzer references. The script prints the temporary evidence directory containing timestamped
+health samples, tool answers and the harness's shutdown records.
+
+On RD-263.7307.325, `SourceGeneratorMonitor.UpdateState` treats the disabled worker as initialized and
+up to date. Royder therefore first checks Rider's loaded, idle project model for applicable analyzer references.
+For a solution that has them, it reads both `ISourceGeneratorMonitor.Initialized` and `IsUpToDate` together
+with `RoslynFrontendModel.RoslynReady`. Rider's `RoslynReadyPresenter` publishes that last value from its
+worker synchronization monitor. This uses the existing backend state on a nonblocking project-model read.
+It creates no subscriptions or protocol extensions and keeps no state across tools builds.
+
+The 22 November 2026 run made six fresh opens with private tools build `readiness-b02fbc838382`.
+The intervals below run from the first sample with `indexing: false` and generators still pending to the first
+usable health sample. Each query was issued once.
+
+| Fixture | Readiness | First open | Second open | Verified at that response |
+|---|---|---:|---:|---|
+| DevelopmentEnvironment with the round 9 generator and analyzer | `true` | 4.28 s | 4.48 s | One usage of the generated `Twice` method and the expected Roslyn warning |
+| Analyzer only | `true` | 2.48 s | 2.45 s | The expected warning at the fixture method |
+| No analyzer references | `null` | 0.22 s | 0.21 s | No analyzer warning or unresolved symbol |
+
+For the two generator opens, the backend logged `IsUpToDate` becoming true 11 ms and 111 ms before the first
+positive health response. All six JVMs exited cleanly and their Windows jobs and reserved ports were empty.

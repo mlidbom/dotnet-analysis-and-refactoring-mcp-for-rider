@@ -18,6 +18,9 @@ public class When_asking_for_the_health(TheSandboxWithTheFixtureSolution sandbox
 
    [XF] public void it_says_the_fixture_solution_is_not_indexing() => TheFixtureSolution.GetProperty("indexing").GetBoolean().Must().Be(false);
 
+   [XF] public void it_reports_source_generator_readiness_for_the_fixture_with_sdk_analyzers() =>
+      TheFixtureSolution.GetProperty("sourceGeneratorsReady").ValueKind.Must().Satisfy(it => it is JsonValueKind.True or JsonValueKind.False);
+
    [XF] public void it_says_no_solution_is_indexing() => _health.GetProperty("indexing").GetBoolean().Must().Be(false);
 
    [XF] public void it_says_which_tools_build_serves_the_fixture_solution() =>

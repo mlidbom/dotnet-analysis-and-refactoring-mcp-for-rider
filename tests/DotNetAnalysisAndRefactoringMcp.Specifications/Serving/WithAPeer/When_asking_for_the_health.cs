@@ -25,6 +25,9 @@ public class When_asking_for_the_health(TheSandboxWithTheFixtureSolution sandbox
    [XF] public void it_says_whether_the_peers_solution_is_indexing() =>
       ThePeersSolution.GetProperty("indexing").ValueKind.Must().Satisfy(it => it is JsonValueKind.True or JsonValueKind.False);
 
+   [XF] public void it_forwards_source_generator_readiness_from_the_peer_with_sdk_analyzers() =>
+      ThePeersSolution.GetProperty("sourceGeneratorsReady").ValueKind.Must().Satisfy(it => it is JsonValueKind.True or JsonValueKind.False);
+
    /// <summary>Only the peer knows that: it answers for itself.</summary>
    [XF] public void it_says_which_tools_build_serves_the_peers_solution() =>
       ThePeersSolution.GetProperty("tools").GetProperty("build").GetString().Must().Satisfy(it => !string.IsNullOrEmpty(it));
