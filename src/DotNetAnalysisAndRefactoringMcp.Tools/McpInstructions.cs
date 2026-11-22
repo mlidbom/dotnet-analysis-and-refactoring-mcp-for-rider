@@ -5,10 +5,17 @@ namespace DotNetAnalysisAndRefactoringMcp;
 /// a skill. Every line here is a claim about the code; change both together. In the tools build, so a change to it
 /// needs no Rider restart; a client gets it when it connects.
 /// </summary>
+/// <remarks>
+/// The first line says what the server is for, in under 250 characters: Codex shows a model only that much of a
+/// server's instructions until it discovers the server's tools (Codex 0.171.0, found by gpt-collaborators,
+/// 2026-11-22).
+/// </remarks>
 public static class McpInstructions
 {
    public const string Text =
-      "ReSharper code intelligence for the solutions open in Rider.\n"
+      "ReSharper code intelligence for the C# and other .NET code of the solutions open in Rider: usages, definitions, "
+    + "symbol info and source, hierarchies, errors and inspections, and refactorings such as rename, move to namespace "
+    + "and fix usings.\n"
     + "- File paths may be absolute, or relative to the repository root or the solution's folder.\n"
     + "- 'solutionName' is only needed when several solutions are open and no filePath picks one.\n"
     + "- Symbols may be named 'Type', 'Type.Member' or fully qualified; an ambiguous name returns its candidates. "
