@@ -210,6 +210,18 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   snapshot only counts projects open at that instant. Session records later that evening showed a successful
   Cloyd specification lookup by symbol and a ClaudeTooling inspection of 17 changed files.
 
+## Testing Royder on a coding task
+
+`codex-headless-royder` owns benchmark design, execution and any resulting changes to Royder.
+`codex-tooling-owner` maintains the shared usage measurements. The four-run code-reading pilot is complete.
+Its questions, answers and grading are in `~/.claude/dev_docs/usage/royder-code-understanding-trial.md`.
+Its measurement script is `~/.claude/dev_docs/usage/analysis/code_comprehension_usage.py`.
+
+The proposed follow-up compares text tools with free choice of text and Royder on the same real C# change.
+Define behavioral and regression cases before either run, then grade the anonymized changes. Keep each
+session through debugging, verification and a related follow-up so first-use costs and later use can be
+compared. Report measured token counts separately from estimated subscription allowance.
+
 ## The rename to Royder
 
 Magnus, 2026-11-19: Royder MCP is the preliminary name (see `CLAUDE.md`). When it is final, everything that isn't hard
