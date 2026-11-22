@@ -131,6 +131,11 @@ Set `DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT` environment variable to override 
 
 File arguments pick a solution in their own Git work tree, even when only one solution is open. Files in a nested work tree need a solution there. A relative path shared by several open solutions needs an absolute path or `solutionName`. You can also select a solution explicitly for a linked file outside its work tree.
 
+### On-demand worktrees on Windows
+
+For agents working in separate Git worktrees on Windows, the optional standalone Royder primary can open linked
+worktrees on demand in one private Rider JVM. It serves the same MCP tools and releases the backend and workers when a project closes. [Build, configure and run the standalone primary](dev_docs/headless-royder/standalone-primary.md)
+
 ## Building
 
 ```bash

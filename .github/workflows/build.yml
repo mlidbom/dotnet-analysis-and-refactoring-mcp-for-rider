@@ -45,6 +45,9 @@ jobs:
       - name: Build plugin
         run: ./gradlew buildPlugin --console=plain --stacktrace --warning-mode all
 
+      - name: Build standalone Royder primary
+        run: dotnet build ../src/Royder.Primary -c Release --nologo
+
       # The Marketplace's own check, failing on any finding (build.gradle.kts says why), against the oldest supported
       # Rider and the latest release.
       - name: Verify plugin
