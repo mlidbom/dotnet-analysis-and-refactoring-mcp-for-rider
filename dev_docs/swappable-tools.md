@@ -155,8 +155,8 @@ sync in `Disk/`.
 the specifications in `Serving/WithAPeer` start with a copy of the fixture solution of its own, and stop after them:
 registering with the primary, routing a call to the peer by name, path segment or file, forwarding it, the peer's
 health, and deregistering when it closes. They found that routing by file took the wrong solution when two share a
-work tree. **Not checked:** the answers when no tools build loads, and a peer whose Rider has gone without
-deregistering.
+work tree. The specifications in `Serving` also check that a refused connection removes every solution registered
+on the peer's port. The answer when no tools build loads still needs a specification.
 
 ## Not done yet
 

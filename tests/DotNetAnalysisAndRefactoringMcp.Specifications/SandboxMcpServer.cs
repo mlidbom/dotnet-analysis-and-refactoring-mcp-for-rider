@@ -41,6 +41,14 @@ public sealed class SandboxMcpServer
       return listed.RootElement.Clone();
    }
 
+   /// <summary>Register a solution with the primary as a peer does when it opens the solution.</summary>
+   internal void RegisterPeer(string solutionPath, int port) =>
+      Send("internal/register", new JsonObject { ["solutionName"] = Path.GetFileNameWithoutExtension(solutionPath),
+                                                ["solutionPath"] = solutionPath, ["port"] = port, ["tools"] = new JsonArray() });
+
+   /// <summary>Withdraw a peer's solution from the primary when the specification ends.</summary>
+   internal void DeregisterPeer(string solutionPath) => Send("internal/deregister", new JsonObject { ["solutionPath"] = solutionPath });
+
    /// <summary>The path segment <c>list_solutions</c> gives the solution at <paramref name="solutionPath"/>, to name it by.</summary>
    public string UniquePathSegmentOf(string solutionPath) =>
       ListSolutions().GetProperty("solutions").EnumerateArray()
@@ -65,10 +73,10 @@ public sealed class SandboxMcpServer
       return text;
    }
 
-   /// <summary>Calls <paramref name="tool"/> as the server is to refuse, and returns the refusal's text.</summary>
    /// <summary>A tool's answer in its JSON form, which the call's arguments ask for with format: "json", parsed.</summary>
    public JsonNode Json(string tool, object arguments) => JsonNode.Parse(CallTool(tool, arguments))!;
 
+   /// <summary>Calls <paramref name="tool"/> as the server is to refuse, and returns the refusal's text.</summary>
    public string Refusal(string tool, object arguments)
    {
       var (text, isError) = Call(tool, arguments);

@@ -9,6 +9,10 @@ plugin is a fork of.
 
 ## [Unreleased]
 
+### Fixed
+
+- After a peer Rider exits, a refused call to its port now reports that the solution is unavailable and removes all solutions registered on that port from `list_solutions`.
+
 ## [0.15.1]
 
 ### Fixed

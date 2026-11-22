@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using DotNetAnalysisAndRefactoringMcp.Protocol;
 using DotNetAnalysisAndRefactoringMcp.Tools;
 using JetBrains.Util;
@@ -47,7 +48,7 @@ sealed class PeerSolution(IMcpServer server, PeerRegistration peer) : OpenSoluti
       {
          return JsonRpcResponse.Parse(_peersServer.Send(forwarded, CallTimeout));
       }
-      catch(WebException exception) when(exception.Status == WebExceptionStatus.ConnectFailure)
+      catch(WebException exception) when(ConnectionWasRefused(exception))
       {
          // Nothing listens on the peer's port: its Rider has gone. Until 2026-11-15 any WebException removed the peer,
          // also a slow call's timeout or an HTTP error from a peer that was running.
@@ -58,6 +59,14 @@ sealed class PeerSolution(IMcpServer server, PeerRegistration peer) : OpenSoluti
       catch(Exception exception)
       {
          return request.ToolError(ToolFailure.Logged(exception, $"the call proxied to the peer on port {_registration.Port}"));
+      }
+
+      static bool ConnectionWasRefused(WebException exception)
+      {
+         if(exception.Status == WebExceptionStatus.ConnectFailure) return true;
+         for(var cause = exception.InnerException; cause != null; cause = cause.InnerException)
+            if(cause is SocketException { SocketErrorCode: SocketError.ConnectionRefused }) return true;
+         return false;
       }
    }
 
