@@ -65,9 +65,8 @@ sealed class PeerSolution(IMcpServer server, PeerRegistration peer) : OpenSoluti
       {
          if(exception.Status == WebExceptionStatus.ConnectFailure) return true;
          // On CoreCLR, which Rider's backend runs on, a refused connection is UnknownError, with the SocketException inside.
-         for(var cause = exception.InnerException; cause != null; cause = cause.InnerException)
-            if(cause is SocketException { SocketErrorCode: SocketError.ConnectionRefused }) return true;
-         return false;
+         return exception.Status == WebExceptionStatus.UnknownError
+             && exception.GetBaseException() is SocketException { SocketErrorCode: SocketError.ConnectionRefused };
       }
    }
 
