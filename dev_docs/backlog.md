@@ -377,8 +377,8 @@ how to run it and what it found:
   - **One shared server for agents' worktrees** is the direction Magnus chose on 2026-11-22. This machine has
     repeatedly run short of memory with 96 GB installed. A separate server for this repository used about 4.3 GiB
     of private memory after indexing, including 1.8 GiB for its JVM. In a shared server, each worktree still has
-    its own .NET backend and workers. Measure the cost of adding a second real worktree, how much comes back on
-    closing it, and whether the first keeps serving through a second open and close.
+    its own .NET backend and workers. On this repository, closing the second worktree released those processes
+    while the first kept serving. The measurements and the remaining external-removal issue are below.
   - What it needs is in "Rider's own headless host" below: the Roslyn worker out of the worktree
     (`experiments/RemoteRoslynPatcher`), no tracked file changed in the worktree, nothing listening beyond loopback.
 - **Our own program on `jb`'s engine** (`experiments/HeadlessHost`) leaves the design, decided with the host above:
@@ -544,9 +544,17 @@ The second round, under way:
       Verifier found it compatible. On RD-263.7307.325 the primary's authenticated loopback request with neither
       Origin nor Referer passes the trust check without a dialog. The scheduled close receives the required write
       intent. Both findings came from the installed code.
-    - **royder-codex-1:** use the launch harness and both plugins to measure two real worktrees in one JVM.
-      Verify which worktree answers each call, clean removal of one while the other serves, and memory returned
-      over two open/close cycles.
+    - **royder-codex-1 measured two real worktrees in one JVM** with both plugins. The first used 4.02 GiB
+      private. Opening its sibling brought the total to 6.25 GiB, then 5.82 GiB on reopening it. Closing the
+      sibling brought the total back to 4.05 and 4.02 GiB. File-path requests found the right worktree and the
+      first kept serving after both closes. Both plain Git removals succeeded on the first attempt. [Round 9 measurements](headless-royder/rider-remote-dev-server.md#round-9--two-worktrees-in-one-rider-jvm-22-november-2026)
+    - **First-call readiness:** the reopened backend reported `indexing=false` while a source-generated symbol
+      still failed to resolve. The Roslyn-dependent probes passed 6.5–7.9 seconds after the first probe on two
+      openings. On-demand startup needs a readiness check that covers those calls.
+    - **Managed removal should close the project before Git removes its worktree.** A third cycle tested the
+      reverse order. Git removed the still-open sibling, with Roslyn running. Rider recreated
+      `projectSettingsUpdater.xml` and `workspace.xml` under `.idea` on project close. External removal still
+      needs a way to prevent or safely clear those writes, including when another checkout has reused the path.
     - **Two network-access prompts from Windows' firewall** (Magnus, 2026-11-22): waiting when he came back to the
       machine after a night of these runs. The Windows Firewall log identifies the two programs he allowed at 08:19
       as `remote-dev-server.exe` and Rider's bundled `java.exe`. Which sockets prompted the approvals remains open.

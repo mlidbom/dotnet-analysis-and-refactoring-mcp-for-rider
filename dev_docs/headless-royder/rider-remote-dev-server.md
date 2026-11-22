@@ -3,14 +3,21 @@
 **Decided, 22 November 2026:** Magnus chose this as the host for agents' worktrees ("Sounds good. Let's do it."). The
 design is in `dev_docs/backlog.md`, the headless section.
 
+**The shared-JVM experiment on two Royder worktrees** measured an additional 1.76–2.24 GiB of process-tree
+private memory for the second worktree. Closing its Rider project released its backend and workers while the
+first worktree kept answering calls. Git then removed the closed worktree cleanly on both attempts. Reversing
+that order allowed Rider to recreate two project settings files. [Round 9 results](#round-9--two-worktrees-in-one-rider-jvm-22-november-2026)
+
 **Verdict, 22 November 2026, after the run of round 6** ([below](#round-6--observed-on-magnuss-machine-22-november-2026)). **A Rider remote-development host that no client ever connected to runs Royder with the editing zone.** Its backends ran `ICodeEditingZone`, and Royder's dry-run `rename_symbol` gave the right change. Several solutions share one host JVM, each with a full backend of its own. The first small solution took about 3.3 GiB, the JVM included, and a second about 0.65 GiB more. One `stop` ends them all.
 
 - **On a worktree of this repository** ([round 7](#round-7--real-royder-worktree-22-november-2026)), every editing tool worked as in Rider: a committed rename across two files, a namespace move with its file, a quick fix, suggestions, completion and project reload.
   - **A deleted file lingered** for 12 s or more. Its build predated the fix for that.
   - **A plain `git worktree remove` failed,** on the Roslyn worker's working directory, as with our own headless host.
   - **The host took 4.4 GiB,** its JVM 2.1 GiB of that.
-- **Not yet tested:** a host that runs for hours.
-- **Not contained:** the host writes status files to the real `%LOCALAPPDATA%\JetBrains\RemoteDev` despite the four IDE folder overrides, and it touched the timestamps of `PermanentUserId` and `PermanentDeviceId`.
+- The later launch-harness smoke test still resolved a declaration in its own worktree six hours after startup.
+- The launcher in rounds 6 and 7 wrote status files to the real `%LOCALAPPDATA%\JetBrains\RemoteDev` and touched
+  the timestamps of `PermanentUserId` and `PermanentDeviceId`. Starting the bundled Java executable directly kept
+  those files in the private profile. [Direct-Java launch audit](remote-dev-server-lifecycle.md#launch-and-profile-audit)
 - **JetBrains' terms:** they don't say whether this use is covered. Magnus judged on 2026-11-19 that his subscription covers our own private use, and the terms get checked before anything is published.
 
 The research before the run follows as written then. Its verdict was: "I could not verify a licensed route for a never-connected agent to perform refactorings through Royder." [Rider remote-development licensing](https://www.jetbrains.com/help/rider/Licensing_and_useful_links.html) · [Working in a connected remote project](https://www.jetbrains.com/help/rider/Work_inside_remote_project.html)
