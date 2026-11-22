@@ -111,3 +111,136 @@ available. The never-connected JVM’s round 6 log records registry contribution
 did not require a persistent edit, and it did not trace a named rescan. The remaining end-to-end checks are an
 externally created source file becoming a project item and the exact edited bytes appearing on disk. A successful
 edit alone would also be consistent with Rider’s ordinary save winning before Royder invokes its fallback.
+
+## Round 8 — direct Java launch, deletion and heap size
+
+**The clientless host worked at both `-Xmx1024m` and `-Xmx768m`.** Starting the bundled Java executable directly
+put the Remote Development status files and both JVM permanent-ID files in the private profile. With tools build
+`2026-11-22_04-26-01-2911330`, a deleted declaration disappeared on the first name-only call in all four trials.
+The host JVM logged the parent-folder refresh during each first call. The 256 MiB reduction in the heap limit
+produced only a 10.7 MiB difference in median private memory for the whole process tree in the two complete runs.
+
+### Launch and profile audit
+
+I added `C:\Dev\RoyderRemoteRound8\worktree` as a detached worktree of `main` at `358ac91` and restored its
+`ReSharperMcp.sln`. Each launch used a fresh private profile and IDE caches under
+`%TEMP%\royder-headless\codex-3-round-8`. The OS file cache and existing NuGet fallback packages were warm.
+I copied the installed Royder plugin and the specified deployed tools directory, verified the copied tools files
+against their originals, and matched `host.sha256` to the copied host DLL.
+
+I started `jbr/bin/java.exe` with an argument file built from the Windows amd64 entry in `product-info.json`:
+the default VM options with a single replacement `-Xmx`, the expanded `additionalJvmArguments`, the
+`bootClassPathJarNames` from Rider’s `lib`, and the declared main class. The application arguments were:
+
+~~~text
+com.intellij.idea.Main remoteDevHost C:/Dev/RoyderRemoteRound8/worktree/ReSharperMcp.sln
+  --listenOn 127.0.0.1 --port 24931 --ssh-link-host 127.0.0.1 --ssh-link-user <current-user> --ssh-link-port 22
+~~~
+
+The JVM received private `APPDATA`, `LOCALAPPDATA`, `user.home`, `java.io.tmpdir` and all four `idea.*.path`
+directories. ReSharper’s local, roaming, temp and log directories, process `TEMP` and `TMP`, and `DOTNET_CLI_HOME`
+were private too. The profile disabled IDE and plugin updates, statistics reporting and shared-index downloads.
+No JetBrains Client connected. Before each launch, 24931 and 24941–24950 were free. The Java PID held 24931.
+Royder’s `internal/status` and the private backend log identified it as the primary on 24941. Its `/health` named
+the exact worktree solution, the private tools folder, the requested build and host SHA-256
+`7529fd2e44f63a15a6f0473b681767eea4fbb2591bbe74328433e4ec1d1d7660`.
+
+**Verified on disk.** Both complete runs started without private IDs or discovery records. While indexed, each had
+`%LOCALAPPDATA%\JetBrains\RemoteDev\active\<java-pid>`, a matching `recent\<java-pid>` and a per-project recent
+record under its **private** Local AppData. The records identified the worktree and reported
+`controllerConnected=false`. The active file disappeared on exit and both recent records remained. Each private
+Roaming AppData contained `JetBrains\PermanentUserId` (36 bytes) and `JetBrains\PermanentDeviceId` (43 bytes).
+
+The real-profile audit covered 48 shared roaming files outside versioned IDE folders, 197 files including tracked
+files and ordinary Rider settings, and all 29 Local JetBrains top-level entries. The two real IDs kept their bytes and
+last-write times. Real `Local\JetBrains\RemoteDev` was absent before and after. All 29 local entries matched on
+name, type, size and timestamps. Home Git status for the roaming JetBrains folder was clean at both ends.
+The only roaming delta was rotation of a zero-byte consent release log. The baseline filename was stamped
+05:40:14, an intermediate one 05:48:36, and the final one 05:50:14. Round 7 had already recorded rotations at
+05:10:14, 05:20:14 and 05:30:14. The snapshots cannot attribute the intermediate rotation to a PID. I left the
+current log in place. No attributable real-profile file needed restoration.
+
+### Deletion seen by the first caller
+
+I verified that the tracked type `DotNetAnalysisAndRefactoringMcp.Disk.DocumentNotSaved` was present, deleted
+`src/DotNetAnalysisAndRefactoringMcp.Tools/Disk/DocumentNotSaved.cs`, and issued the two calls back-to-back.
+Only the solution selector and symbol arguments were supplied. I restored the file with Git, checked its bytes and
+confirmed that the symbol was visible again before repeating with the opposite tool first. No project reload was
+issued. Local times below come from the HTTP request and the private JVM trace for
+`VfsWriteOperationsHost`. Each trace names the requested parent `src/DotNetAnalysisAndRefactoringMcp.Tools/Disk`.
+
+| Heap | First call | Request sent | JVM received folder refresh | First reply | Following call |
+|---|---|---|---|---|---|
+| 1024 MiB | `search_symbol` | 05:50:11.350 | 05:50:11.366 | 0 results in 535 ms | Empty declarations |
+| 1024 MiB | `go_to_definition` | 05:50:13.055 | 05:50:13.067 | Empty declarations in 123 ms | 0 results |
+| 768 MiB | `search_symbol` | 05:48:43.124 | 05:48:43.650 | 0 results in 799 ms | Empty declarations |
+| 768 MiB | `go_to_definition` | 05:48:44.393 | 05:48:44.395 | Empty declarations in 259 ms | 0 results |
+
+All eight replies had `isError=false`. The first requests started 0.3–103 ms after the timestamp immediately before
+deletion. The trace establishes receipt in the JVM, and the positive, deleted and restored lookups establish the
+project-model result. The IDE file watcher was also enabled, so this run does not establish how quickly the model
+would have caught up without Royder’s request.
+
+### Indexed memory, tool answers and garbage collection
+
+At both caps, `find_usages` on `PluginBuild.IdentityOf` returned two usages in two files. A `rename_symbol` preview
+named `PluginBuild.cs` and `InstalledPlugin.cs`, with `dryRun=true`, `applied=false`, no conflicts and both
+files byte-identical afterward. `complete_at` after `_logger.` in `McpShellComponent.cs` returned 134 items,
+including `Warn`. These were calls to the private 24941 primary.
+
+| Complete run | 1024 MiB | 768 MiB |
+|---|---:|---:|
+| Available physical RAM immediately before JVM start | 16.44 GiB | 14.34 GiB |
+| Lowest sampled available RAM | 9.80 GiB | 9.96 GiB |
+| Launch to matching indexed health, including 3 s stable | 27.6 s | 28.5 s |
+| Indexed sample count and span | 11 over 17.69 s | 10 over 15.96 s |
+| Whole job, median private / working set | 4275.6 / 5320.9 MiB | 4264.9 / 5314.6 MiB |
+| Logged G1 pauses, total / maximum pause | 71, 377.6 / 21.2 ms | 67, 392.3 / 20.6 ms |
+| Full GCs / pauses in indexed sample interval | 0 / 0 | 0 / 0 |
+
+Each cell below gives PID and median **private / working set in MiB** for every process present in the indexed sample
+interval. The whole-job figures above are medians of per-sample totals. Summed working sets can count shared pages
+more than once.
+
+| Process | 1024 MiB run | 768 MiB run |
+|---|---:|---:|
+| Host JVM, `java.exe` | 228164 · 1832.1 / 2143.2 | 125848 · 1807.9 / 2117.4 |
+| Full `Rider.BackendHost.exe` | 264780 · 1638.2 / 2018.2 | 233572 · 1659.6 / 2040.2 |
+| Roslyn `dotnet.exe` worker | 138080 · 544.8 / 708.3 | 213652 · 541.8 / 704.2 |
+| MSBuild `dotnet.exe` worker | 12820 · 62.6 / 136.3 | 176632 · 61.3 / 133.7 |
+| `JetBrains.DPA.Protocol.Backend.exe` | 98516 · 83.4 / 180.6 | 169896 · 82.0 / 181.5 |
+| Private `jetbrainsd.exe` | 265872 · 97.4 / 70.7 | 236124 · 97.0 / 70.4 |
+| `fsnotifier.exe` | 228892 · 1.0 / 4.8 | 254504 · 1.0 / 4.8 |
+| File watcher’s `conhost.exe` | 269240 · 1.5 / 8.1 | 52208 · 1.5 / 8.1 |
+| JVM, backend, Roslyn, MSBuild and DPA `conhost.exe`, respectively | 57156, 138260, 49868, 192936, 177116 · each 1.5 / 8.3 | 234328, 20236, 64136, 244804, 183656 · each 1.5 / 8.3 |
+
+The JVM logs confirmed the two heap maxima. G1 recorded seven pauses associated with humongous allocations at
+1024 MiB and six at 768 MiB. Two early pauses at 1024 MiB reported pinned evacuation failures. Neither run logged a
+Java heap exhaustion, an `OutOfMemoryError` or a full collection, and neither produced a heap dump. The highest
+committed capacities recorded on pause lines were 790 MiB and 768 MiB respectively.
+**Inference:** 768 MiB was sufficient for this workload. The runs do not establish a long-lived or larger-solution
+heap budget. Across these complete runs the JVM’s median private memory differed by 24.2 MiB. An earlier 1024 MiB
+sample on the same worktree gave 4189.7 MiB for the whole job, so the between-run variation here exceeds the
+whole-job difference between the two caps.
+
+### Shutdown and repeatability
+
+I launched each JVM suspended, placed it in a private Windows job and then resumed it. A guard enforced the 8 GiB
+admission threshold and would terminate only that job below 2 GiB. Two preliminary 1024 MiB runs explain the
+sample order. The first indexed successfully but my preflight mistook HTTP.sys’s listener PID 4 for an ownership
+failure. I checked the primary status, backend log and build instead. The second passed all three tool checks and
+recorded memory, but my positive-control parser expected a hyphen where `search_symbol` returned an em dash.
+It stopped before deletion. The complete runs above used fresh profiles at 768 MiB and then 1024 MiB. All four
+admissions passed; the lowest sampled physical RAM across all attempts was 8.03 GiB.
+
+The direct Java `exit` command addressed the matching private config/system lock. Both measured JVMs and stop
+commands exited with code 0. On each of the four launches a lab-owned `jetbrainsd.exe` remained after JVM exit;
+after the 24 s shutdown window the harness terminated the remaining job member. All four jobs then had zero PIDs.
+I rechecked recorded PID/creation-time pairs and confirmed 24931 and 24941–24950 were free. After restoring
+Rider’s incidental change to the scratch worktree’s tracked `vcs.xml`, plain `git worktree remove` succeeded.
+Both the directory and its Git worktree registration are gone.
+
+The private evidence is in `%TEMP%\royder-headless\codex-3-round-8`. The two complete runs are
+`heap-768` and `heap-1024-repeat`. Each contains the Java argument file, captured tool calls, JVM refresh and GC
+logs, process samples, and `evidence/summary.json`. The root `audit.json` records the final profile, PID and port
+checks. The raw discovery records, join links and profile backups remain private.
