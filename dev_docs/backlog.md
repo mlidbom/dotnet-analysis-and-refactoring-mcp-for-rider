@@ -408,6 +408,19 @@ The second round, under way:
     findings more, which its solution-wide analysis had stored and Rider's didn't report for that file.
   - **EditorConfig** applies the same headless and in Rider. **Line endings:** headless gives disk's, CRLF included;
     Rider turns them to LF in its documents (`RiderDocumentOperationsImplCore`).
+- **royder-codex-3, round 3, done:** routing between two headless hosts, with Royder unchanged, on worktrees of one
+  repository (`experiments/HeadlessRouting`, with `Check.py`, which repeats it, and `answers.txt`, the answers as an
+  agent reads them).
+  - **What works today:** both register and `list_solutions` tells them apart by segment; a call naming an absolute
+    file reaches that worktree's host, and an edit through the primary changes the peer's file only. A relative path
+    two solutions hold is refused as ambiguous, and one outside every solution is refused by the router.
+  - **What the design must change:** with one solution open, every call goes to it, a file in another worktree
+    included: after `DiskSync`'s 10 s wait it answers that the file is in no project, with `isError` false. A
+    worktree nested in another's folder, as Claude Code's `.claude/worktrees/` are, gets the same answer from the
+    outer one's host: safe here, since no project of the outer one took its files in, but wrong. Routing by the
+    worktree a path is in, before the shortcut, is what the design has.
+  - **A dead peer stays registered** (under "Known bugs"): seen with a killed host; a replacement on the same port
+    registered and answered, and a host that exits normally deregisters at once.
 - **royder-codex-1, done:** the engine's footprint, on a private copy of the fixture solution
   (`experiments/HeadlessFootprint`, with the scripts that measured it).
   - **A plain `git worktree remove` succeeds only before the solution loads.** From indexing on, git deletes every
