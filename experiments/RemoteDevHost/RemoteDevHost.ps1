@@ -32,9 +32,11 @@ function Get-IndexedHealth($Plan) {
    $base = "http://127.0.0.1:$($Plan.royderPort)"
    try {
       $health = Invoke-RestMethod "$base/health" -NoProxy -TimeoutSec 2
-      $solutions = @($health.solutions)
-      if ($solutions.Count -ne 1 -or $solutions[0].path -ne $Plan.solution -or $solutions[0].indexing) { return }
-      $tools = $solutions[0].tools
+      $solutions = @($health.solutions | Where-Object path -eq $Plan.solution)
+      if ($solutions.Count -ne 1) { return }
+      $solution = $solutions[0]
+      if (!$solution.PSObject.Properties['tools'] -or $solution.indexing) { return }
+      $tools = $solution.tools
       if ($tools.build -ne $Plan.build -or $tools.host -ne $Plan.hostHash -or $tools.folder -ne $Plan.tools) { return }
       $reply = Invoke-RestMethod "$base/" -NoProxy -TimeoutSec 2 -Method Post -ContentType 'application/json' -Body '{"jsonrpc":"2.0","id":1,"method":"internal/status","params":{}}'
       if ($reply.result.role -eq 'primary' -and $reply.result.port -eq $Plan.royderPort) { return $health }
