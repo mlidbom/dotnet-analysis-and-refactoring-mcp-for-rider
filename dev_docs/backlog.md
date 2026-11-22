@@ -48,6 +48,13 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
+- **A dead peer's registration is never removed** (royder-codex-3, 2026-11-22, routing between headless hosts).
+  `PeerSolution.Call` removes a peer only on `WebExceptionStatus.ConnectFailure`. On CoreCLR, which Rider's backend
+  runs on too, a refused connection is `UnknownError`, with an inner `SocketException` (`ConnectionRefused`, 10061).
+  So once a peer has crashed, every call routed to its solution fails with "ReSharper failed on the call proxied to
+  the peer", and `list_solutions` goes on listing it. No specification covers a dead peer. The fix: recognise the
+  refused connection by its inner `SocketException`. Its specification needs no second Rider: register a peer on a
+  port nothing listens on with `internal/register`, then call its solution.
 - **Suspected in Rider, seen headless: a deleted file may not get the rescan** (royder-codex-1's reading of the source,
   2026-11-22). `DiskChanges` records a delete, but `DiskSync.Check` skips the paths that no longer exist, so a deleted
   path doesn't itself ask the frontend to rescan. Headless, with no frontend, a deleted file's type was still found
