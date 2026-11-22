@@ -291,18 +291,34 @@ The spike, before any design:
    call reaches it, how it meets the tooling owner's requirements, and what of the tools moves behind a seam between
    the two hosts.
 
-Handed to the Codex helpers (`dev_docs/codex-helpers.md`), each an independent question in files of its own, as
-gpt-collaborators advised from its rounds; `headless-royder` coordinates, reviews and merges:
+The spike's first round, 2026-11-22, by the Codex helpers (`dev_docs/codex-helpers.md`), each on an independent
+question, as gpt-collaborators advised; `headless-royder` coordinates, reviews and merges. Each experiment's README says
+how to run it and what it found:
 
-- **`royder-codex-2`: our own host program.** A console program referencing the `jb` package's assemblies boots the
-  engine as `inspectcode.exe` does, loads a solution with no Rider, and answers a find-usages query. Measures the time
-  until indexed and the memory held. In `experiments/HeadlessHost`.
-- **`royder-codex-3`: the engine's own command line as the host.** Whether an extension that `jb` loads (`-x`) can add
-  a long-running command of its own, such as `jb royder serve`, or keep an InspectCode run alive as a server; and
-  whether a net472 plugin loads in `jb`'s .NET 10 platform at all. In `experiments/HeadlessExtension`.
-- **`royder-codex-1`, read-only in the main checkout: what Royder needs that only Rider gives.** A walk of the host
-  and the tools for what Rider's frontend or its protocol provides (rescans, saves, `ISolutionHost`, the Rd model,
-  Rider-only zones and components), what headless would lose, and what could stand in for each. A report, no edits.
+- **Our own program boots the engine headless** (`experiments/HeadlessHost`, royder-codex-2). It calls
+  `CommandLineProductMain.Main` with `isLiveSession: true`, owns the dispatcher and the solution's lifetime, and its
+  find-usages answer matched Rider's. A second query in the same process: 34 ms. Loading and indexing, cold and
+  warm: this repository 13 s and 14 s; a copy of Compze.AllProjects (125 projects) 46 s and 49 s, and 36 s in a third
+  run. Memory once indexed: the engine 0.7 to 1.2 GB private; with the MSBuild and .NET workers it starts while
+  loading projects, 1.27 GB on Compze, so a budget counts the process tree. An edit on disk is seen only after
+  `IFileSystemTracker.CommitChanges()`, even with the tracker enabled. Loading projects with `--no-build` still writes
+  `obj\**\*.assets.cache` in the checkout, so a host only loads its own worktree.
+- **Royder's unchanged host loads in `jb`'s engine** (`experiments/HeadlessExtension`, royder-codex-3): as an
+  InspectCode extension from a local feed, on .NET 10 and 11, with its components constructed and
+  `list_symbols_in_file` answering. An extension can't add a `jb` command of its own, and in an InspectCode run file
+  tracking is off, so the route stays a reader: our own program is the host for editable worktrees.
+- **What only Rider gives** (`dev_docs/headless-royder/rider-dependencies.md`, royder-codex-1): every ReSharper type
+  Royder uses ships in `jb`. Rider alone gives the frontend's rescans and saves, its document operations and project
+  reload executor, and the text controls `complete_at` and `apply_quick_fix` use; `jb` has a candidate for each.
+
+The second round, under way:
+
+- **royder-codex-2:** its program hosting Royder's unchanged host, on port 23910. Whether Royder stays correct between
+  calls (edited, new, deleted and moved files), and its edit tools for real, each reverted after.
+- **royder-codex-3:** every read tool's answer headless against Rider's, on port 23900, and which services and settings
+  the headless engine resolves.
+- **royder-codex-1:** a design draft for review: routing, starting and stopping hosts, the memory budget, separation
+  from Magnus's Rider, the seam in the tools, the hub or Royder as the hosts' owner, and which process.
 
 ## Decided against
 
