@@ -369,11 +369,12 @@ The second round, under way:
     untouched. The caches, settings, temp and logs go where they are redirected.
   - **What outlives it:** nothing, whether the engine exits or is killed. Two loopback listeners per host, for the
     MSBuild and Roslyn workers, and nothing listening outside the machine.
-- **Open: the engine's connection to JetBrains.** About 2 s after start, before loading projects, the engine opens an
-  HTTPS connection to Amazon CloudFront (`server-65-9-46-76.arn52.r.cloudfront.net`), which JetBrains serves from. What
-  for is unknown: a license check, updates, feature flags or usage statistics. Magnus, 2026-11-22: "I would not be
-  terribly surprised if it was license related". It matters where there is no network: whether a host starts and
-  works fully offline is untested.
+- **The engine's connection to JetBrains is its update check** (royder-codex-1, 2026-11-22, round 3). About 2 s after
+  start, before loading projects, `UpdatesManager.CheckForUpdatesImpl`, on a thread of its own, fetches
+  `https://www.jetbrains.com/dotnet/updates/dotnet.Updates.xslt` (served through Amazon CloudFront). The request may
+  carry license details, but the answer it reads is the update list: not a license check, nor feature flags or usage
+  statistics. With it failing, a host indexed and answered `find_usages` as before. `UpdatesManager` honours
+  `JETBRAINS_NO_CHECK_FOR_UPDATES`, which a headless host is to set.
 
 ## Decided against
 
