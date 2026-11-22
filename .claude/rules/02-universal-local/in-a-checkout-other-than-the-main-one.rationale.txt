@@ -14,9 +14,6 @@ The symbol linker has the same rule for its helpers (`030-in-a-checkout-other-th
 differs where Royder differs: Magnus opens a Rider on each helper's checkout, so Royder's tools work there once its
 solution is open.
 
-**Written before it was discussed,** against the rules folder's guidance, since the helpers were about to start: put
-to Magnus to check the same day.
-
 **Untested:** whether `list_solutions` gives the worktrees' solutions the segments the rule names, `royder-codex-2`
 and the like, once Riders have them open. Whether a Codex helper keeps to it; if not, look first at whether its
 `AGENTS.override.md` was regenerated after the rule changed (`ClaudesSetupForCodex project`).
