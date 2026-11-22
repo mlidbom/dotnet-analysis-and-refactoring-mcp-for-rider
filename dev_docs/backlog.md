@@ -513,8 +513,10 @@ The second round, under way:
   - **Next, under way:**
     - **royder-codex-3:** its launch harness as a committed tool, `experiments/RemoteDevHost`, for the runs to come;
       what `jetbrainsd.exe` is, and what the host changed in `vcs.xml`.
-    - **royder-codex-2:** its close request built as a plugin of its own for agents' servers, not in Royder's jar,
-      which every Rider of Magnus's would load.
+    - **royder-codex-2's round 7, done** (7d2b496, `experiments/RemoteCloseWorktree`): its close request, built as a
+      plugin of its own for agents' servers, not in Royder's jar, which every Rider of Magnus's would load. The Plugin
+      Verifier found it compatible; not run yet. Asked: whether `RestService`'s trust check can show a dialog in a
+      server with no window, and whether the close gets the write intent it needs.
     - **royder-codex-1:** then the patcher's run, with that tool: a worktree removed while its host runs, and the
       `.idea` files written back after.
     - **After those:** two worktrees in one server, one closed and removed while the other goes on serving; a JVM
