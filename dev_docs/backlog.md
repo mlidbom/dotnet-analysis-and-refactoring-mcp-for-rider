@@ -48,6 +48,10 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
+- **Suspected, not reproduced: a deleted file may not get the rescan** (royder-codex-1's reading of the source,
+  2026-11-22). `DiskChanges` records a delete, but `DiskSync` skips the paths that no longer exist, so a deleted path
+  doesn't itself ask the frontend to rescan. Rider's own project-model tracking may remove it anyway. To check: delete
+  a file declaring a type, then `search_symbol` the type by name alone.
 - `search_symbol` with `includeLibraries` finds a compiled member only as `Type.Member`, not by its name alone
   (`GetProjectMark` gives none): scanning every compiled type's members takes seconds. An index of member names
   would do it.
