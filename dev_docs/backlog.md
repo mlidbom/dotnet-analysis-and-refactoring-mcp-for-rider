@@ -351,16 +351,27 @@ how to run it and what it found:
   commit charge: on 2026-11-18 the commit charge alone was red at times. The 30 s are counted by the samples' own
   timestamps, since a new reader first gets the last five minutes at once; with no recent samples, no host starts
   (royder-codex-1's replay of 2026-11-18, `experiments/HeadlessMemoryAdmission`). Where no recorder runs, in cloud
-  sessions and CI, a configured budget of memory instead.
+  sessions and CI, a configured budget of memory instead. About 14 GiB was available before the rounds' runs, so two or
+  three agents' servers at a time for now. Magnus, 2026-11-22, on why: partly the many Riders he keeps open, for want
+  of hosts started on demand, and partly the many agents running at the moment.
 - **Files:** each host's caches, settings, temp and logs are private, outside the worktree. A host loads only an agent's
   own worktree, whose `obj` it may write: not the main checkout, nor any solution a Rider has open. Its private global
   settings file injects Magnus's personal settings file, as Rider's does, read-only: the file itself, so it is never
   stale; a copy only if a host turns out able to write to it (royder-codex-3, below).
-- **One tools build for both hosts,** with what differs behind four abstractions chosen per call by which host
-  serves the solution: bringing the model up to date with disk, saving an edit's documents, reloading projects, and
-  text controls. The host DLL is the same bytes in both, so one `host.sha256` serves both.
+- **The host is Rider's own headless server,** `remote-dev-server.exe`'s JVM, started directly through Java with a
+  private profile, and no client ever connected (Magnus, 2026-11-22, on the recommendation from its rounds 6 to 8:
+  "Sounds good. Let's do it."). Royder's plugin runs in it unchanged, the editing tools included, so the tools need no
+  second implementation, and it runs under his Rider license. Its backend registers with the primary as a peer.
+  - **One server per worktree** to start with: one start, one stop. About 4.3 GiB each on this repository, its JVM
+    1.8 GiB of that.
+  - **One shared server** if memory runs short: 1.8 GiB once, plus about 2.4 GiB per worktree, with
+    `experiments/RemoteCloseWorktree` closing one worktree's project.
+  - What it needs is in "Rider's own headless host" below: the Roslyn worker out of the worktree
+    (`experiments/RemoteRoslynPatcher`), no tracked file changed in the worktree, nothing listening beyond loopback.
+- **Our own program on `jb`'s engine** (`experiments/HeadlessHost`) leaves the design, decided with the host above:
+  kept as an experiment for cloud sessions and CI, where no Rider is installed. With it go the four abstractions the
+  tools would have chosen between per host; they come back if that host does.
 - **Royder owns the hosts' lifecycle;** the hub may ask it to warm one up or stop one, as any client may.
-- **Our own program** hosts the engine, with `isLiveSession: true`. The extension route stays a compatibility check.
 
 The second round, under way:
 
@@ -519,6 +530,11 @@ The second round, under way:
       server with no window, and whether the close gets the write intent it needs.
     - **royder-codex-1:** then the patcher's run, with that tool: a worktree removed while its host runs, and the
       `.idea` files written back after.
+    - **Two network-access prompts from Windows' firewall** (Magnus, 2026-11-22): waiting when he came back to the
+      machine after a night of these runs, most likely from them. He allowed both. A prompt means a program listened
+      on more than loopback: to find which (the rules his Allow created name the programs), and to keep every listener
+      of an agents' server on loopback. Calls over loopback are likely not blocked while a prompt waits, so the runs'
+      results likely stand; unverified.
     - **After those:** two worktrees in one server, one closed and removed while the other goes on serving; a JVM
       with Rider's unneeded bundled plugins disabled, for its non-heap gigabyte; a host that runs for hours.
   - **royder-codex-3's round 7, read-only, done** (0cc8a05,

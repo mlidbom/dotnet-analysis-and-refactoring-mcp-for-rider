@@ -1,5 +1,8 @@
 # Rider Remote Development as a host for Royder
 
+**Decided, 22 November 2026:** Magnus chose this as the host for agents' worktrees ("Sounds good. Let's do it."). The
+design is in `dev_docs/backlog.md`, the headless section.
+
 **Verdict, 22 November 2026, after the run of round 6** ([below](#round-6--observed-on-magnuss-machine-22-november-2026)). **A Rider remote-development host that no client ever connected to runs Royder with the editing zone.** Its backends ran `ICodeEditingZone`, and Royder's dry-run `rename_symbol` gave the right change. Several solutions share one host JVM, each with a full backend of its own. The first small solution took about 3.3 GiB, the JVM included, and a second about 0.65 GiB more. One `stop` ends them all.
 
 - **On a worktree of this repository** ([round 7](#round-7--real-royder-worktree-22-november-2026)), every editing tool worked as in Rider: a committed rename across two files, a namespace move with its file, a quick fix, suggestions, completion and project reload.
