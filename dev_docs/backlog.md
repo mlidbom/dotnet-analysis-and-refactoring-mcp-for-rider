@@ -347,8 +347,9 @@ The second round, under way:
   calls (edited, new, deleted and moved files), and its edit tools for real, each reverted after.
 - **royder-codex-3:** every read tool's answer headless against Rider's, on port 23900, and which services and settings
   the headless engine resolves.
-- **royder-codex-1:** a design draft for review: routing, starting and stopping hosts, the memory budget, separation
-  from Magnus's Rider, the seam in the tools, the hub or Royder as the hosts' owner, and which process.
+- **royder-codex-1:** with its design draft done, the engine's footprint, on a private fixture repository in its Temp
+  folder: whether a plain `git worktree remove` succeeds while a host has the worktree open, everything the worker
+  tree writes and where, whether `DisablePackageAssetsCache` stops the `obj` write, and which processes outlive it.
 
 ## Decided against
 
