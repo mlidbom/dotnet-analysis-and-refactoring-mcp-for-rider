@@ -464,10 +464,23 @@ The second round, under way:
   run to see. Its starter can hold several projects in one JVM; whether each solution gets a backend of its own, and so
   what a worktree costs, takes a run too. Magnus, 2026-11-22, on whether a trial may use his license: "Of course you
   can use my license."
-  - **Next, under way, its round 6:** the run on this machine, isolated as the sandbox Rider is, with Royder its own
-    primary on 24941. Phase A, no client: indexed, then `find_usages`, `get_diagnostics` and a dry-run rename, and
-    each process's memory. Phase B: a second solution, to see whether the JVM is shared. Magnus's JetBrains folders
-    are checked untouched before and after.
+  - **Its round 6, done** (89f2dc6, "Round 6" in the same document): **a host that no client ever connected to runs
+    Royder with the editing zone.** Both backends ran `ICodeEditingZone`, and a dry-run `rename_symbol` gave the right
+    change. It ran on this machine, isolated as the sandbox Rider is, with Royder its own primary on 24941. A second
+    solution joined the same JVM with a full backend of its own, as a peer of the first. Memory: 3.3 GiB for the
+    first small solution, the JVM's 1.8 GiB included, and 0.66 GiB more for the second. One `stop` ended both. Not
+    contained by the four IDE folder overrides: status files in the real `%LOCALAPPDATA%\JetBrains\RemoteDev`, which
+    it moved out, and touched timestamps on `PermanentUserId` and `PermanentDeviceId`, which it restored.
+  - **Next, under way:**
+    - **royder-codex-1's round 7:** the same host serving a worktree of this repository. Committed rename and move,
+      quick fixes, suggestions, completion, disk sync of an edit, a new file and a delete, `reload_projects`, the
+      memory and time to indexed, and a plain `git worktree remove` while it serves it.
+    - **royder-codex-3's round 7, read-only:**
+      - redirecting the status files;
+      - closing one project of a shared host;
+      - whether an idle host exits;
+      - several hosts at once;
+      - whether the host's JVM answers Royder's rescans and saves as the desktop frontend does.
 
 ## Decided against
 
