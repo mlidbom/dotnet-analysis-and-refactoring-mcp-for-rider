@@ -1,7 +1,11 @@
 using System.Diagnostics;
+using System.Text.Json;
 using JetBrains.Application.FileSystemTracker;
 using JetBrains.Application.Threading;
+using JetBrains.DocumentManagers.impl;
+using JetBrains.DocumentModel.Storage;
 using JetBrains.ProjectModel;
+using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Caches;
 using JetBrains.Threading;
 using JetBrains.Util;
@@ -48,8 +52,30 @@ sealed class SolutionSession(ISolution solution, IShellLocks locks)
          if(input.Result is null or "exit") return;
          if(input.Result == "refresh")
             locks.ReentrancyGuard.Execute("Commit file system changes", () => _tracker.CommitChanges());
+         else if(input.Result == "refactorings")
+            locks.ReentrancyGuard.Execute("Read C# refactoring support", () =>
+            {
+               using var read = locks.UsingReadLock();
+               CSharpRefactoringSupport.Print(solution);
+            });
+         else if(input.Result.StartsWith("document ", StringComparison.Ordinal))
+            PrintDocument(input.Result["document ".Length..]);
          else
             FindUsages(input.Result);
       }
    }
+
+   /// <summary>Reads a project document directly, without Royder's pre-call disk synchronization.</summary>
+   void PrintDocument(string path) => locks.ReentrancyGuard.Execute("Read experiment document", () =>
+   {
+      using var read = locks.UsingReadLock();
+      var file = VirtualFileSystemPath.Parse(path, InteractionContext.SolutionContext);
+      var items = solution.FindProjectItemsByLocation(file).OfType<IProjectFile>().ToArray();
+      var document = items.Select(it => it.ToSourceFiles().FirstOrDefault()).FirstOrDefault(it => it != null)?.Document;
+      var storage = solution.GetComponent<IDocumentStorageHelpers>();
+      Console.WriteLine("DOCUMENT " + JsonSerializer.Serialize(new {
+         projectItems = items.Length, text = document?.GetText(), storage = storage.GetType().FullName,
+         unsaved = document != null && ((DocumentOperationsImpl)storage).IsDocumentUnsaved(document)
+      }));
+   });
 }

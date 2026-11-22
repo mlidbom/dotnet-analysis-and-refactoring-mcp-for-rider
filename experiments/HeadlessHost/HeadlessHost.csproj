@@ -11,5 +11,6 @@
   <ItemGroup>
     <RuntimeHostConfigurationOption Include="Microsoft.NETCore.DotNetHostPolicy.SetAppPaths" Value="true" />
     <Reference Include="$(JbHome)\inspectcode.exe;$(JbHome)\JetBrains.Platform.*.dll;$(JbHome)\JetBrains.Lifetimes.dll;$(JbHome)\JetBrains.ReSharper.Psi.dll;$(JbHome)\JetBrains.ReSharperAutomationTools.CommandLine.Common.dll" Private="false" />
+    <Reference Include="$(JbHome)\JetBrains.ReSharper.Feature.Services.dll;$(JbHome)\JetBrains.ReSharper.NewRefactorings.dll;$(JbHome)\JetBrains.ReSharper.Psi.CSharp.dll" Private="false" />
   </ItemGroup>
 </Project>

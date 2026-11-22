@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>Royder.LiveHost</id>
+    <version>$version$</version>
+    <authors>Royder</authors>
+    <description>Loads the unchanged Royder host in the live headless experiment.</description>
+    <dependencies><dependency id="Wave" version="[263.0.0]" /></dependencies>
+  </metadata>
+  <files>
+    <file src="DotNetAnalysisAndRefactoringMcp.dll" target="DotFiles/" />
+  </files>
+</package>

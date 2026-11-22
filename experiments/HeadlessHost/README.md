@@ -16,6 +16,14 @@ The script builds only the experiment. The analysed solution must already have i
 - `-Solution <path> -Symbol Type.Member` selects a **writable** solution and a uniquely named source member. Use `-Symbol '-'` to measure indexing alone.
 - `-Cache <path>` selects the state directory. An unused path gives a cold ReSharper start. Repeat with the same path for a warm start. `-JbHome <path>` selects a different installation folder of the same tool version.
 
+## Serving the unchanged Royder plugin
+
+```powershell
+pwsh -NoProfile -File .\experiments\HeadlessHost\Run.ps1 -Royder -Listen -Symbol '-'
+```
+
+This serves the worktree's `ReSharperMcp.sln` on loopback port **23910** until `exit` or end of input. The launcher builds the existing host and tools into the experiment's `obj/package-build`, packs only the host DLL in a local Wave 263 package and supplies a private tools build with its matching `host.sha256`. The live program uses InspectCode's `CommandLinePluginsMixin` for package discovery. Both `/health` and `list_solutions` answered with this checkout's solution, indexing complete and 25 tools. The built-in `document <absolute path>` command reads the engine's actual project document without invoking Royder's disk sync. `refactorings` reports the active zones and the two language helpers used by the rename and namespace-move workflows.
+
 ## How the engine starts and stops
 
 These calls were traced in the installed binaries with Sherlock and exercised by this experiment.

@@ -7,6 +7,7 @@ using JetBrains.Application.Environment;
 using JetBrains.Application.Threading;
 using JetBrains.CommandLine.InspectCode;
 using JetBrains.CommandLine.InspectCode.Environment;
+using JetBrains.CommandLine.InspectCode.Environment.Settings;
 using JetBrains.CommandLine.InspectCode.Unattended.Settings;
 using JetBrains.Lifetimes;
 using JetBrains.ReSharperAutomationTools.CommandLine.Common.Application;
@@ -26,7 +27,7 @@ static class Program
          throw new ArgumentException("Expected solution file, cache directory and Type.Member (or - for indexing only).");
 
       using var lifetime = Lifetime.Define("HeadlessHost");
-      var shell = StartShell(lifetime.Lifetime, args[0], args[1]);
+      var shell = StartShell(lifetime.Lifetime, args[0], args[1], args.Skip(3).Where(it => it != "--listen").ToArray());
       var locks = shell.GetComponent<IShellLocks>();
       using var openedSolution = CommandLineProductMain.Main(lifetime.Lifetime, shell.GetComponent<IThreading>(),
          shell, locks, Logger.GetLogger(typeof(Program)), shell.GetComponent<IInspectCodeSettings>(),
@@ -43,12 +44,19 @@ static class Program
 
    /// <summary>Uses InspectCode's product packages and settings. Selecting <see cref="IInspectCodeEnvironmentZone"/>
    /// lets our process decide what to do with the composed shell.</summary>
-   static IComponentContainer StartShell(Lifetime lifetime, string solutionPath, string cacheDirectory)
+   static IComponentContainer StartShell(Lifetime lifetime, string solutionPath, string cacheDirectory, string[] extensions)
    {
       Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-      var options = new[] { Path.GetFullPath(solutionPath), "--no-build", "--caches-home=" + Path.GetFullPath(cacheDirectory) };
+      string[] options = [Path.GetFullPath(solutionPath), "--no-build", "--caches-home=" + Path.GetFullPath(cacheDirectory), .. extensions];
+      var hostInfo = HostInfo.CreateForCurrentWave("HeadlessHost");
       var host = CommandLineProgram.Prepare<IInspectCodeEnvironmentZone>(typeof(InspectCodeProgram).Assembly,
-         HostInfo.CreateForCurrentWave("HeadlessHost"), isEverythingOnStdErr: true, loadAllPackages: false, options);
+         hostInfo, isEverythingOnStdErr: true, loadAllPackages: false, options);
+      if(extensions.Length > 0)
+      {
+         if(Environment.GetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT") != "23910")
+            throw new InvalidOperationException("This host loads Royder only on port 23910.");
+         host = host.CustomAdd(new CommandLinePluginsMixin<InspectCodeSettingsData>(hostInfo, options));
+      }
       var timeout = TimeSpan.FromMinutes(3);
       var environment = host.End().CreateDontRunAsync(lifetime).DispatcherWaitResult(timeout);
       var products = environment.EnvironmentContainer.GetComponent<RunningProducts>();
