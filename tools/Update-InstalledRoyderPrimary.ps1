@@ -96,12 +96,16 @@ $updated.rider.profileDirectory = Join-Path $installation ("everyday-state-" + $
 $backup = Join-Path $installation ("settings.before-" + $label + "-" + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + ".json")
 [IO.File]::Copy($settingsPath, $backup)
 # A successful stop returns only after the primary has drained. Older releases can be stopped in a coordinated maintenance window first.
-Stop-Primary $oldExecutable
 try {
+   Stop-Primary $oldExecutable
    Set-Configuration ($updated | ConvertTo-Json -Depth 8)
    Start-Primary $newExecutable
 } catch {
    $failure = $_.Exception.Message
+   $remaining = Get-Listener
+   if ($remaining -and $remaining.Path -eq $oldExecutable) {
+      throw "Update stopped before cutover: $failure. The previous executable still holds the public port. Previous settings: $backup"
+   }
    try {
       Stop-Primary $newExecutable
       Set-Configuration $original
