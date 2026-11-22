@@ -29,6 +29,8 @@ public sealed class ReadToolComparison(ISolution solution, string directory) : I
    public void Dispose()
    {
       var analysis = SolutionAnalysisConfiguration.GetInstance(solution);
+      if(Environment.GetEnvironmentVariable("ROYDER_SETTINGS_PROBE") == "1")
+         solution.Locks.ReentrancyGuard.Execute("Read settings and solution analysis results", () => new SettingsProbe(solution).Record(directory));
       File.WriteAllLines(Path.Combine(directory, "components.txt"), [
          Describe(nameof(IDocumentStorageHelpers), () => solution.GetComponent<IDocumentStorageHelpers>()),
          Describe(nameof(ISolutionHost), () => solution.ProjectsHostContainer().GetComponent<ISolutionHost>()),

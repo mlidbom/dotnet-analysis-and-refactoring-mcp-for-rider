@@ -1,7 +1,9 @@
 #requires -Version 7
-param([switch]$UseJbLauncher, [switch]$CompareReadTools)
+param([switch]$UseJbLauncher, [switch]$CompareReadTools, [string]$SettingsExperiment,
+      [ValidateSet('default','two-keys','three-keys','personal','personal-dsl','profile-conflict','injected-conflict')][string]$SettingsCase = 'default')
 
 $ErrorActionPreference = 'Stop'
+if ($CompareReadTools -and $SettingsExperiment) { throw 'Choose either the read-tool comparison or the settings experiment.' }
 $repository = (Resolve-Path "$PSScriptRoot/../..").Path
 $solution = Join-Path $repository 'ReSharperMcp.sln'
 $version = '2026.3.0.1'
@@ -26,7 +28,7 @@ function Get-RiderToolsForWorktree {
    return $matching[0].tools
 }
 
-if ($CompareReadTools) {
+if ($CompareReadTools -or $SettingsExperiment) {
    $riderTools = Get-RiderToolsForWorktree
    $hostAssembly = Get-ChildItem "$env:APPDATA/JetBrains/Rider*/plugins/$hostName/dotnet/$hostName.dll" -File |
       Where-Object { (Get-FileHash -LiteralPath $_.FullName).Hash -eq $riderTools.host } |
@@ -72,9 +74,12 @@ $start.Environment['DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT'] = [string]$port
 $start.Environment['DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS'] = "$scratch/tools"
 $start.Environment['ROYDER_PROBE_DIRECTORY'] = $scratch
 $analysis = '--no-swea'
-if ($CompareReadTools) {
+if ($CompareReadTools -or $SettingsExperiment) {
    $start.Environment['ROYDER_COMPARE_READ_TOOLS'] = '1'
    $analysis = '--swea'
+}
+if ($SettingsExperiment) {
+   $start.Environment['ROYDER_SETTINGS_PROBE'] = '1'
 }
 $start.Environment['JET_LOCAL_APPDATA_DIR'] = "$scratch/local"
 $start.Environment['JET_ROAMING_APPDATA_DIR'] = "$scratch/roaming"
@@ -89,6 +94,18 @@ foreach ($argument in @(
    $start.ArgumentList.Add($argument)
 }
 
+if ($SettingsExperiment) {
+   if ($SettingsCase -eq 'injected-conflict') {
+      python -B "$PSScriptRoot/settings_probe.py" inject $SettingsExperiment $scratch
+      if ($LASTEXITCODE -ne 0) { throw 'Could not prepare the private global layer.' }
+   } elseif ($SettingsCase -ne 'default') {
+      $profile = switch ($SettingsCase) { 'personal-dsl' { 'personal' } 'profile-conflict' { 'conflict' } default { $SettingsCase } }
+      $start.ArgumentList.Add("--profile=$SettingsExperiment/$profile.DotSettings")
+   }
+   if ($SettingsCase -eq 'personal-dsl') {
+      $start.ArgumentList.Add('--disable-settings-layers=GlobalAll;GlobalPerProduct;SolutionShared;SolutionPersonal;ProjectShared;ProjectPersonal')
+   }
+}
 $process = [Diagnostics.Process]::Start($start)
 $stdout = $process.StandardOutput.ReadToEndAsync()
 $stderr = $process.StandardError.ReadToEndAsync()
@@ -128,6 +145,10 @@ try {
       throw "Symbol query failed. See $scratch/symbols.json."
    }
    Write-Host 'list_symbols_in_file found McpShellComponent.WatchdogPing.'
+   if ($SettingsExperiment) {
+      python -B "$PSScriptRoot/settings_probe.py" capture $SettingsExperiment $SettingsCase $scratch
+      if ($LASTEXITCODE -ne 0) { throw "Settings probe failed. See $scratch." }
+   }
    if ($CompareReadTools) {
       $toolsHash = (Get-FileHash -LiteralPath "$toolsBuild/$toolsName.dll").Hash
       if ($hostHash -ne $riderTools.host -or (Get-FileHash -LiteralPath $toolsAssembly).Hash -ne $toolsHash) {

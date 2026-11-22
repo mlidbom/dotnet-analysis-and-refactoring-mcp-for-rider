@@ -31,6 +31,8 @@ requests to ports 23751 and 23900. Each case writes its request and both raw rep
 
 ## Observed in the running process
 
+The [settings experiments](settings-results.md) trace inspection severity to its owning Rider layer, compare read-only mounting strategies, and check both EditorConfig precedence and source line endings.
+
 | Question | Observation |
 | --- | --- |
 | Can a local extension load? | `-x=Royder.HeadlessExtension --source=<feed>` found `Royder.HeadlessExtension.1.0.0.nupkg` by package ID in a local directory. The DLLs are under `DotFiles/`. The package declares a `Wave` dependency of `[263.0.0]`. InspectCode generated `Royder.HeadlessExtension.JetMetadata.sstg` beside the expanded DLLs and constructed `ShellConstructionProbe`. |
