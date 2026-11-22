@@ -6,7 +6,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <DefaultItemExcludes>$(DefaultItemExcludes);checks/fixture/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);checks/fixture/**;ZoneProbe/**</DefaultItemExcludes>
     <JbHome Condition="'$(JbHome)' == ''">$(UserProfile)\.dotnet\tools\.store\jetbrains.resharper.globaltools\2026.3.0.1\jetbrains.resharper.globaltools\2026.3.0.1\tools\net10.0\any</JbHome>
   </PropertyGroup>
   <ItemGroup>

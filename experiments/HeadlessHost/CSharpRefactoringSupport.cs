@@ -13,6 +13,7 @@ static class CSharpRefactoringSupport
 {
    public static void Print(ISolution solution)
    {
+      ZoneAvailability.Print(solution);
       var zones = solution.GetComponent<RunsProducts.ProductConfigurations>().RunningZones;
       var rename = RenameRefactoringService.Instance.GetRenameService(CSharpLanguage.Instance);
       var move = new MoveToNamespaceWorkflow(solution, "Experiment").Helper[CSharpLanguage.Instance];

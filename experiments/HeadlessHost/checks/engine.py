@@ -28,24 +28,33 @@ def request(port, path, data=None):
 
 
 class LiveEngine:
-    def __init__(self, evidence, solution=SOLUTION, probe_missing_import=False):
+    def __init__(self, evidence, solution=SOLUTION, probe_missing_import=False, request_zones=None):
         self.evidence = evidence
         self.solution = solution
         self.probe_missing_import = probe_missing_import
+        self.request_zones = request_zones
+        self.cache = CACHE / ("zones-" + request_zones) if request_zones else CACHE
         self.lines = queue.Queue()
         self.observations = []
 
     def __enter__(self):
-        command = ["pwsh", "-NoProfile", "-File", str(HERE / "Run.ps1"), "-Cache", str(CACHE),
+        command = ["pwsh", "-NoProfile", "-File", str(HERE / "Run.ps1"), "-Cache", str(self.cache),
                    "-Royder", "-Listen", "-Symbol", "-", "-Solution", str(self.solution)]
         if self.probe_missing_import:
             command.append("-ProbeMissingImport")
+        if self.request_zones:
+            command.extend(["-RequestZones", self.request_zones])
         self.process = subprocess.Popen(command, cwd=ROOT, stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
         self.reader = threading.Thread(target=self._record_console, daemon=True)
         self.reader.start()
         try:
-            self._until_ready(240)
+            startup = self._until_ready(240)
+            if self.request_zones:
+                for option, zone in (("editing", "ICodeEditingZone"), ("external-sources", "ExternalSourcesZone")):
+                    requested = self.request_zones in ("both", option)
+                    if f"Royder zone request: {zone}={requested}" not in startup:
+                        raise RuntimeError(f"The platform did not evaluate the requested activator for {zone}.")
             health = request(HEADLESS_PORT, "health")
             self.observe("health", health)
             registered, = health["solutions"]
@@ -57,7 +66,7 @@ class LiveEngine:
             tools_hash = built_hash("DotNetAnalysisAndRefactoringMcp.Tools")
             selected = registered["tools"]
             assert (selected["host"], selected["build"]) == (host_hash, "live"), selected
-            folder = CACHE / "tools" / host_hash / tools_hash
+            folder = self.cache / "tools" / host_hash / tools_hash
             assert Path(selected["folder"]) == folder, selected
             loaded_dll = folder / selected["build"] / "DotNetAnalysisAndRefactoringMcp.Tools.dll"
             assert hashlib.sha256(loaded_dll.read_bytes()).hexdigest() == tools_hash, selected

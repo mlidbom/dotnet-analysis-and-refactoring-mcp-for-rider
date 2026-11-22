@@ -4,12 +4,15 @@ param(
    [string] $Cache,
    [switch] $Listen,
    [switch] $Royder,
+   [ValidateSet('editing', 'external-sources', 'both')][string] $RequestZones,
    [switch] $ProbeMissingImport,
    [string] $JbHome = (Join-Path $env:USERPROFILE '.dotnet\tools\.store\jetbrains.resharper.globaltools\2026.3.0.1\jetbrains.resharper.globaltools\2026.3.0.1\tools\net10.0\any')
 )
 $ErrorActionPreference = 'Stop'
+if ($RequestZones -and !$Royder) { throw '-RequestZones requires -Royder.' }
 if (!$Cache) {
    $Cache = Join-Path $PSScriptRoot $(if ($Royder) { 'obj/live' } else { 'obj/state' })
+   if ($RequestZones) { $Cache = Join-Path $Cache "zones-$RequestZones" }
 }
 dotnet build $PSScriptRoot --nologo -v:q "-p:JbHome=$JbHome"
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
@@ -36,7 +39,8 @@ if ($Royder) {
    if ([Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners().Port -contains 23910) {
       throw 'Port 23910 is already in use.'
    }
-   $package = & "$PSScriptRoot/PrepareRoyder.ps1" -Cache $Cache
+   $package = & "$PSScriptRoot/PrepareRoyder.ps1" -Cache $Cache -JbHome $JbHome -IncludeZoneProbe:([bool]$RequestZones)
+   if ($RequestZones) { $engine.Environment['ROYDER_ZONE_REQUEST'] = $RequestZones }
    $engine.Environment['DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS'] = $package.Tools
    $engine.ArgumentList.Add("-x=Royder.LiveHost/[$($package.Version)]")
    $engine.ArgumentList.Add("--source=$($package.Feed)")

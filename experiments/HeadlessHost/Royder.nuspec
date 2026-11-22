@@ -8,6 +8,6 @@
     <dependencies><dependency id="Wave" version="[263.0.0]" /></dependencies>
   </metadata>
   <files>
-    <file src="DotNetAnalysisAndRefactoringMcp.dll" target="DotFiles/" />
+    <file src="*.dll" target="DotFiles/" />
   </files>
 </package>

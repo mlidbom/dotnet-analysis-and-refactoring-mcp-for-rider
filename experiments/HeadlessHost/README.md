@@ -44,6 +44,32 @@ On exit, including an exception, the check withdraws the whole directory, restor
 
 The edit checks preload the actual Rider frontend documents through its native `read_file` with `rootFolder` set to the worktree. Its `ReadToolset` uses `FileDocumentManager.getDocument` and `Document.getText`. The checks compare complete text, normalizing line endings and BOM. Paired runs also read the files through the ordinary Royder backend before and after the edit and check for disk-sync notes. All mutations go to port 23910. Each evidence directory under `obj/live/evidence` contains the console, requests, replies, timings and snapshots. A completed probe records an observed limitation as a result. A setup or protocol failure exits with an error.
 
+### Activating code editing and external sources
+
+**The installed InspectCode host can activate `ExternalSourcesZone`. Its license checker denies `ICodeEditingZone`.** All four runs kept `IInspectCodeEnvironmentZone`. The optional local package adds an activator DLL alongside the unchanged Royder host. The platform invokes its `IActivateDynamic<TZone>.ActivatorEnabled()` callback before composing the shell. The driver checks the recorded votes, then reads the outcome from `RunsProducts.ProductConfigurations.RunningZones`. [JetBrains SDK zone activation](https://www.jetbrains.com/help/resharper/sdk/Activation.html) · [JetBrains SDK component filtering and licensing](https://www.jetbrains.com/help/resharper/sdk/Implementation.html)
+
+```powershell
+python -X utf8 experiments/HeadlessHost/Check.py zones
+python -X utf8 experiments/HeadlessHost/Check.py zones --request-zones editing
+python -X utf8 experiments/HeadlessHost/Check.py zones --request-zones external-sources
+python -X utf8 experiments/HeadlessHost/Check.py zones --request-zones both
+```
+
+| Zones requested | Running zones | `ICodeEditingZone` | `ExternalSourcesZone` | `get_symbol_source` for `Newtonsoft.Json.JsonReaderException` |
+| --- | ---: | --- | --- | --- |
+| Neither | 56 | Inactive | Inactive | Null source |
+| Code editing | 56 | Inactive | Inactive | Null source |
+| External sources | 60 | Inactive | Active | C# metadata declaration |
+| Both | 60 | Inactive | Active | C# metadata declaration |
+
+Enabling external sources also activated `NavigationZone`, `ResultListImplZone` and `SymbolsImplZone`. Royder returned the class declaration and member signatures. Method bodies require acceptance of the decompiler notice in the applicable settings.
+
+For code editing, `ZoneLicenseChecker.IsZoneAllowed` returned **false** for the zone itself in all four runs. `ZoneUserPreferenceChecker.IsZoneExplicitlyDisabled` returned null and the expiry filter allowed it. The external-sources zone was license-allowed throughout. These are the free InspectCode host's decisions on this machine. Using an existing paid subscription in a separately licensed headless host remains unverified. [JetBrains InspectCode documentation](https://www.jetbrains.com/help/resharper/InspectCode.html)
+
+With both zones requested, C# rename and namespace move still selected `RenameHelperBase` and `MoveToNamespaceHelperBase`. Both returned `IsLanguageSupported = false`. The three diagnostics in `McpShellComponent.cs` (`ConvertClosureToMethodGroup`, `UseUtf8StringLiteral` and `AssignNullToNotNullAttribute`) still had no quick fixes. The engine logged non-explicit universal compilation-context warnings during the read probes. The table reports the actual HTTP replies.
+
+We repeated all three real edits on paired DevelopmentEnvironment sources. `rename_symbol` stopped at `UnsupportedLanguage` in 0.078 s. `move_type_to_namespace` stopped at workflow initialization in 0.055 s. Both retained the original declaration and caller. `fix_usings` saved the import in 1.047 s, headless diagnostics went from two to zero, and the preloaded Rider frontend matched disk after 2.436 s. The project built before and after each case, and Git restored the probe files. To repeat, run `Check.py rename --paired --request-zones both`, substituting `fix-usings` or `move-type` for the other edits.
+
 ### Both ReSharper backends on the worktree solution
 
 One paired run on 2026-11-22 produced the following results. The Rider column describes the read after the headless check. The frontend delay for `fix_usings` was measured separately by polling the document that was read before the edit.
@@ -86,7 +112,7 @@ The headless host reported `ILanguageCSharpZone` active and `ICodeEditingZone` a
 ### Smallest proposed changes
 
 - Keep the existing document reconciliation for a headless content change. Skip the Rider-specific refresh request when the host has no frontend. For structural changes, retain missing paths through `DiskSync.Check`, commit the engine tracker, reload each affected project once and verify the old and new project items before answering. The existing `reload_projects` implementation supplies a tested reload and index wait. This also avoids spending ten seconds waiting on an unbound frontend. [DiskSync.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Disk/DiskSync.cs) · [ReloadProjectsTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/ReloadProjectsTool.cs)
-- For rename and namespace moves, first make the headless product supply supported, licensed C# code-editing services. Keep the existing symbol and refactoring checks. If the selected language helper still reports unsupported, report that capability directly, especially in `MoveTypeToNamespaceTool`. Whether enabling the normal editing configuration is sufficient for the whole refactoring remains open. [RenameSymbolTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/RenameSymbolTool.cs) · [MoveTypeToNamespaceTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/MoveTypeToNamespaceTool.cs)
+- For rename and namespace moves, the headless product needs a host licensed for C# code editing. The explicit zone request above confirmed the first blocker. Keep the existing symbol and refactoring checks and report the missing capability directly, especially in `MoveTypeToNamespaceTool`. The later steps of these workflows remain untested in a licensed headless host. [RenameSymbolTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/RenameSymbolTool.cs) · [MoveTypeToNamespaceTool.cs](../../src/DotNetAnalysisAndRefactoringMcp.Tools/Tools/MoveTypeToNamespaceTool.cs)
 - `fix_usings` needs no persistence change for the tested file. InspectCode's `InspectCodeDaemonManual.OnPsiTransactionStarted` logged `Unexpected transaction in command line` during a successful edit. A live editing host should select a daemon that supports edit transactions. The experiment left production Royder unchanged.
 
 Changes to project references and generated files, refactoring rollback and edits racing another writer remain open. The failed rename and namespace move did not reach their mutation or save paths.
