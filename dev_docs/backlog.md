@@ -476,10 +476,25 @@ The second round, under way:
     first small solution, the JVM's 1.8 GiB included, and 0.66 GiB more for the second. One `stop` ended both. Not
     contained by the four IDE folder overrides: status files in the real `%LOCALAPPDATA%\JetBrains\RemoteDev`, which
     it moved out, and touched timestamps on `PermanentUserId` and `PermanentDeviceId`, which it restored.
+  - **royder-codex-1's round 7, done** (8e08c5a, "Round 7" in the same document): the same host serving a worktree
+    of this repository. Every editing tool worked as in Rider:
+    - a committed rename across two files;
+    - a namespace move with its file;
+    - a quick fix and suggestions;
+    - completion, with the same 134 items;
+    - project reload, and the disk sync of an edit and of new files.
+    The exceptions:
+    - **A deleted file lingered** 12 s or more. Its build predated 4a3cd7f.
+    - **A plain `git worktree remove` failed** on the Roslyn worker's working directory, and the host wrote
+      `.idea` files back into the emptied tree.
+    - **Memory:** 4.4 GiB for the host once indexed, its JVM 2.1 GiB of that, in 21 s cold.
   - **Next, under way:**
-    - **royder-codex-1's round 7:** the same host serving a worktree of this repository. Committed rename and move,
-      quick fixes, suggestions, completion, disk sync of an edit, a new file and a delete, `reload_projects`, the
-      memory and time to indexed, and a plain `git worktree remove` while it serves it.
+    - **royder-codex-3's round 8, a run:** starting Java directly with private `APPDATA` and `LOCALAPPDATA`, so the
+      status and ID files stay private; the deletion again, with the fix; a heap of 1024 and 768 MiB.
+    - **royder-codex-1's round 8:** the Roslyn worker's working directory in Rider's backend, and a patcher for it
+      as a plugin of its own for agents' servers; where the host keeps `.idea`, and what writes it.
+    - **royder-codex-2's round 6, read-only:** closing one solution of a shared server with no client, from Royder's
+      backend or a small JVM plugin of our own.
   - **royder-codex-3's round 7, read-only, done** (0cc8a05,
     `dev_docs/headless-royder/remote-dev-server-lifecycle.md`):
     - **The status files can't be redirected with the stock launcher:** it resets `APPDATA` and `LOCALAPPDATA` to
