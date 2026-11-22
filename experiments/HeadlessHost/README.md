@@ -30,16 +30,29 @@ These calls were traced in the installed binaries with Sherlock and exercised by
 
 Measured on Windows x64 on 2026-11-22 with .NET 10.0.15 and Visual Studio MSBuild 18. Each row is one fresh engine process. Elapsed time starts at OS process creation and ends when the shared loader has completed and `IPsiCachesState.IsIdle` is true. It excludes compilation of this experiment and the first query. Cold means empty ReSharper solution **and shell** cache directories. The OS file cache and the existing NuGet restore were available in both runs.
 
-| Solution | Cache | Indexed in | Private bytes | Working set bytes | First query |
-| --- | --- | ---: | ---: | ---: | ---: |
-| Royder, 5 projects | Cold | 13.177 s | 1,173,147,648 | 1,337,253,888 | 11 lines |
-| Royder, 5 projects | Warm | 14.192 s | 990,945,280 | 1,175,490,560 | 11 lines |
-| Compze private copy, 125 projects | Cold | 46.320 s | 900,644,864 | 1,137,680,384 | 6 lines |
-| Compze private copy, 125 projects | Warm | 49.072 s | 704,131,072 | 971,427,840 | 6 lines |
+| Solution | Local start | Cache | Indexed in | Private bytes | Working set bytes | Machine CPU | Peak run queue |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Royder | 02:09:26 | Cold | 13.177 s | 1,173,147,648 | 1,337,253,888 | 51% | 21 |
+| Royder | 02:09:55 | Warm | 14.192 s | 990,945,280 | 1,175,490,560 | 61% | 27 |
+| Royder | 02:12:09 | Warm | 17.813 s | 1,023,541,248 | 1,201,954,816 | 80% | 88 |
+| Royder | 02:19:22 | Cold | 13.462 s | 1,192,849,408 | 1,333,915,648 | 43% | 0 |
+| Royder | 02:20:31 | Warm | 18.550 s | 1,009,254,400 | 1,174,450,176 | 89% | 152 |
+| Royder | 02:21:11 | Warm | 11.177 s | 1,010,778,112 | 1,174,069,248 | 42% | 0 |
+| Compze copy | 02:06:07 | Cold | 46.320 s | 900,644,864 | 1,137,680,384 | 83% | 159 |
+| Compze copy | 02:07:31 | Warm | 49.072 s | 704,131,072 | 971,427,840 | 89% | 226 |
+| Compze copy | 02:10:46 | Warm | 35.577 s | 728,272,896 | 980,881,408 | 68% | 70 |
+| Compze copy | 02:17:26 | Cold | 42.242 s | 950,280,192 | 1,160,351,744 | 72% | 83 |
+| Compze copy | 02:18:10 | Warm | 45.694 s | 719,720,448 | 977,063,936 | 89% | 172 |
+| Compze copy | 02:21:47 | Warm | 28.191 s | 729,964,544 | 1,004,650,496 | 41% | 1 |
+| Compze copy | 02:22:46 | Cold | 39.815 s | 938,078,208 | 1,146,720,256 | 78% | 62 |
 
-All 125 project files loaded from a private copy of `Compze.AllProjects.slnx` at `80983a778`. We copied the checkout's source, project inputs, and existing `bin` and `obj` directories into the experiment's ignored `obj` directory. We omitted Git, IDE and agent state, package-feed contents and test results and rebased absolute checkout paths in the copied generated text files. Both runs found the same six lines for `TessageInspector.AssertValidForSubscription`. The actual Compze checkout was monitored during the copy runs and showed no file changes.
+The machine stall recorder reports ten-second intervals. Machine CPU is the average across the startup window, weighting each interval by its overlap. It includes the engine and all other processes. Peak run queue is the largest sampled number of ready threads in the overlapping intervals. The short Royder runs span only a few intervals. To inspect a run on this machine, use its local start from the `INDEXED` line, for example `ClaudeTooling.exe machine-stalls at "2026-11-22 02:07:31" --minutes 2`. An additional warm Royder run at 02:19:38 returned 11 lines, but its captured output lost the measurement line. The surrounding ten-second intervals averaged 44–62% CPU with a peak queue of one. The last two Royder rows are its repeats.
 
-**Memory beyond the engine matters.** A third warm Compze-copy run took 35.577 s. An external sample immediately after `INDEXED` counted 1,272 MiB private across the engine, one MSBuild process, one other .NET worker and two console hosts. The engine itself reported 695 MiB private. Their summed working sets were 1,695 MiB, which can count shared pages more than once. All five processes exited. These are point samples. Startup latency varied on this shared machine, and these runs do not establish a typical warm-cache speedup or a peak-memory budget.
+During the 49.072-second warm Compze run, ten-second average CPU reached 99.6%. `ClaudeTooling.Specifications` alone occupied as many as 8.6 processors. Compze later indexed warm in 28.191 seconds with just one ready thread at the busiest sample. For Royder, warm startup ranged from 11.177 seconds at 42% machine CPU to 18.550 seconds at 89%. These runs show how much startup varied with machine load. They cannot isolate the contribution of cache reuse.
+
+All five Royder projects and all 125 Compze projects loaded. Compze ran from a private copy of `Compze.AllProjects.slnx` at `80983a778`. We copied the checkout's source, project inputs, and existing `bin` and `obj` directories into the experiment's ignored `obj` directory. We omitted Git, IDE and agent state, package-feed contents and test results and rebased absolute checkout paths in the copied generated text files. The second cold/warm pair used a fresh private copy and an empty state directory at the same copy path. Every Compze run found the same six lines for `TessageInspector.AssertValidForSubscription`. The actual Compze checkout was monitored during the copy runs and showed no file changes.
+
+**Memory beyond the engine matters.** In the 02:10:46 Compze run, an external sample immediately after `INDEXED` counted 1,272 MiB private across the engine, one MSBuild process, one other .NET worker and two console hosts. The engine itself reported 695 MiB private. Their summed working sets were 1,695 MiB, which can count shared pages more than once. All five processes exited. These figures measure memory at indexing completion only.
 
 ## Repeated queries and external edits
 

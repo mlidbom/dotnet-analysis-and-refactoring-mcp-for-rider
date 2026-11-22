@@ -19,8 +19,9 @@ sealed class SolutionSession(ISolution solution, IShellLocks locks)
       var caches = solution.GetComponent<IPsiCachesState>();
       JetDispatcher.Run(() => !caches.IsIdle.Value, TimeSpan.FromMinutes(3), bThrowOnTimeout: true);
       using var process = Process.GetCurrentProcess();
-      var elapsed = DateTime.UtcNow - process.StartTime.ToUniversalTime();
-      Console.WriteLine($"INDEXED pid={process.Id} seconds={elapsed.TotalSeconds:F3} " +
+      var started = new DateTimeOffset(process.StartTime);
+      var elapsed = DateTimeOffset.Now - started;
+      Console.WriteLine($"INDEXED pid={process.Id} started={started:O} seconds={elapsed.TotalSeconds:F3} " +
                         $"privateBytes={process.PrivateMemorySize64} workingSetBytes={process.WorkingSet64}");
       locks.ReentrancyGuard.Execute("Count projects", () =>
       {
