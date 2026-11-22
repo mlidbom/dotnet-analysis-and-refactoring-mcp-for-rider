@@ -21,7 +21,8 @@ def main():
     freshness = ["content", "add", "delete", "move-file"]
     edits = ["rename", "fix-usings", "move-type"]
     checks = ["health", *freshness, *edits]
-    parser.add_argument("check", choices=sorted(set(checks) | set(editing_services.CASES) | {"zones", "all", "editing-services", "daemon"}))
+    removal = {"worktree-removal", "remove-indexing", "remove-idle"}
+    parser.add_argument("check", choices=sorted(set(checks) | set(editing_services.CASES) | removal | {"zones", "all", "editing-services", "daemon"}))
     parser.add_argument("--paired", action="store_true", help="Use the checkout solution and verify both ReSharper backends.")
     parser.add_argument("--request-zones", choices=["editing", "external-sources", "both"],
                         help="Ask the platform's zone activator for additional shell zones.")
@@ -29,6 +30,14 @@ def main():
     parser.add_argument("--no-swea", action="store_true", help="Request local inspections only in the command-line settings.")
     args = parser.parse_args()
     check = args.check
+    if check in removal:
+        from checks.worktree_removal import check_removal
+        if args.paired:
+            parser.error("Worktree removal uses private disposable worktrees.")
+        phases = ("idle", "indexing") if check == "worktree-removal" else (check.removeprefix("remove-"),)
+        for phase in phases:
+            check_removal(phase, args.request_zones, args.live_daemon, args.no_swea)
+        return
     service_matrix = check == "editing-services" or (check in editing_services.CASES and (check not in edits or args.live_daemon))
     if (service_matrix or check == "daemon") and args.paired:
         parser.error("The editing-service and daemon experiments use only the experiment fixture.")

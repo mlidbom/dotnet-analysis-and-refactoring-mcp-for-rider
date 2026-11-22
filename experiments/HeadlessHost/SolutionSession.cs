@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using JetBrains.Application.FileSystemTracker;
+using JetBrains.Application.Processes;
 using JetBrains.Application.Threading;
 using JetBrains.DocumentManagers.impl;
 using JetBrains.DocumentModel;
@@ -73,7 +74,8 @@ sealed class SolutionSession(ISolution solution, IShellLocks locks, Lifetime lif
                Console.WriteLine("SERVICES " + JsonSerializer.Serialize(new {
                   daemon = solution.GetComponent<IDaemon>().GetType().FullName,
                   daemonThread = solution.GetComponent<IDaemonThread>().GetType().FullName,
-                  textControls = solution.GetComponent<ITextControlManager>().GetType().FullName
+                  textControls = solution.GetComponent<ITextControlManager>().GetType().FullName,
+                  processStartInfoPatcher = solution.GetComponent<IProcessStartInfoPatcher>().GetType().FullName
                }));
             });
          else if(input.Result == "refactorings")

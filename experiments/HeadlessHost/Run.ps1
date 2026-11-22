@@ -33,6 +33,7 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $Cache = [IO.Path]::GetFullPath($Cache)
 $engine = [Diagnostics.ProcessStartInfo]::new('dotnet')
 $engine.UseShellExecute = $false
+$engine.WorkingDirectory = $Cache
 if ($ProbeMissingImport) {
    $existingDefines = $engine.Environment['DefineConstants']
    $engine.Environment['DefineConstants'] = "$existingDefines;ROYDER_HEADLESS_IMPORT_PROBE".TrimStart(';')
@@ -51,13 +52,21 @@ foreach ($argument in 'exec', '--depsfile', "$JbHome\inspectcode.deps.json", "$P
 }
 if ($Listen) { $engine.ArgumentList.Add('--listen') }
 if ($NoSolutionWideAnalysis) { $engine.ArgumentList.Add('--no-swea') }
+$extensions = @()
 if ($Royder) {
    $package = & "$PSScriptRoot/PrepareRoyder.ps1" -Cache $Cache -JbHome $JbHome -IncludeZoneProbe:([bool]$RequestZones) -LiveDaemon:$LiveDaemon
    if ($RequestZones) { $engine.Environment['ROYDER_ZONE_REQUEST'] = $RequestZones }
    $engine.Environment['DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS'] = $package.Tools
-   $engine.ArgumentList.Add("-x=Royder.LiveHost/[$($package.Version)]")
-   $engine.ArgumentList.Add("--source=$($package.Feed)")
-   $engine.ArgumentList.Add("--LogFolder=$Cache/logs")
+   $extensions += "Royder.LiveHost/[$($package.Version)]"
+   $feed = $package.Feed
+} else {
+   $feed = [IO.Directory]::CreateDirectory("$Cache/feed").FullName
+}
+$extensions += & "$PSScriptRoot/PrepareRoslynPatcher.ps1" -Feed $feed -JbHome $JbHome
+$engine.ArgumentList.Add("-x=" + ($extensions -join ';'))
+$engine.ArgumentList.Add("--source=$feed")
+$engine.ArgumentList.Add("--LogFolder=$Cache/logs")
+if ($Royder) {
    $listeners = [Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners().Port
    if ($listeners -contains $ExpectedRoyderPort) { throw "Port $ExpectedRoyderPort is already in use." }
    if ($ExpectedRoyderPort -eq 23921 -and $listeners -notcontains 23920) { throw 'The routing primary must be running first.' }

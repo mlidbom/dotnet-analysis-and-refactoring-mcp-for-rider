@@ -24,6 +24,23 @@ pwsh -NoProfile -File .\experiments\HeadlessHost\Run.ps1 -Royder -Listen -Symbol
 
 This serves the worktree's `ReSharperMcp.sln` on loopback port **23910** until `exit` or end of input. The launcher builds the existing host and tools into the experiment's `obj/package-build`, packs only the host DLL in a local Wave 263 package and supplies a private tools build with its matching `host.sha256`. The live program uses InspectCode's `CommandLinePluginsMixin` for package discovery. Both `/health` and `list_solutions` answered with this checkout's solution, indexing complete and 25 tools. The built-in `document <absolute path>` command reads the engine's actual project document without invoking Royder's disk sync. `refactorings` reports the active zones and the two language helpers used by the rename and namespace-move workflows.
 
+### Removing a target worktree while its Roslyn worker runs
+
+`Run.ps1` loads `Royder.Headless.RoslynPatcher` by default, including runs without the HTTP plugin. With `-Royder`, it loads two separate local NuGet packages from the same private feed. Each package is pinned to a version derived from its DLL contents. The live host uses its cache directory as its working directory. The patcher starts the bundled Roslyn worker in `<Cache>/temp/RoslynWorker`. The engine environment sets `JETBRAINS_NO_CHECK_FOR_UPDATES=1`. [Patcher implementation and original measurements](../HeadlessRoslynPatcher/README.md) · [InspectCode extension selection](https://www.jetbrains.com/help/resharper/InspectCode.html)
+
+For a removable worktree, run the host binaries from a separate controller checkout and keep `-Cache` outside the worktree being removed. The default cache is in the controller checkout's experiment directory. Running binaries, caches or a caller's own shell inside the target can independently keep it open on Windows.
+
+```powershell
+python -X utf8 experiments/HeadlessHost/Check.py worktree-removal
+```
+
+The Windows check requires Python 3.11+ and `psutil`. Use `remove-indexing` or `remove-idle` to run just one phase. Each phase makes a private repository and a detached worktree from the three-project Shapes fixture. The target contains the generator/analyzer DLL and 320 source files providing an observable cold-indexing interval. The engine, its state, the Git caller and the evidence are outside that target.
+
+- **Indexing.** The checker waits for the target solution on port 23910 to report `indexing=true` and independently observes a live Roslyn descendant with the expected working directory. In the final run, plain `git worktree remove` exited 0 in 1.277 s, finishing 3.968 s before the host's `INDEXED` timestamp. Roslyn PID 54484 was running when Git started and logged setup complete later.
+- **Idle.** The checker verifies that the solution selected `HeadlessSolutionProcessStartInfoPatcher`, the Roslyn worker logged setup complete, `find_usages` resolved the generator-only `RoundThreeGenerated.Twice` to its call in `RemovalProbe.cs`, and `/health` reports indexing idle. Git exited 0 in 0.683 s on the first attempt with Roslyn PID 235744 alive across removal.
+
+Both removals had the same engine and Roslyn worker alive immediately before and after. The checker issues exactly one noninteractive Git removal, verifies that the directory and its Git registration disappear, then ends the host and verifies both process exits. The JSON-lines evidence includes timestamps, Git's exit code and output, worker identity and cwd. A missed indexing window is an inconclusive run and fails the check. Worktree removal and automatic host shutdown are separate lifecycle behaviors.
+
 ### Reproducing the HTTP checks
 
 ```powershell

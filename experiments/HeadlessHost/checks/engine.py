@@ -19,22 +19,25 @@ RIDER_PORT = 23751
 _http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
-def request(port, path, data=None):
+def request(port, path, data=None, timeout=145):
     body = None if data is None else json.dumps(data).encode()
     url = f"http://127.0.0.1:{port}/{path}"
     headers = {"Content-Type": "application/json"}
-    with _http.open(urllib.request.Request(url, body, headers), timeout=145) as response:
+    with _http.open(urllib.request.Request(url, body, headers), timeout=timeout) as response:
         return json.load(response)
 
 
 class LiveEngine:
     def __init__(self, evidence, solution=SOLUTION, probe_missing_import=False, request_zones=None, live_daemon=False,
-                 no_swea=False):
+                 no_swea=False, wait_for_ready=True, cache=None):
         self.evidence = evidence
         self.solution = solution
         self.probe_missing_import = probe_missing_import
         self.request_zones = request_zones
-        self.cache = CACHE / ("zones-" + request_zones) if request_zones else CACHE
+        root = cache or CACHE
+        self.cache = root / ("zones-" + request_zones) if request_zones else root
+        self.wait_for_ready = wait_for_ready
+        self.indexed_line = None
         self.live_daemon = live_daemon
         self.no_swea = no_swea
         if live_daemon:
@@ -57,6 +60,8 @@ class LiveEngine:
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
         self.reader = threading.Thread(target=self._record_console, daemon=True)
         self.reader.start()
+        if not self.wait_for_ready:
+            return self
         try:
             startup = self._until_ready(240)
             if self.request_zones:
@@ -88,6 +93,8 @@ class LiveEngine:
     def _record_console(self):
         with (self.evidence / "engine.log").open("w", encoding="utf-8") as log:
             for line in self.process.stdout:
+                if line.startswith("INDEXED "):
+                    self.indexed_line = line.rstrip()
                 log.write(line)
                 log.flush()
                 self.lines.put(line.rstrip())
