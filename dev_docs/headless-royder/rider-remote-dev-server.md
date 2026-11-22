@@ -2,7 +2,11 @@
 
 **Verdict, 22 November 2026, after the run of round 6** ([below](#round-6--observed-on-magnuss-machine-22-november-2026)). **A Rider remote-development host that no client ever connected to runs Royder with the editing zone.** Its backends ran `ICodeEditingZone`, and Royder's dry-run `rename_symbol` gave the right change. Several solutions share one host JVM, each with a full backend of its own. The first small solution took about 3.3 GiB, the JVM included, and a second about 0.65 GiB more. One `stop` ends them all.
 
-- **Not yet tested:** a committed rename, completion, a quick fix, and a host that runs for hours.
+- **On a worktree of this repository** ([round 7](#round-7--real-royder-worktree-22-november-2026)), every editing tool worked as in Rider: a committed rename across two files, a namespace move with its file, a quick fix, suggestions, completion and project reload.
+  - **A deleted file lingered** for 12 s or more. Its build predated the fix for that.
+  - **A plain `git worktree remove` failed,** on the Roslyn worker's working directory, as with our own headless host.
+  - **The host took 4.4 GiB,** its JVM 2.1 GiB of that.
+- **Not yet tested:** a host that runs for hours.
 - **Not contained:** the host writes status files to the real `%LOCALAPPDATA%\JetBrains\RemoteDev` despite the four IDE folder overrides, and it touched the timestamps of `PermanentUserId` and `PermanentDeviceId`.
 - **JetBrains' terms:** they don't say whether this use is covered. Magnus judged on 2026-11-19 that his subscription covers our own private use, and the terms get checked before anything is published.
 
@@ -299,3 +303,82 @@ At 04:54:19 I issued `remote-dev-server.exe stop C:\Dev\RoyderRemoteRound6\B\Pro
 **What this changes.** Clientless remote Rider is a demonstrated editing-capable Royder peer for the tested rename preview, and several solutions can share its JVM. The four IDE directory overrides and separate `JET_*` paths did **not** fully contain Remote Development status writes under the real Windows user account. Any production isolation claim must account for `Local\JetBrains\RemoteDev`. The requested snapshots verify the stated paths; they do not attribute every file operation under every versioned directory or the registry.
 
 Private reproducibility evidence is under `%TEMP%\royder-headless\codex-1-round-6`. The safe summaries are `evidence/process-memory.csv`, the two sanitized status JSON files, per-solution health, the three exact tool results and `evidence/restoration.json`. The raw status files, join links and profile backups remain private. The disposable fixture folders were left on disk; no lab process was left running.
+
+## Round 7 — real Royder worktree, 22 November 2026
+
+**The never-connected Rider host performed every requested editing operation on this repository, including a committed cross-file rename and namespace move. External deletion was the exception to first-call disk synchronization.** The host continued to return a declaration from a deleted file for at least 12 s; reloading its project removed both the declaration and its project item. **Plain worktree removal also failed** while the stock Roslyn worker had its current directory at the worktree root. These are separate findings: project reload repaired the model, whereas releasing the process tree repaired the Windows sharing violation.
+
+### Setup and readiness
+
+I used `git worktree add --detach C:\Dev\RoyderRemoteRound7\worktree main` at `89f2dc66c8e440b6f85975e3b2e118c72500a9f2` and restored its `ReSharperMcp.sln` before IDE startup. The private JVM, .NET, plugin, tools, temp and CLI directories were under `%TEMP%\royder-headless\codex-1-round-7`. I copied the everyday Royder plugin and the entire deployed tools directory `2026-11-22_04-09-21-1868781`, checking the copied files and matching `host.sha256`. No plugin was deployed to an everyday Rider.
+
+The first launch was `remote-dev-server.exe run <worktree>\ReSharperMcp.sln --listenOn 127.0.0.1 --port 24931` with local SSH link metadata. Royder was its own primary on 24941. All tool calls went to 24941 with the real, absolute worktree solution selector, and used worktree file paths for position/file operations. The cold solution and IDE state directories were empty; the OS and NuGet caches were warm. From the launch sequence to the first `/health` with the correct path, `indexing=false` and the private tools build took **20.98 s**. The host SHA-256 was `7529fd2e44f63a15a6f0473b681767eea4fbb2591bbe74328433e4ec1d1d7660`. Status reported JVM **7748**, `controllerConnected=false` and no modal dialog. No client was launched.
+
+### Tool outcomes
+
+“Desktop” below refers to the existing sandbox specifications and recorded ordinary Rider comparisons. I did not send mutations or comparison calls to an everyday Rider. The exact requests, full replies, observed Git deltas and post-restore status are retained per case. Refactorings were applied to source on disk; no source changes were committed to Git.
+
+| Operation and request | Actual answer and disk verification | Desktop comparison |
+|---|---|---|
+| `find_usages` then `rename_symbol` on `PluginBuild.IdentityOf`, `PluginBuild.cs:50:25`, new name `RoundSevenAssemblyIdentity`, `dryRun:false` | Finder reported **2 usages in 2 files**. Rename returned `applied:true` with no conflicts. On return, both the declaration/local call in `PluginBuild.cs` and the qualified call in `InstalledPlugin.cs` contained the new name; only those two files changed. `dotnet build` of `DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.csproj` passed, **0 warnings/errors**. `get_file_errors` returned **0 diagnostics on each changed file**. | Matches desktop’s specified semantic rename and save behavior; build and errors were independently verified on these files. |
+| `move_type_to_namespace` at `Disk/FileMove.cs:4:21` to `DotNetAnalysisAndRefactoringMcp.Tools` | Tool reported the move. `Disk/FileMove.cs` disappeared; `Tools/FileMove.cs` appeared containing the same type body and the new namespace. `Disk/FileMoves.cs` gained the requisite import. Git classified the move as a **rename, 82% similarity**, and the project file was untouched. The moved file and `MoveTypeToNamespaceTool.cs` both returned zero file diagnostics. | Matches Rider’s namespace/file move specification, including a real filesystem move. |
+| `list_quick_fixes` then `apply_quick_fix` at `Disk/FileMove.cs:1:9` after inserting an unused `using System.Text;` | Listed `OptimizeImportsFix`, “Remove unused directives in file”. Applying that returned `applied:true` and `usedSyntheticEditor:true`. The file was **byte-identical to its original** on return. A further read at the established `McpShellComponent.cs:54:54` position returned `ToMethodGroupFix`. | The latter fix ID and label match the recorded desktop call at the identical position. The injected unused-using fix also achieved its expected disk change. |
+| `apply_suggestions`, `ArrangeNamespaceBody`, `scope:file` on `FileMove.cs`, after converting its namespace into a block | Reported **one fix type, one file changed**. The namespace was file-scoped on disk again. Relative to the original tracked version only the missing final newline remained; Git restored it before the next case. | Matches the desktop test recipe in `tests/README.md`. |
+| `complete_at` immediately after `_logger.` at `McpShellComponent.cs:105:18`, `maxResults:200` | **134** completion items, including `Warn (in JetBrains.Util)`. No disk change. | Same count and named representative item as the recorded desktop result at this exact position. The experiment does not claim byte-for-byte equality of the full lists. |
+| External edit to existing `FileMove.cs`, then `list_symbols_in_file` | The **first call** listed newly inserted `RoundSevenDiskMember` (0.03 s). No additional tool writes. | Matches Rider’s external-content update behavior. |
+| New file in the tools project, then `go_to_definition` for `RoundSevenNewDiskType`, naming both file and type | The **first call** returned the new real file, line 2, column 21 (0.04 s). In a separate fresh addition, the **first name-only** `search_symbol` found `RoundSevenNameOnlyDiscovery` with its new file path (0.29 s). Both generated files were removed during undo. | Matches the desktop specification covering name-only discovery after external creation. |
+| Delete the previously resolved tracked `Disk/FileMove.cs`, then `go_to_definition` | **Failed on the first call.** It still returned the old class at the deleted file, line 4, column 21. `get_solution_structure(includeFiles:true)` still listed the path. | Differs from the zero-declaration post-delete outcome recorded for ordinary Rider in `experiments/HeadlessHost/README.md`. That baseline was a separate run, not a simultaneous first-call timing control. |
+| Independent deletion of tracked `Disk/DocumentNotSaved.cs`, then project reload | Starting from one valid declaration, the checks at **0, 1, 5 and 12 s** all returned the deleted declaration. The old project item still existed at 12 s. `reload_projects` on the tools project completed in **0.5 s** including indexing; the next queries found **no declaration and no project item**. Git restored the source. | Reproduces stale deletion on a second type and verifies a recovery. In this checkout `DiskSync.Check` skips paths where `File.Exists` is false. That is consistent with the observation; it is not proof that this is the only cause. |
+| `reload_projects` on the DevelopmentEnvironment `.csproj` | Returned “Reloaded in 0.1 s” and reported ReSharper had indexed the result, naming the expected project. No tracked change. | Matches the desktop project-reload specification. |
+
+Git restored the isolated worktree before each subsequent case. For the scoped-suggestion case the console printer initially rejected a Unicode check mark *after* recording the HTTP reply, so I repeated the case with UTF-8 output and verified the disk result. Existing comparisons can be found in `experiments/HeadlessExtension/read-tool-results.md`, `experiments/HeadlessHost/README.md` and the navigation/refactoring/serving specifications. The table covers the requested editing and synchronization cases, not a certification of every tool, overload or language.
+
+### Memory of the real solution
+
+The cold campaign’s indexed, no-tool-call interval yielded ten samples over **16.8 s**. Status still showed background tasks at the start of that interval. Values are per-process medians in **MiB**. No `Rider.LightweightBackend.exe` was seen. The two additional `dotnet.exe` workers listed under MSBuild were identified by parent PID; I did not independently verify their precise entry points.
+
+| PID | Process | Private | Working set |
+|---:|---|---:|---:|
+| 7748 | `remote-dev-server.exe`, host JVM | 2,126.1 | 2,496.3 |
+| 46724 | Full `Rider.BackendHost.exe` | 1,652.5 | 2,001.1 |
+| — | Lightweight .NET backend | — | — |
+| 76148 | `dotnet.exe`, Roslyn worker | 487.2 | 614.9 |
+| 147128 | `dotnet.exe`, `MSBuild.dll` | 68.8 | 141.0 |
+| 85932 | `dotnet.exe` child of MSBuild 147128 | 95.8 | 134.7 |
+| 225160 | `dotnet.exe` child of MSBuild 147128 | 56.2 | 101.8 |
+| 195172 | `JetBrains.DPA.Protocol.Backend.exe` | 82.2 | 181.8 |
+| 169688 | `fsnotifier.exe` | 1.0 | 4.9 |
+| 62508 | File watcher’s `conhost.exe` | 1.5 | 8.1 |
+| 255112, 107260, 157508, 193092, 154660, 26444, 178352 | `conhost.exe`, **each** | 1.5 | 8.3 |
+| | **Whole job, median of per-sample totals** | **4,407.1** | **5,505.9** |
+
+That is about **4.30 GiB private** for the first worktree/JVM on this solution. Summed working sets double-count shared pages. Thirteen other process identities sampled outside the indexed interval included Git, MSBuild, .NET helpers, consoles and the status launcher. Their per-phase figures are in the scratch CSV. This run did not measure the marginal cost of a second copy of this larger solution. Available physical memory was **14.12 GiB** before the cold start and reached **4.42 GiB** at minimum during the campaign, above the 2 GiB stop threshold. Every later host start also passed the 6 GiB admission check.
+
+### First plain removal while indexed, and shutdown
+
+The tool campaign and memory measurement came from the first host. Before the removal measurement, its diagnostic helper failed on a process-record field name. A second preflight mistook a transient re-index for a build mismatch although the build was correct; a third detected that Rider had removed the absent `.claude-shared` VCS mapping from the worktree’s tracked `.idea/.idea.ReSharperMcp/.idea/vcs.xml`. All three hosts stopped normally, before any `git worktree remove` was attempted. I corrected the collector, waited through transient indexing and restored that one lab worktree setting with Git. The removal run used the same solution, exact tools build and restored sources. No two lab hosts ran together.
+
+The final host had `controllerConnected=false`, the correct build and at least four consecutive seconds with `indexing=false`. The Git index and working tree were clean immediately before:
+
+~~~text
+git -C C:\Dev\resharper-mcp worktree remove C:\Dev\RoyderRemoteRound7\worktree
+~~~
+
+**First attempt: exit 255, “Permission denied”.** It took approximately 0.70 s. Git deleted all contents, including `.git`, and removed the registration. The root directory remained. Windows refused DELETE access to the root with sharing violation **32** both before and after the Git attempt.
+
+| Holder at removal | Actual working directory | Root handle |
+|---|---|---|
+| Full `Rider.BackendHost.exe` 173512, child of host JVM 173852 | Private round-7 scratch | Handle 15940, access `0x100081` |
+| Roslyn `dotnet.exe` 271448; its own worker log confirms that PID | **`C:\Dev\RoyderRemoteRound7\worktree`** | Handle 96, access `0x100020` (directory traversal and synchronize) |
+
+These are handles on the actual directory, not on a source file. Together with the earlier [Roslyn-only release control](../../experiments/HeadlessFootprint/README.md), the evidence identifies the Roslyn working directory as the demonstrated blocker. This run did not kill Roslyn separately. `remote-dev-server.exe stop` in the same private environment returned **0** and ended the job; no forced PID kills were needed. Afterwards DELETE access was **granted**. The previously empty root had acquired `.idea/.idea.ReSharperMcp/.idea/.name` and `workspace.xml`. I preserved these two lab files in private evidence, then removed the residual tree. The path and Git registration are both gone. **Watching only for the removal of the root would miss this partial deletion.**
+
+### Real-profile audit and evidence
+
+I backed up and hashed all **49** roaming files outside versioned IDE folders, and tracked plus ordinary Rider settings (**198 files** in total). I recorded the **29** Local JetBrains top-level entries with their creation/last-write times, and home Git status for `AppData/Roaming/JetBrains`. The clean home Git status matched before and after. Ports 24931 and 24941–24950 were clear at preflight and after shutdown. No lab-owned connection to the everyday primary was observed. The Windows jobs were empty after each shutdown; the recorded PID/creation-time identities were checked again.
+
+- **Restored.** `%LOCALAPPDATA%\JetBrains\RemoteDev` was absent before launch and created during the tests. I verified its remaining status JSON belonged to the final lab JVM/solution and moved the entire lab-owned entry to private evidence. All top-level names, types, creation times and last-write times matched the original listing afterwards. Windows also reported different directory byte lengths for `DataGrip2026.3`, `WebStorm2026.2` and `WebStorm2026.3` with identical creation/last-write times; there was no setting content there to restore from this listing.
+- **Restored timestamps only.** `PermanentUserId`, `PermanentDeviceId` and `PrivacyPolicy/aiEua.cached` had unchanged bytes. I verified against the original backups and restored their original last-write times.
+- **Concurrent activity left intact.** `discovery/244128-ide-instance.json` disappeared **before the first host launch**. The only semantic difference in `acp-agents/installed.json` was Junie’s `lastUsedAt`; it changed again while no lab host was running. The zero-byte release log under `consentOptions/consent-log-data` rotated on the existing schedule, including after the lab stopped. I left the live activity record and current log in place, and did not resurrect the stale discovery record. Thus a claim that the whole live profile remained byte-identical would be inaccurate.
+
+The scratch evidence is under `%TEMP%\royder-headless\codex-1-round-7`. `evidence/cases/` contains each MCP request/response, Git deltas and undo status; `evidence/process-memory.csv` and `memory-summary.json` under `evidence/` contain the measurements. `removal-final/result.json`, `handles-before.json`, `handles-after.json`, `cleanup-directory.json` and `restoration.json` there cover the removal and cleanup. Keep raw remote status, join links and profile backups private. No everyday deployment or other worktree edit was made.
