@@ -22,6 +22,14 @@ try {
    $sources = (Get-ChildItem "$PSScriptRoot/src/main/java" -Recurse -File -Filter '*.java').FullName
    & "$RiderHome/jbr/bin/javac.exe" -proc:none --release 21 -encoding UTF-8 -classpath "$RiderHome/lib/*" -d $classes $sources
    if ($LASTEXITCODE -ne 0) { throw "javac exited with $LASTEXITCODE" }
+   $testClasses = [IO.Directory]::CreateDirectory("$stage/test-classes").FullName
+   $specs = (Get-ChildItem "$PSScriptRoot/src/test/java" -Recurse -File -Filter '*.java').FullName
+   & "$RiderHome/jbr/bin/javac.exe" -proc:none --release 21 -encoding UTF-8 -classpath "$classes;$RiderHome/lib/*" -d $testClasses $specs
+   if ($LASTEXITCODE -ne 0) { throw "Specification compilation failed with $LASTEXITCODE" }
+   & "$RiderHome/jbr/bin/java.exe" -XX:-UsePerfData -cp "$classes;$testClasses" dev.magnus.royder.remotecloseworktree.WorktreeDiskIdentitySpec $stage
+   if ($LASTEXITCODE -ne 0) { throw "Worktree disk identity specification failed with $LASTEXITCODE" }
+   & "$RiderHome/jbr/bin/java.exe" -XX:-UsePerfData -cp "$classes;$testClasses;$RiderHome/lib/*" dev.magnus.royder.remotecloseworktree.AbandonedProjectSpec
+   if ($LASTEXITCODE -ne 0) { throw "Abandoned project specification failed with $LASTEXITCODE" }
    Copy-Item -LiteralPath "$PSScriptRoot/src/main/resources/META-INF" -Destination $classes -Recurse
    $builtJar = Join-Path $stage 'RemoteCloseWorktree.jar'
    [IO.Compression.ZipFile]::CreateFromDirectory($classes, $builtJar)

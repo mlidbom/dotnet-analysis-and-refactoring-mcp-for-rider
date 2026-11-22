@@ -1,0 +1,91 @@
+package dev.magnus.royder.remotecloseworktree;
+
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectManager;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.jetbrains.rider.projectView.SolutionManager;
+import com.jetbrains.rider.projectView.solutionFileTypes.SolutionFileTypesHelper;
+import com.jetbrains.rider.services.security.TrustedSolutionManager;
+import com.jetbrains.rider.services.security.TrustedSolutionStore;
+import kotlin.coroutines.EmptyCoroutineContext;
+import kotlinx.coroutines.BuildersKt;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static io.netty.handler.codec.http.HttpResponseStatus.*;
+
+/** Opens or adopts one exact solution. Requests racing to open it share the same Rider operation. */
+public final class OpenWorktreeService extends ManagedWorktreeService {
+   private final ConcurrentHashMap<Path, CompletableFuture<WorktreeReply>> opening = new ConcurrentHashMap<>();
+
+   @Override protected String getServiceName() { return "royder-open-worktree"; }
+
+   @Override CompletableFuture<WorktreeReply> handle(String route, Path solution, String ifMatch) {
+      if (!route.equals("/api/" + getServiceName())) return reply(NOT_FOUND, "Unknown operation");
+      var name = solution.getFileName();
+      if (name == null) return reply(BAD_REQUEST, "Expected a solution filename");
+      var suffix = name.toString().toLowerCase(Locale.ROOT);
+      if (!suffix.endsWith(".sln") && !suffix.endsWith(".slnx")) return reply(BAD_REQUEST, "Expected a .sln or .slnx");
+      var result = opening.computeIfAbsent(solution, path -> CompletableFuture.supplyAsync(() -> open(path),
+         task -> ApplicationManager.getApplication().executeOnPooledThread(task)));
+      result.whenComplete((answer, error) -> opening.remove(solution, result));
+      return result;
+   }
+
+   /** Runs on the pool. Only project matching, registration and the update to Rider's trust store require EDT work. */
+   private static WorktreeReply open(Path solution) {
+      if (!Files.isRegularFile(solution, LinkOption.NOFOLLOW_LINKS)) return new WorktreeReply(NOT_FOUND, "Solution file not found");
+      try {
+         if (!solution.toRealPath().equals(solution)) return new WorktreeReply(BAD_REQUEST, "Use the physical solution path");
+         var disk = WorktreeDiskIdentity.read(solution);
+         var existing = onDispatchThread(() -> {
+            var matches = OpenProjectInstance.at(solution, ProjectManager.getInstance().getOpenProjects());
+            if (matches.size() > 1) return new WorktreeReply(CONFLICT, "Multiple open projects match the solution");
+            return matches.isEmpty() ? null : OpenProjectInstance.register(matches.get(0), solution, disk);
+         }).join();
+         return existing != null ? existing : openInRider(solution, disk);
+      } catch (IOException error) {
+         return new WorktreeReply(CONFLICT, "Cannot establish the worktree's filesystem identity");
+      }
+   }
+
+   private static WorktreeReply openInRider(Path solution, WorktreeDiskIdentity disk) throws IOException {
+      var file = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(solution);
+      if (file == null || !SolutionManager.INSTANCE.isSolutionFile(file)) return new WorktreeReply(NOT_FOUND, "Rider cannot open this solution file");
+      if (!TrustedSolutionManager.INSTANCE.findUntrustedAncestorConfigFiles(solution.getParent()).isEmpty())
+         return new WorktreeReply(CONFLICT, "Rider requires a separate trust decision for configuration outside the solution");
+
+      // SolutionManager uses this per-solution store location when opening an existing .sln or .slnx.
+      var types = SolutionFileTypesHelper.Companion.getInstance();
+      var ideaName = types.getSolutionIdeaName(solution, types.getSolutionDisplayName(file));
+      var ideaDirectory = solution.getParent().resolve(".idea").resolve(".idea." + ideaName);
+      if (!disk.stillAt(solution)) return new WorktreeReply(CONFLICT, "Worktree changed before open");
+      ApplicationManager.getApplication().invokeAndWait(
+         () -> TrustedSolutionStore.Companion.getInstance().assumeTrusted(ideaDirectory), ModalityState.nonModal());
+      try {
+         // No project to replace, a new frame, normal restore, ordinary Rider trust checks.
+         var project = BuildersKt.<Project>runBlocking(EmptyCoroutineContext.INSTANCE, (scope, continuation) ->
+            SolutionManager.INSTANCE.openExistingSolution(null, true, file, true, false, continuation));
+         var opened = onDispatchThread(() -> OpenProjectInstance.register(project, solution, disk)).join();
+         if (!opened.status().equals(OK)) return opened;
+         try {
+            if (disk.stillAt(solution)) return opened;
+         } catch (IOException inaccessible) {
+            return new WorktreeReply(CONFLICT, "Cannot verify the worktree after open; retain its tag for discard", opened.etag());
+         }
+         return new WorktreeReply(CONFLICT, "Worktree changed during open; discard the original instance", opened.etag());
+      } catch (InterruptedException interrupted) {
+         Thread.currentThread().interrupt();
+         throw new CompletionException(interrupted);
+      }
+   }
+}
