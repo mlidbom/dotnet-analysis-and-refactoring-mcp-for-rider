@@ -336,7 +336,9 @@ how to run it and what it found:
   green for 30 s, reserving the starts in progress, counted as process trees. When it's short, the least recently
   used idle headless host stops first. Riders are never stopped.
 - **Files:** each host's caches, settings, temp and logs are private, outside the worktree. A host loads only an agent's
-  own worktree, whose `obj` it may write: not the main checkout, nor any solution a Rider has open.
+  own worktree, whose `obj` it may write: not the main checkout, nor any solution a Rider has open. Its private global
+  settings file injects Magnus's personal settings file, as Rider's does, read-only: the file itself, so it is never
+  stale; a copy only if a host turns out able to write to it (royder-codex-3, below).
 - **One tools build for both hosts,** with what differs behind four abstractions chosen per call by which host
   serves the solution: bringing the model up to date with disk, saving an edit's documents, reloading projects, and
   text controls. The host DLL is the same bytes in both, so one `host.sha256` serves both.
@@ -365,8 +367,18 @@ The second round, under way:
   InspectCode's composition leaves out `ICodeEditingZone` and `ExternalSourcesZone`, though their assemblies ship.
   Severities differ (UnusedMember a warning in Rider, a suggestion headless), and `changedSince` took 10 s headless
   against 0.4 s, waiting on the Rider-only rescan.
-- **royder-codex-3, next:** settings parity: which of Rider's layers make the difference, whether a headless host can
-  read them read-only, a positive EditorConfig check, and which side's line endings are faithful to disk.
+- **royder-codex-3, done:** settings parity (`experiments/HeadlessExtension/settings-results.md`, with
+  `Check-Settings.ps1`, which repeats it).
+  - **The severities come from Magnus's personal settings.** Rider's global settings file injects
+    `%APPDATA%\JetBrains\Shared\vAny\MyResharperSettings.DotSettings`, which raises `UnusedMember.Global` and
+    `MemberCanBeInternal` to warnings. This repository has no solution or project settings files.
+  - **How a host should get them:** a private global settings file of its own that injects the personal file, as
+    Rider's does; an injected file is mounted read-only. The experiment injected a copy. Not `--profile`: InspectCode mounts a profile above everything, so a personal indent
+    overrode the repository's `.editorconfig`; injected, the repository's won, as in Rider.
+  - **Not all explained:** with the personal settings, a headless `inspect_code` gave Rider's three warnings and three
+    findings more, which its solution-wide analysis had stored and Rider's didn't report for that file.
+  - **EditorConfig** applies the same headless and in Rider. **Line endings:** headless gives disk's, CRLF included;
+    Rider turns them to LF in its documents (`RiderDocumentOperationsImplCore`).
 - **royder-codex-1, done:** the engine's footprint, on a private copy of the fixture solution
   (`experiments/HeadlessFootprint`, with the scripts that measured it).
   - **A plain `git worktree remove` succeeds only before the solution loads.** From indexing on, git deletes every
