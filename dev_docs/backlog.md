@@ -386,9 +386,17 @@ The second round, under way:
   - **The zones, its round 3** (`Check.py zones`): asked for through the SDK's zone activator
     (`IActivateDynamic<T>`), `ExternalSourcesZone` runs headless, and `get_symbol_source` then gives a compiled type's
     metadata view. `ICodeEditingZone` doesn't: the platform's `ZoneLicenseChecker` refuses it in the command line's
-    product, so rename and move stay unsupported. How a host could run under Magnus's own license, which covers
-    ReSharper, is being read from the installed code, contacting nothing; the choice goes to Magnus. The check is
-    never to be bypassed.
+    product, so rename and move stay unsupported. The check is never to be bypassed.
+  - **The daemon and the edit tools, its round 3, done** (0f84a91, `experiments/HeadlessHost`, "Editing tools on
+    the fixture" and "Choosing the daemon for an editing host"). An editing host uses the platform's ordinary
+    `DaemonImpl` and `DaemonThread`, chosen over InspectCode's with `IHideImplementation<T>` and no overrides: the
+    same `get_diagnostics` and edited bytes as InspectCode's daemon, without its "Unexpected transaction" log, and
+    with solution-wide analysis completed, which InspectCode's hadn't after 15 s. `generate_members` and
+    `format_file` save real edits headless. Rename and move (refused before any change), the quick fixes (none listed,
+    none applied, by either tool) and completion (no candidates: its providers need `ICodeEditingZone`) don't. No
+    supported way was found to give the command line's product a license for the editing zone; nothing was signed in
+    to, contacted or written. The update check is off in its launcher (`JETBRAINS_NO_CHECK_FOR_UPDATES`).
+  - **Next, under way:** the Roslyn worker's patcher loaded by default, with the worktree's removal checked.
 - **royder-codex-3, done:** every read tool's answer headless against Rider's
   (`experiments/HeadlessExtension/read-tool-results.md`): 18 of 30 cases the same, 10 different, 2 failed. The
   navigation, search, hierarchy, flow and file-error tools match. Missing headless: quick fixes, completion items, a
