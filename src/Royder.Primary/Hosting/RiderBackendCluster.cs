@@ -46,13 +46,13 @@ internal sealed class RiderBackendCluster(HttpClient http, RiderGeneration gener
          var siblingsPresent = siblings == null || siblings.All(path => backends.Any(it => RiderGeneration.Same(it.Solution,path)));
          if(siblingsPresent && requested == null && backends.Count == 0) return;
          if(siblingsPresent && (requested == null || backends.Any(it => RiderGeneration.Same(it.Solution,requested))) &&
-            await RepairAndCheck(backends, requested, closed, cancellation).ConfigureAwait(false)) return;
+            await RepairAndCheck(backends, closed, cancellation).ConfigureAwait(false)) return;
          await Task.Delay(500,cancellation).ConfigureAwait(false);
       }
       throw new TimeoutException($"Private Royder cluster at {generation.Launch.RoyderPort} did not verify its registrations and indexed build for '{requested ?? "the remaining solutions"}'.");
    }
 
-   async Task<bool> RepairAndCheck(IReadOnlyList<RiderGeneration.Backend> backends, string? requested, string? closed, CancellationToken cancellation)
+   async Task<bool> RepairAndCheck(IReadOnlyList<RiderGeneration.Backend> backends, string? closed, CancellationToken cancellation)
    {
       var port = generation.Launch.RoyderPort;
       var primary = await Call(port, "internal/status", new {}, cancellation).ConfigureAwait(false);
@@ -91,8 +91,7 @@ internal sealed class RiderBackendCluster(HttpClient http, RiderGeneration gener
       }
 
       return backends.All(backend => solutions.Any(row => RiderGeneration.Same(backend.Solution,row?["path"]?.GetValue<string>()) &&
-         MatchesBuild(row) && (!RiderGeneration.Same(backend.Solution,requested) ||
-            (row?["indexing"]?.GetValue<bool>() == false && row["sourceGeneratorsReady"]?.GetValue<bool>() != false))));
+         MatchesBuild(row)));
    }
 
    async Task<JsonArray?> Health(int port,CancellationToken cancellation)

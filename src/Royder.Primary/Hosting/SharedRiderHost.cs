@@ -31,6 +31,7 @@ internal sealed class SharedRiderHost
       if(!File.Exists(solution)) throw new FileNotFoundException("The solution to open does not exist.",solution);
       using var operation = await Acquire(cancellation).ConfigureAwait(false);
       var generation = await RiderGeneration.Current(settings,cancellation).ConfigureAwait(false);
+      var newlyLaunched = generation == null;
       if(generation == null)
       {
          await supervisor.Command("start",solution,null,cancellation).ConfigureAwait(false);
@@ -46,11 +47,23 @@ internal sealed class SharedRiderHost
          {
             await generation.WaitForWorkers(prior,cancellation).ConfigureAwait(false);
             File.Delete(generation.Tag(solution));
+            File.Delete(generation.OpenIntent(solution));
          }
       }
       // The first solution also needs the JVM's disk identity and ETag for a later discard after Git removes it.
-      var status = await Post("open",solution,generation,cancellation).ConfigureAwait(false);
-      if(status != 200) throw Rejected("open",solution,status);
+      try
+      {
+         var status = await Post("open",solution,generation,cancellation).ConfigureAwait(false);
+         if(status != 200) throw Rejected("open",solution,status);
+      }
+      catch when(newlyLaunched)
+      {
+         // The first project has not been handed to a caller and no sibling can have opened under this lease.
+         // End this job without saving stale settings, including if Git removed the tree during the initial open.
+         File.WriteAllText(Path.Combine(generation.Launch.Run, "abandon.request"), "");
+         await supervisor.Command("stop",null,generation.Launch.Run,CancellationToken.None).ConfigureAwait(false);
+         throw;
+      }
       await new RiderBackendCluster(http,generation).WaitForRouting(solution,cancellation).ConfigureAwait(false);
       var backend = generation.Backends().Single(it => RiderGeneration.Same(it.Solution,solution));
       RiderSupervisor.Write(generation.OpenIdentity(solution),backend);
@@ -68,12 +81,24 @@ internal sealed class SharedRiderHost
       var before = generation.Backends();
       // The JVM may report a project directory for a solution opened through the plugin.
       // Only backend solution filenames (or an explicit filename in discovery) identify a cluster registration.
-      var siblings = before.Select(it => it.Solution).Concat((generation.Projects() ?? []).Where(IsSolutionFilename))
+      var siblings = before.Select(it => it.Solution).Concat((generation.Projects() ?? []).Where(IsSolutionFilename).Select(Path.GetFullPath))
          .Where(it => it.Length != 0 && !RiderGeneration.Same(it,solution)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
       var existing = before.SingleOrDefault(it => RiderGeneration.Same(it.Solution,solution));
+      // An open can succeed and lose its reply. Ask for the JVM's receipt for the persisted open ID.
+      if(!File.Exists(generation.Tag(solution)) && File.Exists(generation.OpenIntent(solution)))
+         await Post("status",solution,generation,cancellation).ConfigureAwait(false);
       var identity = File.Exists(receipt) ? receipt : generation.OpenIdentity(solution);
       var target = existing ?? (File.Exists(identity) ? RiderSupervisor.Read<RiderGeneration.Backend>(identity) : null);
-      if(target == null || !RiderGeneration.Same(target.Solution,solution))
+      if(target == null)
+      {
+         if(await Post("status",solution,generation,cancellation).ConfigureAwait(false) == 404)
+         {
+            File.Delete(generation.OpenIntent(solution));
+            return;
+         }
+         throw new InvalidOperationException($"The private JVM still has a project at '{solution}' with no confirmed backend identity.");
+      }
+      if(!RiderGeneration.Same(target.Solution,solution))
          throw new InvalidOperationException($"Cannot confirm a safe close of '{solution}': the private job has no backend PID/start time with a matching RiderSolutionWatcher solution-open record.");
       if(existing == null)
       {
@@ -113,6 +138,7 @@ internal sealed class SharedRiderHost
       if(generation.State.Phase == "Running") await new RiderBackendCluster(http,generation).WaitForRouting(null,cancellation,closed:solution,siblings:siblings).ConfigureAwait(false);
       else if(siblings.Length != 0) throw new InvalidOperationException("The private Rider JVM stopped while closing a project with open siblings.");
       File.Delete(generation.Tag(solution));
+      File.Delete(generation.OpenIntent(solution));
       // Leave the receipt for retries after the manager returns. A successful reopen removes it.
    }
 
@@ -164,7 +190,7 @@ internal sealed class SharedRiderHost
    static string Absolute(string path) => Path.IsPathFullyQualified(path) ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)) :
       throw new ArgumentException("A fully qualified Windows path is required.",nameof(path));
 
-   static void CheckProfile(string path)
+   internal static void CheckProfile(string path)
    {
       if(Path.GetPathRoot(path) == path) throw new ArgumentException("Use a dedicated private profile directory.");
       foreach(var folder in new[] {Environment.SpecialFolder.ApplicationData, Environment.SpecialFolder.LocalApplicationData})

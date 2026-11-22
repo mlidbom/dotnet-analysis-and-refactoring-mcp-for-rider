@@ -18,7 +18,7 @@ public static class ConnectedRiderRequest
       public string Message { get; init; }
    }
 
-   public static async Task<Reply> PostAsync(TcpClient connection, Uri endpoint, string token, string solution, string ifMatch)
+   public static async Task<Reply> PostAsync(TcpClient connection, Uri endpoint, string token, string solution, string ifMatch, string openId)
    {
       using var stream = connection.GetStream();
       using var handler = new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false };
@@ -32,6 +32,7 @@ public static class ConnectedRiderRequest
       using var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(3) };
       using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
       request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+      if(!string.IsNullOrEmpty(openId)) request.Headers.Add("X-Royder-Open-Id", openId);
       if(!string.IsNullOrEmpty(ifMatch)) request.Headers.IfMatch.Add(EntityTagHeaderValue.Parse(ifMatch));
       request.Content = new StringContent(solution, Encoding.UTF8, "text/plain");
       using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);

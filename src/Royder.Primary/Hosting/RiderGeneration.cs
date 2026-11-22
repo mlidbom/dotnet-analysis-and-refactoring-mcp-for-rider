@@ -129,6 +129,7 @@ internal sealed class RiderGeneration
    public string Receipt(string solution) => Path.Combine(Launch.Run,"closing-" + Key(solution) + ".json");
    public string OpenIdentity(string solution) => Path.Combine(Launch.Run,"opened-" + Key(solution) + ".json");
    public string Tag(string solution) => Path.Combine(Launch.Run,"project-" + Key(solution) + ".etag");
+   public string OpenIntent(string solution) => Path.Combine(Launch.Run,"project-" + Key(solution) + ".open-id");
 
    /// <summary>The JVM's own discovery record. An empty result here distinguishes the last project closing from
    /// a gap in backend registrations during primary election.</summary>

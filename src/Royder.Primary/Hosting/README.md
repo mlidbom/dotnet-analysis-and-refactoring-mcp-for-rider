@@ -56,7 +56,7 @@ Roslyn working directory. [Launcher behavior](../../../experiments/RemoteDevHost
   JVM's project inventory is empty and no sibling backend is alive, then stops the whole job. For surviving
   projects it waits for the private MCP primary watchdog's promotion if needed and re-registers missing peers
   from verified local backend health and tool catalogs. Readiness requires the exact solution, run-specific
-  tools directory, build and host hash. A build reporting `sourceGeneratorsReady: false` is still warming up.
+  tools directory, build and host hash. The primary waits separately for indexing and generator synchronization, so other projects can close during that wait.
 
 The profile retains a per-generation plan, private logs, PID history and shutdown evidence. Raw discovery and
 backend logs can carry private project data. Package staging installs nothing in everyday Riders and registers no

@@ -12,6 +12,7 @@ import com.jetbrains.rider.services.security.TrustedSolutionStore;
 import kotlin.coroutines.EmptyCoroutineContext;
 import kotlinx.coroutines.BuildersKt;
 
+import io.netty.handler.codec.http.FullHttpRequest;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -29,20 +30,35 @@ public final class OpenWorktreeService extends ManagedWorktreeService {
 
    @Override protected String getServiceName() { return "royder-open-worktree"; }
 
-   @Override CompletableFuture<WorktreeReply> handle(String route, Path solution, String ifMatch) {
+   @Override String instanceHeader(FullHttpRequest request) { return request.headers().get("X-Royder-Open-Id"); }
+
+   @Override CompletableFuture<WorktreeReply> handle(String route, Path solution, String openId) {
+      if (openId != null && !openId.matches("[0-9a-f]{32}")) return reply(BAD_REQUEST, "Invalid open request ID");
+      if (route.equals("/api/" + getServiceName() + "/status")) {
+         return onDispatchThread(() -> {
+            if (opening.containsKey(solution)) return new WorktreeReply(CONFLICT, "Open still in progress");
+            var matches = OpenProjectInstance.at(solution, ProjectManager.getInstance().getOpenProjects());
+            if (matches.isEmpty()) return new WorktreeReply(NOT_FOUND, "No open project for the solution");
+            if (matches.size() != 1) return new WorktreeReply(CONFLICT, "Ambiguous open project");
+            var registered = OpenProjectInstance.of(matches.get(0));
+            if (openId != null && (registered == null || !openId.equals(registered.openId())))
+               return new WorktreeReply(PRECONDITION_FAILED, "This project was not registered by the requested open");
+            return new WorktreeReply(OK, "", registered == null ? null : registered.etag());
+         });
+      }
       if (!route.equals("/api/" + getServiceName())) return reply(NOT_FOUND, "Unknown operation");
       var name = solution.getFileName();
       if (name == null) return reply(BAD_REQUEST, "Expected a solution filename");
       var suffix = name.toString().toLowerCase(Locale.ROOT);
       if (!suffix.endsWith(".sln") && !suffix.endsWith(".slnx")) return reply(BAD_REQUEST, "Expected a .sln or .slnx");
-      var result = opening.computeIfAbsent(solution, path -> CompletableFuture.supplyAsync(() -> open(path),
+      var result = opening.computeIfAbsent(solution, path -> CompletableFuture.supplyAsync(() -> open(path, openId),
          task -> ApplicationManager.getApplication().executeOnPooledThread(task)));
       result.whenComplete((answer, error) -> opening.remove(solution, result));
       return result;
    }
 
    /** Runs on the pool. Only project matching, registration and the update to Rider's trust store require EDT work. */
-   private static WorktreeReply open(Path solution) {
+   private static WorktreeReply open(Path solution, String openId) {
       if (!Files.isRegularFile(solution, LinkOption.NOFOLLOW_LINKS)) return new WorktreeReply(NOT_FOUND, "Solution file not found");
       try {
          if (!solution.toRealPath().equals(solution)) return new WorktreeReply(BAD_REQUEST, "Use the physical solution path");
@@ -50,15 +66,15 @@ public final class OpenWorktreeService extends ManagedWorktreeService {
          var existing = onDispatchThread(() -> {
             var matches = OpenProjectInstance.at(solution, ProjectManager.getInstance().getOpenProjects());
             if (matches.size() > 1) return new WorktreeReply(CONFLICT, "Multiple open projects match the solution");
-            return matches.isEmpty() ? null : OpenProjectInstance.register(matches.get(0), solution, disk);
+            return matches.isEmpty() ? null : OpenProjectInstance.register(matches.get(0), solution, disk, openId);
          }).join();
-         return existing != null ? existing : openInRider(solution, disk);
+         return existing != null ? existing : openInRider(solution, disk, openId);
       } catch (IOException error) {
          return new WorktreeReply(CONFLICT, "Cannot establish the worktree's filesystem identity");
       }
    }
 
-   private static WorktreeReply openInRider(Path solution, WorktreeDiskIdentity disk) throws IOException {
+   private static WorktreeReply openInRider(Path solution, WorktreeDiskIdentity disk, String openId) throws IOException {
       var file = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(solution);
       if (file == null || !SolutionManager.INSTANCE.isSolutionFile(file)) return new WorktreeReply(NOT_FOUND, "Rider cannot open this solution file");
       if (!TrustedSolutionManager.INSTANCE.findUntrustedAncestorConfigFiles(solution.getParent()).isEmpty())
@@ -75,7 +91,7 @@ public final class OpenWorktreeService extends ManagedWorktreeService {
          // No project to replace, a new frame, normal restore, ordinary Rider trust checks.
          var project = BuildersKt.<Project>runBlocking(EmptyCoroutineContext.INSTANCE, (scope, continuation) ->
             SolutionManager.INSTANCE.openExistingSolution(null, true, file, true, false, continuation));
-         var opened = onDispatchThread(() -> OpenProjectInstance.register(project, solution, disk)).join();
+         var opened = onDispatchThread(() -> OpenProjectInstance.register(project, solution, disk, openId)).join();
          if (!opened.status().equals(OK)) return opened;
          try {
             if (disk.stillAt(solution)) return opened;

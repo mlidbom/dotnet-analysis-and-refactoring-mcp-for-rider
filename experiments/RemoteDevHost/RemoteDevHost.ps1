@@ -133,7 +133,11 @@ try {
       } while ([datetime]::UtcNow -lt $until)
       throw "Timed out waiting for the indexed solution and copied tools build. See $run/log."
    } catch {
-      if (!$worker.HasExited) { Request-HostStop $run; $null = Wait-ForStop $run $worker }
+      if (!$worker.HasExited) {
+         if ($ManagedAssets) { [IO.File]::WriteAllText((Join-Path $run 'abandon.request'), '') }
+         else { Request-HostStop $run }
+         $null = Wait-ForStop $run $worker
+      }
       throw
    }
 } finally { $lock.Dispose() }

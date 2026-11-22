@@ -79,6 +79,10 @@ try {
          if ($state.phase -ne 'Stopping') { throw "Java exited unexpectedly with code $($state.exitCode)." }
          break
       }
+      if ([IO.File]::Exists((Join-Path $Run 'abandon.request'))) {
+         $state.phase = 'Stopping'
+         break  # Initial open failed before any caller received this private job.
+      }
       if ($plan.Contains('managedAssets') -and $checkOwner.Elapsed.TotalSeconds -ge 2) {
          $checkOwner.Restart()
          if (Get-LiveIdentity (Read-HostJson $ownerFile)) { $orphaned = $null }

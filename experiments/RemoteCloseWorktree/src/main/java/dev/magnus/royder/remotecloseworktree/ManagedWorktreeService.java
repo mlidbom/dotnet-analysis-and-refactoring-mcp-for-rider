@@ -36,6 +36,8 @@ abstract class ManagedWorktreeService extends RestService {
           && super.isHostTrusted(request, url);
    }
 
+   String instanceHeader(FullHttpRequest request) { return request.headers().get(HttpHeaderNames.IF_MATCH); }
+
    abstract CompletableFuture<WorktreeReply> handle(String route, Path solution, String ifMatch);
 
    @Override public final String execute(QueryStringDecoder url, FullHttpRequest request, ChannelHandlerContext context) {
@@ -54,7 +56,7 @@ abstract class ManagedWorktreeService extends RestService {
          return "Invalid solution path";
       }
       if (!solution.isAbsolute()) return "An absolute solution filename is required";
-      handle(url.path(), solution, request.headers().get(HttpHeaderNames.IF_MATCH))
+      handle(url.path(), solution, instanceHeader(request))
          .whenComplete((answer, error) -> (error == null ? answer : failure(error)).send(channel, version, keepAlive));
       return null;
    }

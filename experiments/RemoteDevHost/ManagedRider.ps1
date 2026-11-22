@@ -1,5 +1,5 @@
 #requires -Version 7.4
-param([Parameter(Mandatory)][ValidateSet('start','stop','open','close','discard')][string]$Operation,
+param([Parameter(Mandatory)][ValidateSet('start','stop','open','close','discard','status')][string]$Operation,
       [Parameter(Mandatory)][string]$Profile, [string]$Solution, [string]$Generation,
       [string]$RiderHome, [string]$ToolsBuild, [int]$RemoteDevPort, [int]$RoyderPort, [int]$HeapMiB,
       [Parameter(Mandatory)][string]$ResultFile)
@@ -40,11 +40,14 @@ if ($state.phase -ne 'Running' -or !$jvm -or !(Get-LiveIdentity $state.superviso
 if ([IO.File]::ReadAllText((Join-Path $profileDir config/.lock)).Trim() -ne [string]$jvm.Id) { throw 'Private Rider profile lock mismatch.' }
 
 $port = Get-AdvertisedPort $run
-$path = switch ($Operation) { open {'royder-open-worktree'} close {'royder-close-worktree'} discard {'royder-close-worktree/discard'} }
+$path = switch ($Operation) { open {'royder-open-worktree'} close {'royder-close-worktree'} discard {'royder-close-worktree/discard'} status {'royder-open-worktree/status'} }
 $key = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Solution.ToUpperInvariant())))
 $tagFile = Join-Path $run "project-$key.etag"
 $tag = if ([IO.File]::Exists($tagFile)) { Read-HostJson $tagFile }
-if ($Operation -ne 'open' -and !$tag) { throw 'Missing the original IntelliJ project instance tag. Close was not dispatched.' }
+$intentFile = Join-Path $run "project-$key.open-id"
+if ($Operation -eq 'open' -and ![IO.File]::Exists($intentFile)) { Write-HostJson $intentFile ([guid]::NewGuid().ToString('N')) }
+$openId = if ($Operation -in 'open','status' -and [IO.File]::Exists($intentFile)) { Read-HostJson $intentFile } else { '' }
+if ($Operation -in 'close','discard' -and !$tag) { throw 'Missing the original IntelliJ project instance tag. Close was not dispatched.' }
 $client = [Net.Sockets.TcpClient]::new()
 try {
    Add-Type -Path "$PSScriptRoot/ConnectedRiderRequest.cs"
@@ -54,8 +57,8 @@ try {
    $encrypted = [IO.File]::ReadAllBytes((Join-Path $run host-token.dpapi))
    $token = [Text.Encoding]::ASCII.GetString([Security.Cryptography.ProtectedData]::Unprotect($encrypted, $null, 'CurrentUser'))
    $ifMatch = if ($Operation -ne 'open') { $tag } else { '' }
-   $reply = [RemoteDevHost.ConnectedRiderRequest]::PostAsync($client, [uri]"http://127.0.0.1:$port/api/$path", $token, $Solution, $ifMatch).GetAwaiter().GetResult()
-   if ($Operation -eq 'open' -and $reply.ETag) {
+   $reply = [RemoteDevHost.ConnectedRiderRequest]::PostAsync($client, [uri]"http://127.0.0.1:$port/api/$path", $token, $Solution, $ifMatch, $openId).GetAwaiter().GetResult()
+   if (($Operation -eq 'open' -or ($Operation -eq 'status' -and $openId -and $reply.Status -eq 200)) -and $reply.ETag) {
       if ($tag -and $tag -cne $reply.ETag) { throw 'Rider returned a different project instance at the same path. The original close tag has been preserved.' }
       Write-HostJson $tagFile $reply.ETag
    }

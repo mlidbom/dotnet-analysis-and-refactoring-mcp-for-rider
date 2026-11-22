@@ -13,7 +13,7 @@ import java.util.WeakHashMap;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 
 /** The registration follows the IntelliJ Project's lifetime, independent of the path on disk. Accessed on the EDT. */
-record OpenProjectInstance(Path solution, WorktreeDiskIdentity disk, String etag) {
+record OpenProjectInstance(Path solution, WorktreeDiskIdentity disk, String etag, String openId) {
    private static final Map<Project, OpenProjectInstance> registered = new WeakHashMap<>();
 
    static List<Project> at(Path solution, Project[] candidates) {
@@ -25,14 +25,16 @@ record OpenProjectInstance(Path solution, WorktreeDiskIdentity disk, String etag
 
    static OpenProjectInstance of(Project project) { return registered.get(project); }
 
-   static WorktreeReply register(Project project, Path solution, WorktreeDiskIdentity disk) {
+   static WorktreeReply register(Project project, Path solution, WorktreeDiskIdentity disk, String openId) {
       if (project == null || project.isDisposed() || !project.isOpen())
          return new WorktreeReply(CONFLICT, "Rider did not open the solution");
       var knownPath = solutionOf(project);
       if (knownPath != null && !knownPath.equals(solution))
          return new WorktreeReply(CONFLICT, "Rider returned a project for a different solution");
       var instance = registered.computeIfAbsent(project, ignored ->
-         new OpenProjectInstance(solution, disk, "\"" + UUID.randomUUID() + "\""));
+         new OpenProjectInstance(solution, disk, "\"" + UUID.randomUUID() + "\"", openId));
+      if (openId != null && !openId.equals(instance.openId))
+         return new WorktreeReply(io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED, "Another open owns this project instance");
       return instance.disk.equals(disk) ? WorktreeReply.opened(instance.etag) : instance.replaced();
    }
 
