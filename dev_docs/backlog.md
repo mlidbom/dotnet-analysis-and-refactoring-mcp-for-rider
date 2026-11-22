@@ -48,10 +48,11 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
-- **Suspected, not reproduced: a deleted file may not get the rescan** (royder-codex-1's reading of the source,
-  2026-11-22). `DiskChanges` records a delete, but `DiskSync` skips the paths that no longer exist, so a deleted path
-  doesn't itself ask the frontend to rescan. Rider's own project-model tracking may remove it anyway. To check: delete
-  a file declaring a type, then `search_symbol` the type by name alone.
+- **Suspected in Rider, seen headless: a deleted file may not get the rescan** (royder-codex-1's reading of the source,
+  2026-11-22). `DiskChanges` records a delete, but `DiskSync.Check` skips the paths that no longer exist, so a deleted
+  path doesn't itself ask the frontend to rescan. Headless, with no frontend, a deleted file's type was still found
+  12 s later (royder-codex-2). In Rider, its own project-model tracking may remove it anyway. To check: delete a file
+  declaring a type, then `search_symbol` the type by name alone.
 - `search_symbol` with `includeLibraries` finds a compiled member only as `Type.Member`, not by its name alone
   (`GetProjectMark` gives none): scanning every compiled type's members takes seconds. An index of member names
   would do it.
@@ -344,8 +345,19 @@ how to run it and what it found:
 
 The second round, under way:
 
-- **royder-codex-2:** its program hosting Royder's unchanged host, on port 23910. Whether Royder stays correct between
-  calls (edited, new, deleted and moved files), and its edit tools for real, each reverted after.
+- **royder-codex-2, done:** its program hosting Royder's unchanged host and tools, on port 23910
+  (`experiments/HeadlessHost`, "Serving the unchanged Royder plugin", with `Check.py`, which repeats every case).
+  - **Between calls:** an edit to a file is seen on the next call, through `DiskSync`'s reconcile. A new file, a
+    deleted one and a moved one are not: the rescan's `RdCall` is unbound headless, and a new file costs the call
+    `DiskSync`'s 10 s wait. `IFileSystemTracker.CommitChanges()` drops a deleted or moved file's symbols but leaves an
+    empty project item; `reload_projects` on the owning project, 0.3 to 0.6 s, makes each case right.
+  - **The proposed headless way, unbuilt:** keep the reconcile; for files added, deleted or moved, commit the tracker,
+    reload each owning project once, and check its items before answering; skip the rescan.
+  - **Edit tools:** `fix_usings` works, and the engine's own transaction saves the file, before Royder would ask a
+    frontend to. `rename_symbol` answers `UnsupportedLanguage` and `move_type_to_namespace` fails to initialize, both
+    changing nothing: the C# refactorings' zone marker needs `ICodeEditingZone`, absent headless, so the base helpers,
+    which support no language, are chosen. InspectCode's daemon logs "Unexpected transaction in command line" at an
+    edit: a host that edits needs another daemon.
 - **royder-codex-3, done:** every read tool's answer headless against Rider's
   (`experiments/HeadlessExtension/read-tool-results.md`): 18 of 30 cases the same, 10 different, 2 failed. The
   navigation, search, hierarchy, flow and file-error tools match. Missing headless: quick fixes, completion items, a
