@@ -1,0 +1,168 @@
+Royder replies on port 23920, 22 November 2026
+The run directory is abbreviated as <run>. Line endings are normalized for this transcript.
+Repeated inventory polls and identical retries are recorded in observations.jsonl.
+
+=== unhosted sibling read ===
+list_symbols_in_file {"filePath": "<run>\\peer\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: false
+{
+  "error": "File is on disk but in no project of ReSharperMcp: <run>\\peer\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs. Rider was asked to rescan it; if a project includes it (e.g. by a glob), retry in a moment, otherwise add it to a project."
+}
+
+note: <run>\peer\tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs is on disk but in no project yet
+
+=== unhosted nested read ===
+list_symbols_in_file {"filePath": "<run>\\outer\\.claude\\worktrees\\inner\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: false
+{
+  "error": "File is on disk but in no project of ReSharperMcp: <run>\\outer\\.claude\\worktrees\\inner\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs. Rider was asked to rescan it; if a project includes it (e.g. by a glob), retry in a moment, otherwise add it to a project."
+}
+
+note: .claude\worktrees\inner\tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs is on disk but in no project yet
+
+=== unhosted nested fix ===
+fix_usings {"filePath": "<run>\\outer\\.claude\\worktrees\\inner\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: false
+{
+  "error": "File is on disk but in no project of ReSharperMcp: <run>\\outer\\.claude\\worktrees\\inner\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs. Rider was asked to rescan it; if a project includes it (e.g. by a glob), retry in a moment, otherwise add it to a project."
+}
+
+note: .claude\worktrees\inner\tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs is on disk but in no project yet
+
+=== both hosts ===
+list_solutions {}
+MCP isError: false
+{
+  "solutionCount": 2,
+  "solutions": [
+    {
+      "name": "ReSharperMcp",
+      "path": "<run>\\outer\\ReSharperMcp.sln",
+      "toolCount": 25,
+      "uniquePathSegment": "outer"
+    },
+    {
+      "name": "ReSharperMcp",
+      "path": "<run>\\peer\\ReSharperMcp.sln",
+      "toolCount": 25,
+      "uniquePathSegment": "peer"
+    }
+  ]
+}
+
+=== absolute outer ===
+list_symbols_in_file {"filePath": "<run>\\outer\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: false
+<run>\outer\tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs — 2 symbols
+
+sealed class OuterRoutingMarker :2
+  method Create() : RoutingRequiredType :4
+
+=== segment outer ===
+list_symbols_in_file {"filePath": "tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs", "solutionName": "outer"}
+MCP isError: false
+tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs — 2 symbols
+
+sealed class OuterRoutingMarker :2
+  method Create() : RoutingRequiredType :4
+
+=== absolute peer ===
+list_symbols_in_file {"filePath": "<run>\\peer\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: false
+<run>\peer\tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs — 2 symbols
+
+sealed class PeerRoutingMarker :2
+  method Create() : RoutingRequiredType :4
+
+=== segment peer ===
+list_symbols_in_file {"filePath": "tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs", "solutionName": "peer"}
+MCP isError: false
+tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs — 2 symbols
+
+sealed class PeerRoutingMarker :2
+  method Create() : RoutingRequiredType :4
+
+=== file outside both roots ===
+list_symbols_in_file {"filePath": "<run>\\outside.cs"}
+MCP isError: true
+Path is outside open solutions: ReSharperMcp (<run>\outer), ReSharperMcp (<run>\peer). Pass 'solutionName' to pick one anyway.
+
+=== unhosted nested read with sibling live ===
+list_symbols_in_file {"filePath": "<run>\\outer\\.claude\\worktrees\\inner\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: false
+{
+  "error": "File is on disk but in no project of ReSharperMcp: <run>\\outer\\.claude\\worktrees\\inner\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs. Rider was asked to rescan it; if a project includes it (e.g. by a glob), retry in a moment, otherwise add it to a project."
+}
+
+note: .claude\worktrees\inner\tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs is on disk but in no project yet
+
+=== shared relative path ===
+list_symbols_in_file {"filePath": "tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: true
+The relative path exists in several open solutions: ReSharperMcp (<run>\outer), ReSharperMcp (<run>\peer). Pass 'solutionName' or an absolute path.
+
+=== peer-only relative path ===
+list_symbols_in_file {"filePath": "tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\PeerRoutingMarkerOnly.cs"}
+MCP isError: false
+tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\PeerRoutingMarkerOnly.cs — 1 symbols
+
+sealed class PeerRoutingMarkerOnly :2
+
+=== no file or solution ===
+get_solution_structure {}
+MCP isError: true
+Multiple solutions are open. Specify 'solutionName' in the arguments, or pass a filePath that exists in only one of them.
+Available solutions:
+  - ReSharperMcp (<run>\outer\ReSharperMcp.sln)
+  - ReSharperMcp (<run>\peer\ReSharperMcp.sln)
+
+=== shared solution name ===
+get_solution_structure {"solutionName": "ReSharperMcp"}
+MCP isError: true
+Ambiguous solution name 'ReSharperMcp'. Matches:
+  - ReSharperMcp (<run>\outer\ReSharperMcp.sln) — use solutionName: "outer"
+  - ReSharperMcp (<run>\peer\ReSharperMcp.sln) — use solutionName: "peer"
+
+=== routed peer fix ===
+fix_usings {"filePath": "<run>\\peer\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: false
+<run>\peer\tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs — fix_usings results
+
+added 1 usings:
+  using RoutingFixture.Dependencies; (for: RoutingRequiredType)
+
+=== file call after death 1 ===
+list_symbols_in_file {"filePath": "<run>\\peer\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: true
+ReSharper failed on the call proxied to the peer on port 23921: WebException: No connection could be made because the target machine actively refused it. [::ffff:127.0.0.1]:23921 (127.0.0.1:23921)
+
+=== replacement peer read ===
+list_symbols_in_file {"filePath": "<run>\\peer\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: false
+<run>\peer\tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs — 2 symbols
+
+sealed class PeerRoutingMarker :2
+  method Create() : RoutingRequiredType :4
+
+=== list after graceful peer exit ===
+list_solutions {}
+MCP isError: false
+{
+  "solutionCount": 1,
+  "solutions": [
+    {
+      "name": "ReSharperMcp",
+      "path": "<run>\\outer\\ReSharperMcp.sln",
+      "toolCount": 25
+    }
+  ]
+}
+
+=== file after deregistration ===
+list_symbols_in_file {"filePath": "<run>\\peer\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs"}
+MCP isError: false
+{
+  "error": "File is on disk but in no project of ReSharperMcp: <run>\\peer\\tools\\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\\RoutingProbe.cs. Rider was asked to rescan it; if a project includes it (e.g. by a glob), retry in a moment, otherwise add it to a project."
+}
+
+note: <run>\peer\tools\DotNetAnalysisAndRefactoringMcp.DevelopmentTools\RoutingProbe.cs is on disk but in no project yet
