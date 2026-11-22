@@ -27,7 +27,7 @@ if(args is ["prepare-catalog", var optionsFile, var solution])
 }
 if(args is not ["serve", var settingsFile])
 {
-   Console.Error.WriteLine("Royder.Primary serve <settings.json>\nRoyder.Primary prepare-catalog <settings.json> <linked worktree solution>\nRoyder.Primary capture-catalog <Rider port> <tools build> <catalog.json>\nRoyder.Primary remove-worktree <settings.json> <worktree root>");
+   Console.Error.WriteLine("Royder.Primary serve <settings.json>\nRoyder.Primary prepare-catalog <settings.json> <trusted solution>\nRoyder.Primary capture-catalog <Rider port> <tools build> <catalog.json>\nRoyder.Primary remove-worktree <settings.json> <linked worktree root>");
    return 2;
 }
 

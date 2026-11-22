@@ -39,14 +39,14 @@ try {
    $lifecycleJar = Join-Path $stage 'plugins/RemoteCloseWorktree/lib/RemoteCloseWorktree.jar'
    $archive = [IO.Compression.ZipFile]::OpenRead($lifecycleJar)
    try {
-      foreach ($handler in 'OpenWorktreeService','CloseWorktreeService') {
+      foreach ($handler in 'OpenWorktreeService','CloseWorktreeService','PrivateProjectStore') {
          if (!$archive.GetEntry("dev/magnus/royder/remotecloseworktree/$handler.class")) { throw "Lifecycle plugin lacks $handler." }
       }
    } finally { $archive.Dispose() }
    $hostHash = (Get-FileHash -LiteralPath (Join-Path $stage "plugins/$name/dotnet/$name.dll")).Hash.ToLowerInvariant()
    if ([IO.File]::ReadAllText((Join-Path $stage "tools/$ToolsBuild/host.sha256")).Trim() -ne $hostHash) { throw 'Selected Royder host and tools build are incompatible.' }
    $toolsHash = (Get-FileHash -LiteralPath (Join-Path $stage "tools/$ToolsBuild/$name.Tools.dll")).Hash.ToLowerInvariant()
-   $manifest = @{ build=$ToolsBuild; riderBuild=$product.buildNumber; hostHash=$hostHash; toolsHash=$toolsHash
+   $manifest = @{ build=$ToolsBuild; riderBuild=$product.buildNumber; hostHash=$hostHash; toolsHash=$toolsHash; privateProjectStores=$true
                   lifecycleHash=(Get-FileHash -LiteralPath $lifecycleJar).Hash
                   patcherHash=(Get-FileHash -LiteralPath (Join-Path $stage 'plugins/RemoteRoslynPatcher/dotnet/Royder.RemoteRoslynPatcher.dll')).Hash }
    Write-HostJson (Join-Path $stage package.json) $manifest

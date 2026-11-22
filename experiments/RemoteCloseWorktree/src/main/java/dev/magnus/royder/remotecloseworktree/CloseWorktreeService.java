@@ -15,6 +15,10 @@ public final class CloseWorktreeService extends ManagedWorktreeService {
 
    @Override CompletableFuture<WorktreeReply> handle(String route, Path solution, String ifMatch) {
       var base = "/api/" + getServiceName();
+      if (route.equals(base + "/projects")) {
+         return onDispatchThread(() -> new WorktreeReply(
+            ProjectManager.getInstance().getOpenProjects().length == 0 ? NO_CONTENT : OK, ""));
+      }
       var discard = route.equals(base + "/discard");
       if (!discard && !route.equals(base)) return reply(NOT_FOUND, "Unknown operation");
       if (discard && ifMatch == null) return reply(PRECONDITION_REQUIRED, "Discard requires the open instance's If-Match tag");

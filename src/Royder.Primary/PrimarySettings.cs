@@ -4,7 +4,7 @@ using Royder.Primary.Hosting;
 
 namespace Royder.Primary;
 
-/// <summary>The private Rider installation and the Git repositories whose linked worktrees this primary may open.</summary>
+/// <summary>The private Rider installation and the Git repositories whose main and linked worktrees this primary may open.</summary>
 sealed class PrimarySettings
 {
    public required SharedRiderSettings Rider { get; init; }

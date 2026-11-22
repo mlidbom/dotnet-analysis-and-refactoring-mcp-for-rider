@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Royder.Primary.Worktrees;
 
 namespace Royder.Primary.Hosting;
 
@@ -25,9 +26,11 @@ internal sealed class SharedRiderHost
       supervisor = new RiderSupervisor(this.settings);
    }
 
-   public async Task OpenAsync(string solutionPath, CancellationToken cancellation)
+   public async Task OpenAsync(RegisteredWorktree checkout, string solutionPath, CancellationToken cancellation)
    {
       var solution = SolutionFile(solutionPath);
+      if(checkout.IsMainCheckout && !SupportsPrivateProjectStores())
+         throw new InvalidOperationException("This Rider package predates private project settings. Restage it before opening a main checkout.");
       if(!File.Exists(solution)) throw new FileNotFoundException("The solution to open does not exist.",solution);
       using var operation = await Acquire(cancellation).ConfigureAwait(false);
       var generation = await RiderGeneration.Current(settings,cancellation).ConfigureAwait(false);
@@ -69,6 +72,11 @@ internal sealed class SharedRiderHost
       RiderSupervisor.Write(generation.OpenIdentity(solution),backend);
       File.Delete(receipt);
    }
+
+   sealed record Package(bool PrivateProjectStores);
+
+   bool SupportsPrivateProjectStores() =>
+      RiderSupervisor.Read<Package>(Path.Combine(settings.AssetsDirectory, "package.json")).PrivateProjectStores;
 
    public async Task CloseAsync(string solutionPath, bool discard, CancellationToken cancellation)
    {
@@ -120,10 +128,13 @@ internal sealed class SharedRiderHost
       {
          // Rider can keep the last full backend alive in its lobby after saving and closing its only project.
          var timer = Stopwatch.StartNew();
+         var supportsProjectQuery = SupportsPrivateProjectStores();
          while(timer.Elapsed < TimeSpan.FromSeconds(12))
          {
             cancellation.ThrowIfCancellationRequested();
-            if(generation.Projects() is { Length: 0 } && generation.State.Members
+            var empty = supportsProjectQuery ? await Post("projects",solution,generation,cancellation).ConfigureAwait(false) == 204 :
+                                              generation.Projects() is { Length: 0 };
+            if(empty && generation.State.Members
                .Where(it => it.Name.Equals("Rider.BackendHost",StringComparison.OrdinalIgnoreCase) && it.IsAlive())
                .All(it => it.SameProcess(target.Process)))
             {

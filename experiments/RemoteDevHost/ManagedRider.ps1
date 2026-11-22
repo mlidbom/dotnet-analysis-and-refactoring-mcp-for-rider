@@ -1,5 +1,5 @@
 #requires -Version 7.4
-param([Parameter(Mandatory)][ValidateSet('start','stop','open','close','discard','status')][string]$Operation,
+param([Parameter(Mandatory)][ValidateSet('start','stop','open','close','discard','status','projects')][string]$Operation,
       [Parameter(Mandatory)][string]$Profile, [string]$Solution, [string]$Generation,
       [string]$RiderHome, [string]$ToolsBuild, [int]$RemoteDevPort, [int]$RoyderPort, [int]$HeapMiB,
       [Parameter(Mandatory)][string]$ResultFile)
@@ -26,7 +26,7 @@ if ($state.phase -ne 'Running' -or !$jvm -or !(Get-LiveIdentity $state.superviso
 if ([IO.File]::ReadAllText((Join-Path $profileDir config/.lock)).Trim() -ne [string]$jvm.Id) { throw 'Private Rider profile lock mismatch.' }
 
 $port = Get-AdvertisedPort $run
-$path = switch ($Operation) { open {'royder-open-worktree/private'} close {'royder-close-worktree'} discard {'royder-close-worktree/discard'} status {'royder-open-worktree/status'} }
+$path = switch ($Operation) { open {'royder-open-worktree/private'} close {'royder-close-worktree'} discard {'royder-close-worktree/discard'} status {'royder-open-worktree/status'} projects {'royder-close-worktree/projects'} }
 $key = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Solution.ToUpperInvariant())))
 $tagFile = Join-Path $run "project-$key.etag"
 $tag = if ([IO.File]::Exists($tagFile)) { Read-HostJson $tagFile }
@@ -49,7 +49,7 @@ try {
       Write-HostJson $tagFile $reply.ETag
    }
    if ($Operation -eq 'open' -and $reply.Status -eq 200 -and !$reply.ETag) { throw 'Rider open returned no strong project instance ETag.' }
-   if ($reply.Status -ne 200 -and !($reply.Status -eq 404 -and $Operation -ne 'open')) {
+   if ($reply.Status -ne 200 -and !($reply.Status -eq 204 -and $Operation -eq 'projects') -and !($reply.Status -eq 404 -and $Operation -ne 'open')) {
       throw "Private Rider $Operation returned HTTP $($reply.Status): $($reply.Message)"
    }
    $reply.Status

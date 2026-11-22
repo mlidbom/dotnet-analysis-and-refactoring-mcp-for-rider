@@ -13,7 +13,7 @@ sealed class PrimaryToolCatalog(ToolCatalog pinned, OrdinaryRiders ordinary)
       var desktop = await ordinary.Tools(cancel) ?? [];
       var tools = desktop.Concat(pinned.Tools).OfType<JObject>().DistinctBy(it => (string?)it["name"]);
       return new JArray(tools,
-         ManagementTool(Warm, "Open a trusted linked Git worktree in the shared private Rider and wait for it to be ready. Pass its absolute solution filename."),
+         ManagementTool(Warm, "Open a trusted main checkout or linked worktree in the shared private Rider and wait for it to be ready. Pass its absolute solution filename."),
          ManagementTool(Close, "Close the managed Rider project and await its workers' exit. The worktree stays on disk."));
    }
 

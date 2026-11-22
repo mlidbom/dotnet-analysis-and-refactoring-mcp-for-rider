@@ -133,8 +133,10 @@ File arguments pick a solution in their own Git work tree, even when only one so
 
 ### On-demand worktrees on Windows
 
-For agents working in separate Git worktrees on Windows, the optional standalone Royder primary can open linked
-worktrees on demand in one private Rider JVM. It serves the same MCP tools and releases the backend and workers when a project closes. [Build, configure and run the standalone primary](dev_docs/headless-royder/standalone-primary.md)
+On Windows, the standalone Royder primary opens a trusted repository's main checkout or any of its linked worktrees
+on demand in one private Rider JVM. Agents work on the real source files. The private JVM keeps its IntelliJ project
+settings outside the checkout, and ordinary Rider takes over when you open the solution.
+[Build, configure and run the standalone primary](dev_docs/headless-royder/standalone-primary.md)
 
 ## Building
 

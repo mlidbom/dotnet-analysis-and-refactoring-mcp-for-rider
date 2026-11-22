@@ -324,13 +324,13 @@ how to run it and what it found:
 
 - **Deployed on Magnus's machine, 22 November 2026.** `RoyderPrimary` starts the standalone primary at sign-in.
   Agent clients and the symbol linker use port 23751. Ordinary Rider serves its solutions on the cluster at
-  23761. The private shared Rider has a separate cluster for linked worktrees. The coordinated cutover restored
+  23761. The private shared Rider has a separate cluster for managed checkouts. The coordinated cutover restored
   and indexed all seven ordinary solutions. An existing agent then opened its worktree on demand through the
   original URL. [Setup, operation and verification](headless-royder/standalone-primary.md)
   - The symbol linker now waits for its first solution when the primary is cold (`a2a37a4` in ClaudeSymbolLinker).
     Its isolated sandbox still uses 23861.
 - **Routing by the worktree** precedes the only-solution shortcut for calls naming files. An absolute path in a
-  linked worktree of a trusted repository can start its project in the private Rider. Ordinary Rider takes
+  trusted main checkout or its linked worktree can start its project in the private Rider. Ordinary Rider takes
   precedence when it has the same checkout open.
 - **Starting on demand:** one start, deduplicated by worktree and solution, from a call's first file or an explicit
   start. The call that starts a host waits for it up to about a minute, and answers that it is indexing, with the
@@ -344,10 +344,10 @@ how to run it and what it found:
 - **Resource ownership.** One private Rider JVM shares its frontend across managed worktrees. Each worktree owns
   a backend and workers that can be released independently. Machine-wide scheduling belongs to the human or agent
   deciding which work should run. The recorder-based policy investigated in round 4 was superseded on 2026-11-22.
-- **Files:** each host's caches, settings, temp and logs are private, outside the worktree. A host loads only an agent's
-  own worktree, whose `obj` it may write: not the main checkout, nor any solution a Rider has open. Its private global
-  settings file injects Magnus's personal settings file, as Rider's does, read-only: the file itself, so it is never
-  stale; a copy only if a host turns out able to write to it (royder-codex-3, below).
+- **Files.** The private host uses the real solution, project and source paths, including for edits and MSBuild's
+  `obj` files. Its IDE project stores, caches, settings, temp and logs live outside the checkout. This also covers
+  trusted main checkouts, requested by Magnus on 2026-11-22 so ordinary Rider windows can be closed when he is
+  not looking at the code. Only linked worktrees can be removed by `remove-worktree`.
 - **The host is Rider's own headless server,** `remote-dev-server.exe`'s JVM, started directly through Java with a
   private profile, and no client ever connected (Magnus, 2026-11-22, on the recommendation from its rounds 6 to 8:
   "Sounds good. Let's do it."). Royder's plugin runs in it unchanged, the editing tools included, so the tools need no

@@ -48,8 +48,8 @@ Roslyn working directory. [Launcher behavior](../../../experiments/RemoteDevHost
   PID/creation time and the exact solution-open entry from that backend's own Rider log. The supervisor records
   parent PIDs as it observes members. After close the adapter requires fresh job membership, waits for the
   backend and its descendants to disappear and reports any surviving or unaccounted identities. A successful
-  HTTP close alone does not release the worktree for removal. The authenticated open endpoint also adopts
-  the first project and returns its strong ETag. Each run stores the exact tag and uses it as `If-Match`
+  HTTP close alone does not release the worktree for removal. The managed JVM starts with no project.
+  Its authenticated opener creates each private IntelliJ project and returns its strong ETag. Each run stores the exact tag and uses it as `If-Match`
   for normal and discard closes. A veto, disk replacement on normal close, tag mismatch or missing identity
   is an error. A request already dispatched is allowed to finish even if the caller cancels.
 - When the last project closes Rider can retain an empty backend in the lobby. The adapter confirms the private

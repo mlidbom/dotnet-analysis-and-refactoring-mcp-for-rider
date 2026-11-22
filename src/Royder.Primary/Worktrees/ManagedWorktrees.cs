@@ -72,7 +72,7 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
             opened = new ManagedWorktree(registration, solution, clock);
             journal.Opening(registration, solution);
             _open[registration.Root] = opened;
-            await host.OpenAsync(solution, cancel);
+            await host.OpenAsync(registration, solution, cancel);
          }
          finally { _changes.Release(); }
 
@@ -113,6 +113,7 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
 
    public async Task CloseRequested(RegisteredWorktree expected, string path, bool remove, CancellationToken cancel)
    {
+      if(remove) expected.RequireLinkedForRemoval();
       if(_starting.TryGetValue(expected, out var starting))
       {
          if(!remove && !RegisteredWorktree.SamePath(starting.Solution, path))

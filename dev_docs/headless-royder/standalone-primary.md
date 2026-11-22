@@ -1,9 +1,14 @@
-# On-demand Royder for linked Git worktrees
+# On-demand Royder for trusted Git checkouts
 
-The standalone primary serves the ordinary MCP tools when every IDE is closed. An absolute file argument in a linked
-worktree opens its solution in a shared private Rider JVM. Calls for an open ordinary Rider solution still go to
-that Rider, including its unsaved-document handling. The primary uses the same solution-name and file-path routing
-as the plugin. Each linked worktree must belong to one of the main repositories trusted in the primary settings.
+The standalone primary serves the ordinary MCP tools when every IDE is closed. An absolute file argument opens the
+owning solution in a shared private Rider JVM. This works in each main checkout listed in `repositories` and in
+its registered linked worktrees. Calls for a checkout open in ordinary Rider go to that Rider, including its
+unsaved-document handling.
+
+The private JVM starts without opening a solution. For each request to open one, it creates an IntelliJ project
+with its own settings directory in the private run folder and initializes Rider's backend with the real solution
+filename. Navigation and edits use the original checkout. The headless project saves its own workspace state;
+the desktop's tabs, workspace and project settings stay in the checkout.
 
 ## Prepare an installation
 
@@ -34,8 +39,9 @@ ports. Use a dedicated profile directory.
 }
 ~~~
 
-Choose a restored solution in a disposable linked worktree of a listed repository. Preparing the catalog briefly
-opens that solution, captures its real MCP handshake and tool definitions and shuts the private JVM down. A matching
+Choose a restored solution in a trusted main checkout or linked worktree. Preparing the catalog briefly
+opens that solution, captures its real MCP handshake and tool definitions and shuts the private JVM down. If ordinary
+Rider already owns that checkout, capture uses its endpoint and verifies the build there. A matching
 catalog can also be captured from a running sandbox with `capture-catalog <port> <build> <catalog-file>`.
 
 ~~~powershell
@@ -62,7 +68,7 @@ Start-ScheduledTask -TaskName RoyderPrimary
 
 ## Call and removal behavior
 
-- A cold `tools/list` works immediately. File tools open a registered linked Git worktree on first use. Use an
+- A cold `tools/list` works immediately. File tools open a trusted main checkout or linked worktree on first use. Use an
   absolute `.sln` or `.slnx` in `solutionName` when solution discovery is ambiguous. Use `warm_worktree` with
   `solutionPath` to start it explicitly. Concurrent callers share one open. The first call waits up to 60 seconds.
   On timeout only the warm-up continues. Tool calls, including edits, are dispatched once.
@@ -85,7 +91,9 @@ Start-ScheduledTask -TaskName RoyderPrimary
 
 With a built package, the following test creates a disposable repository and exercises the public HTTP endpoint.
 It checks two racing first calls, generated source references in each worktree, independent removal and replacement,
-and release of the final idle host. Run with `--check-timeout` instead to verify a timed-out cold edit never executes.
+and release of the final idle host. Include `--main-checkout` to exercise a real rename in the main checkout, check
+its existing project settings byte-for-byte and timestamp-for-timestamp, and verify that a removal request leaves
+it open. Run with `--check-timeout` to verify a timed-out cold edit never executes.
 
 ~~~powershell
 python -B tests/headless/verify_on_demand.py --primary C:/Royder/packages/current-build/Royder.Primary.dll --assets C:/Royder/packages/current-build/RiderHost --check-replacement --check-idle

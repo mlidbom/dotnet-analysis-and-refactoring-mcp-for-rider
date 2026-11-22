@@ -60,7 +60,7 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
             if(tool == PrimaryToolCatalog.Close) throw new InvalidOperationException("This solution belongs to an ordinary Rider.");
             return Rpc.ToolResult(id, $"Already open in ordinary Rider: {path}");
          }
-         var target = managementTarget ?? throw new InvalidOperationException("Expected a linked worktree of a configured repository.");
+         var target = managementTarget ?? throw new InvalidOperationException("Expected a configured main checkout or one of its linked worktrees.");
          if(desktop.Any(it => RegisteredWorktree.SamePath(it.WorkTree, target.Root)))
          {
             await worktrees.YieldToOrdinaryRider(target.Root, cancel);

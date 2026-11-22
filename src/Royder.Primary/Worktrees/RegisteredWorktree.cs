@@ -1,55 +1,51 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using DotNetAnalysisAndRefactoringMcp.Serving;
-using Microsoft.Win32.SafeHandles;
 
 namespace Royder.Primary.Worktrees;
 
-/// <summary>A linked Git worktree, checked against its reciprocal Git registration and its trusted main repository.</summary>
+/// <summary>A trusted main Git checkout or one of its linked worktrees, identified across removal and path reuse.</summary>
 sealed record RegisteredWorktree(string Root, string GitDirectory, string Generation)
 {
+   [System.Text.Json.Serialization.JsonIgnore]
+   public bool IsMainCheckout => SamePath(GitDirectory, Path.Combine(Root, ".git"));
+
    public static RegisteredWorktree? Find(string path, IReadOnlySet<string> trustedRepositories)
    {
-      var root = RequestedPath.WorkTreeOf(Directory.Exists(path) ? path : Path.GetDirectoryName(path));
+      var fullPath = Path.GetFullPath(path);
+      var root = RequestedPath.WorkTreeOf(Directory.Exists(fullPath) ? fullPath : Path.GetDirectoryName(fullPath));
       if(root == null) return null;
       var marker = Path.Combine(root, ".git");
-      if(!File.Exists(marker)) return null;
       try
       {
-         var pointer = File.ReadAllText(marker).Trim();
-         if(!pointer.StartsWith("gitdir: ", StringComparison.Ordinal)) return null;
-         var admin = Path.GetFullPath(pointer[8..], root);
-         var backPointer = Path.Combine(admin, "gitdir");
-         var common = Path.GetFullPath(File.ReadAllText(Path.Combine(admin, "commondir")).Trim(), admin);
-         var registeredMarker = Path.GetFullPath(File.ReadAllText(backPointer).Trim(), admin);
-         if(!trustedRepositories.Contains(common) || !SamePath(Path.GetDirectoryName(admin), Path.Combine(common, "worktrees")) ||
-            !SamePath(registeredMarker, marker)) return null;
-         return new(Path.GetDirectoryName(registeredMarker)!, admin, FileIdentity(marker) + "/" + FileIdentity(backPointer));
+         if(Directory.Exists(marker)) return MainCheckout(marker, trustedRepositories);
+         return File.Exists(marker) ? LinkedWorktree(root, marker, trustedRepositories) : null;
       }
       catch(FileNotFoundException) { return null; }
       catch(DirectoryNotFoundException) { return null; }
    }
 
+   static RegisteredWorktree? MainCheckout(string marker, IReadOnlySet<string> trustedRepositories)
+   {
+      var trusted = trustedRepositories.FirstOrDefault(it => SamePath(it, marker));
+      if(trusted == null) return null;
+      var checkout = Path.GetDirectoryName(trusted)!;
+      return new(checkout, trusted, WindowsFileIdentity.Read(checkout) + "/" + WindowsFileIdentity.Read(trusted));
+   }
+
+   static RegisteredWorktree? LinkedWorktree(string root, string marker, IReadOnlySet<string> trustedRepositories)
+   {
+      var pointer = File.ReadAllText(marker).Trim();
+      if(!pointer.StartsWith("gitdir: ", StringComparison.Ordinal)) return null;
+      var admin = Path.GetFullPath(pointer[8..], root);
+      var backPointer = Path.Combine(admin, "gitdir");
+      var common = Path.GetFullPath(File.ReadAllText(Path.Combine(admin, "commondir")).Trim(), admin);
+      var registeredMarker = Path.GetFullPath(File.ReadAllText(backPointer).Trim(), admin);
+      if(!trustedRepositories.Contains(common) || !SamePath(Path.GetDirectoryName(admin), Path.Combine(common, "worktrees")) ||
+         !SamePath(registeredMarker, marker)) return null;
+      return new(Path.GetDirectoryName(registeredMarker)!, admin, WindowsFileIdentity.Read(marker) + "/" + WindowsFileIdentity.Read(backPointer));
+   }
+
    public static bool SamePath(string? first, string second) => string.Equals(first, second, StringComparison.OrdinalIgnoreCase);
-
-   // Git may reuse both names on immediate recreation. NTFS file IDs identify the original pair across that race.
-   static string FileIdentity(string path)
-   {
-      using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-      if(!GetFileInformationByHandle(handle, out var info)) throw new System.ComponentModel.Win32Exception();
-      return $"{info.Volume:x8}/{info.IndexHigh:x8}{info.IndexLow:x8}";
-   }
-
-   [StructLayout(LayoutKind.Sequential)]
-   struct FileInformation
-   {
-      public uint Attributes;
-      public System.Runtime.InteropServices.ComTypes.FILETIME Created, Accessed, Written;
-      public uint Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
-   }
-
-   [DllImport("kernel32.dll", SetLastError = true)]
-   static extern bool GetFileInformationByHandle(SafeFileHandle handle, out FileInformation information);
 
    public async Task<string> SolutionFor(IReadOnlyList<string> paths, string? explicitSolution, CancellationToken cancellation)
    {
@@ -76,6 +72,7 @@ sealed record RegisteredWorktree(string Root, string GitDirectory, string Genera
 
    public async Task Remove(IReadOnlySet<string> trustedRepositories)
    {
+      RequireLinkedForRemoval();
       if(Find(Root, trustedRepositories) != this) throw new InvalidOperationException("Git registration changed before removal.");
       var start = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = Path.GetDirectoryName(Root)!,
          UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
@@ -84,6 +81,11 @@ sealed record RegisteredWorktree(string Root, string GitDirectory, string Genera
       var errors = git.StandardError.ReadToEndAsync();
       await git.WaitForExitAsync(CancellationToken.None); // Hold the lifecycle gate until the dispatched removal finishes.
       if(git.ExitCode != 0) throw new InvalidOperationException((await errors).Trim());
+   }
+
+   public void RequireLinkedForRemoval()
+   {
+      if(IsMainCheckout) throw new InvalidOperationException($"remove-worktree only removes linked Git worktrees. '{Root}' is a main checkout.");
    }
 
    public static bool IsWithin(string path, string root) =>

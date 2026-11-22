@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.request
@@ -21,6 +22,7 @@ SOLUTION = "ManagedProbe.slnx"
 def command(*args, cwd=None):
     result = subprocess.run(list(map(str, args)), cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if result.returncode:
+        print(f"{args[0]} exited {result.returncode}: {result.stdout[-3000:]}", file=sys.stderr, flush=True)
         raise RuntimeError(f"{args[0]} exited {result.returncode}: {result.stdout[-3000:]}")
     return result.stdout
 
@@ -40,6 +42,8 @@ def wait_until(observation, seconds, description):
 def verify(args):
     lab = Path(tempfile.mkdtemp(prefix="royder-on-demand-"))
     repo, first, second = [lab / name for name in ("repository", "first", "second")]
+    if args.main_checkout:
+        first = repo
     package = args.assets.resolve()
     manifest = json.loads((package / "package.json").read_text(encoding="utf-8-sig"))
     if args.catalog and json.loads(args.catalog.read_text(encoding="utf-8-sig"))["build"] != manifest["build"]:
@@ -75,9 +79,11 @@ def verify(args):
     (repo / SOURCE).write_text('namespace Consumers;\npublic class Caller\n{\n   public int RoundThreeAnalyzerTarget() => Shapes.RoundThreeGenerated.Twice(21);\n}\n')
     command("git", "add", ".", cwd=repo)
     command("git", "commit", "-qm", "Prepare generator fixture", cwd=repo)
+    base_revision = command("git", "rev-parse", "HEAD", cwd=repo).strip()
 
     def checkout(path, incarnation=""):
-        command("git", "worktree", "add", "--detach", path, "HEAD", cwd=repo)
+        if path != repo:
+            command("git", "worktree", "add", "--detach", path, base_revision, cwd=repo)
         probe = path / SOURCE
         marker = path.name + "Worktree" + incarnation
         probe.write_text(probe.read_text().replace("Twice(21);", f"Twice(21); // {marker}"))
@@ -85,6 +91,21 @@ def verify(args):
         command("dotnet", "restore", path / SOLUTION, "--disable-build-servers", "-p:NuGetAudit=false")
     checkout(first)
     checkout(second)
+    if args.main_checkout:
+        project_settings = repo / ".idea" / ".idea.ManagedProbe" / ".idea"
+        project_settings.mkdir(parents=True)
+        (project_settings / "workspace.xml").write_text(
+            '<project version="4"><component name="PropertiesComponent">'
+            '<property name="pilot.personal.setting" value="remember-me"/></component></project>')
+        (project_settings / "vcs.xml").write_text(
+            '<project version="4"><component name="VcsDirectoryMappings">'
+            '<mapping directory="$PROJECT_DIR$" vcs="Git"/></component></project>')
+        personal_layer = repo / (SOLUTION + ".DotSettings.user")
+        personal_layer.write_text('<wpf:ResourceDictionary xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation" />')
+        def idea_files():
+            return {str(file.relative_to(repo)): (hashlib.sha256(file.read_bytes()).hexdigest(), file.stat().st_mtime_ns)
+                    for file in [personal_layer, *(repo / ".idea").rglob("*")] if file.is_file()}
+        before_settings = idea_files()
     if args.catalog:
         shutil.copyfile(args.catalog, lab / "catalog.json")
     elif args.capture_port:
@@ -153,6 +174,25 @@ def verify(args):
         assert listing() == {first/SOLUTION}
         first_generation = generation()
         assert set((profile/"runs").glob("*")) - previous == {first_generation[0]}
+        if args.main_checkout:
+            # Git can replace both HEAD and the index during ordinary work; this is still the same checkout.
+            command("git", "switch", "-qc", "continued-work", cwd=repo)
+            command("git", "commit", "--allow-empty", "-qm", "Advance the current branch", cwd=repo)
+            generated(repo)
+            # Editing source remains functional even when the checkout's IntelliJ state is private.
+            for old_name, new_name in [("RoundThreeAnalyzerTarget", "EditedFromHeadless"), ("EditedFromHeadless", "RoundThreeAnalyzerTarget")]:
+                source = repo / SOURCE
+                line = source.read_text().splitlines()[3]
+                tool("rename_symbol", dict(filePath=str(source), line=4, column=line.index(old_name)+1, newName=new_name, dryRun=False))
+                assert new_name in source.read_text() and old_name not in source.read_text()
+            rejected = subprocess.run(primary + ["remove-worktree", str(config), str(repo)], capture_output=True, text=True)
+            assert rejected.returncode and "main checkout" in rejected.stderr + rejected.stdout, rejected
+            assert generation() == first_generation and listing() == {repo/SOLUTION}
+            untrusted = lab / "other-repository"
+            command("git", "init", "-q", untrusted)
+            (untrusted / SOLUTION).write_text("<Solution/>")
+            refused = request("tools/call", dict(name="warm_worktree", arguments=dict(solutionPath=str(untrusted/SOLUTION))))
+            assert refused.get("isError") and listing() == {repo/SOLUTION}, refused
         generated(second)
         assert generation() == first_generation
         assert listing() == {first/SOLUTION, second/SOLUTION}
@@ -183,6 +223,10 @@ def verify(args):
         else:
             tool("close_worktree", dict(solutionPath=str(first/SOLUTION)))
         assert not listing()
+        if args.main_checkout:
+            after_settings = idea_files()
+            (lab / "main-settings-comparison.json").write_text(json.dumps(dict(before=before_settings, after=after_settings), indent=2))
+            assert after_settings == before_settings, "The private host changed the main checkout's .idea settings"
         print("PASS: cold catalog, concurrent first call, generated symbols, shared JVM worktrees, both removal orders and final close", flush=True)
     finally:
         try:
@@ -212,4 +256,5 @@ if __name__ == "__main__":
     parser.add_argument("--check-replacement", action="store_true", help="Immediately reuse an externally removed worktree path")
     parser.add_argument("--check-idle", action="store_true", help="Wait for the final idle solution and JVM to stop")
     parser.add_argument("--check-timeout", action="store_true", help="Verify a timed-out cold edit never executes")
+    parser.add_argument("--main-checkout", action="store_true", help="Start with the trusted main checkout; verify it can serve tools but cannot be removed")
     verify(parser.parse_args())
