@@ -385,7 +385,8 @@ The second round, under way:
   start, before loading projects, `UpdatesManager.CheckForUpdatesImpl`, on a thread of its own, fetches
   `https://www.jetbrains.com/dotnet/updates/dotnet.Updates.xslt` (served through Amazon CloudFront). The request may
   carry license details, but the answer it reads is the update list: not a license check, nor feature flags or usage
-  statistics. With it failing, a host indexed and answered `find_usages` as before. `UpdatesManager` honours
+  statistics. With it failing, or held unanswered, a host indexed and answered `find_usages` as before: nothing waits
+  on it. `UpdatesManager` honours
   `JETBRAINS_NO_CHECK_FOR_UPDATES`, which a headless host is to set.
 
 ## Decided against
