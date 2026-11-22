@@ -396,7 +396,10 @@ The second round, under way:
     none applied, by either tool) and completion (no candidates: its providers need `ICodeEditingZone`) don't. No
     supported way was found to give the command line's product a license for the editing zone; nothing was signed in
     to, contacted or written. The update check is off in its launcher (`JETBRAINS_NO_CHECK_FOR_UPDATES`).
-  - **Next, under way:** the Roslyn worker's patcher loaded by default, with the worktree's removal checked.
+  - **The Roslyn worker's patcher, loaded by default, its round 4, done** (9ba4edd, `Check.py worktree-removal`):
+    a plain `git worktree remove` of a worktree a host serves succeeded on its first try, while indexing (1.3 s,
+    finishing 4 s before the host reported it indexed) and while idle after a real query (0.7 s), with the Roslyn
+    worker alive across it. The host's binaries, caches and the caller must be outside the worktree.
 - **royder-codex-3, done:** every read tool's answer headless against Rider's
   (`experiments/HeadlessExtension/read-tool-results.md`): 18 of 30 cases the same, 10 different, 2 failed. The
   navigation, search, hierarchy, flow and file-error tools match. Missing headless: quick fixes, completion items, a
