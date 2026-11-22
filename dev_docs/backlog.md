@@ -51,8 +51,9 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 - **Suspected in Rider, seen headless: a deleted file may not get the rescan** (royder-codex-1's reading of the source,
   2026-11-22). `DiskChanges` records a delete, but `DiskSync.Check` skips the paths that no longer exist, so a deleted
   path doesn't itself ask the frontend to rescan. Headless, with no frontend, a deleted file's type was still found
-  12 s later (royder-codex-2). In Rider, its own project-model tracking may remove it anyway. To check: delete a file
-  declaring a type, then `search_symbol` the type by name alone.
+  12 s later (royder-codex-2). In Rider, its own project-model tracking removes it: Rider found none some seconds
+  later, in royder-codex-2's paired check. Whether the first call after the delete still finds it is unchecked: delete
+  a file declaring a type, then at once `search_symbol` the type by name alone.
 - `search_symbol` with `includeLibraries` finds a compiled member only as `Type.Member`, not by its name alone
   (`GetProjectMark` gives none): scanning every compiled type's members takes seconds. An index of member names
   would do it.
@@ -354,7 +355,9 @@ The second round, under way:
   - **Between calls:** an edit to a file is seen on the next call, through `DiskSync`'s reconcile. A new file, a
     deleted one and a moved one are not: the rescan's `RdCall` is unbound headless, and a new file costs the call
     `DiskSync`'s 10 s wait. `IFileSystemTracker.CommitChanges()` drops a deleted or moved file's symbols but leaves an
-    empty project item; `reload_projects` on the owning project, 0.3 to 0.6 s, makes each case right.
+    empty project item; `reload_projects` on the owning project, 0.3 to 0.6 s, makes each case right. The same held
+    in a project of this repository's solution, with Magnus's Rider open on it beside the host, and Rider had each
+    case right afterwards (`Check.py all --paired`).
   - **The proposed headless way, unbuilt:** keep the reconcile; for files added, deleted or moved, commit the tracker,
     reload each owning project once, and check its items before answering; skip the rescan.
   - **Edit tools:** `fix_usings` works, and the engine's own transaction saves the file, before Royder would ask a
