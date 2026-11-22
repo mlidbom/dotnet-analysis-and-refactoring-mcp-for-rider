@@ -17,6 +17,7 @@ plugin is a fork of.
 
 - A call naming a file in a Git worktree no open solution is in now receives an immediate routing error unless it explicitly selects a solution. Previously the caller could wait 10 seconds for a reply that the file was in no project, with `isError` set to `false`.
 - A peer Rider that ended without deregistering, such as in a crash, is now forgotten at the first call to it: the call answers that the solution is no longer available, and `list_solutions` drops every solution registered on its port. Until now each call to it failed, and `list_solutions` went on listing it.
+- The first call after a file is deleted on disk now sees the deletion: `search_symbol` and `find_usages` no longer find the types it declared, and `get_file_errors` reports their uses as unresolved. Until now Rider could still have the file for some seconds. A file that Rider keeps in its project after deletion, such as a linked one, delays only the first call after it, which says so.
 
 ## [0.15.1]
 
