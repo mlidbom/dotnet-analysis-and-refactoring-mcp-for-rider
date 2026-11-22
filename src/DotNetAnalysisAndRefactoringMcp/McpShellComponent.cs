@@ -7,6 +7,7 @@ using JetBrains.Application;
 using JetBrains.Application.Parts;
 using JetBrains.Lifetimes;
 using JetBrains.Util;
+using Newtonsoft.Json.Linq;
 using DotNetAnalysisAndRefactoringMcp.Swapping;
 using DotNetAnalysisAndRefactoringMcp.Tools;
 
@@ -184,6 +185,14 @@ public class McpShellComponent : IDisposable
       var envPort = Environment.GetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT");
       if(!string.IsNullOrEmpty(envPort) && int.TryParse(envPort, out var port))
          return port;
-      return DefaultPort;
+
+      var installedPrimarySettings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                                  "DotNetAnalysisAndRefactoringMcp", "primary", "settings.json");
+      if(!File.Exists(installedPrimarySettings)) return DefaultPort;
+      var settings = JObject.Parse(File.ReadAllText(installedPrimarySettings));
+      var desktopPort = (int?)settings.GetValue("desktopPort", StringComparison.OrdinalIgnoreCase) ?? DefaultPort;
+      if(desktopPort < 1 || desktopPort > 65536 - MaxPortAttempts)
+         throw new InvalidDataException($"Invalid desktopPort in {installedPrimarySettings}: {desktopPort}");
+      return desktopPort;
    }
 }

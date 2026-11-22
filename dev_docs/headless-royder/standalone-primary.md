@@ -46,12 +46,19 @@ $config = 'C:/Royder/state/primary.json'
 ~~~
 
 The listener binds only `127.0.0.1`. Keep the existing MCP server key and use the primary's URL. The example puts
-the primary next to the everyday Rider endpoint so it can be tried without restarting an IDE. For a rollout on the
-existing public port 23751, first move the ordinary Rider cluster to its own port range using
-`DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT` for those Rider processes, then set `desktopPort` to that base and
-`port` to 23751. The private headless cluster has its own two ports in either configuration. Each cluster reserves
-ten consecutive MCP ports. Omit `desktopPort` on a standalone installation. A logon task is a separate installation
-decision.
+the primary next to the everyday Rider endpoint so it can be tried without restarting an IDE. For an everyday rollout
+on the existing public port, install `%LOCALAPPDATA%/DotNetAnalysisAndRefactoringMcp/primary/settings.json` with
+`port` set to 23751 and `desktopPort` set to 23761. At startup the Rider plugin reads the desktop port from that
+file. An explicit `DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT` still takes precedence for isolated Riders. Each backend
+cluster reserves ten consecutive MCP ports. Omit `desktopPort` on an installation with no ordinary Rider.
+
+To run the primary at Windows sign-in, register the task under the current user's account. The command leaves
+the task ready. For a cutover on 23751, start the task after the old ordinary Rider releases that port.
+
+~~~powershell
+./tools/Register-RoyderPrimaryAtLogon.ps1 -PrimaryExecutable $primary -SettingsFile $config
+Start-ScheduledTask -TaskName RoyderPrimary
+~~~
 
 ## Call and removal behavior
 
