@@ -425,3 +425,69 @@ The build wrote local build output. No plugin was installed, and no IDE, server,
 **Save triggers, verified.** In `lib/intellij.platform.ide.impl.jar`, `ProjectManagerImpl.closeProject` and `closeAndDisposeAllProjects` have paths that save project settings. `SaveAllAction` and applying settings can schedule a save while the project is open. In the configuration-store JAR, `SaveAndSyncHandlerImpl.scheduleSave` queues work and `processSaveTasks` saves projects and the application. Frame deactivation can request a settings save when enabled. The inactivity callback in `executeOnIdle` saves open documents. I found no fixed interval that guarantees either of these two project files is rewritten after an external deletion.
 
 **Inference and next observation.** The project-close save explains both files appearing between Git's first attempt and shutdown in round 7. Those endpoint snapshots do not establish which save ran first or exactly when it ran. In the runtime test, record the worker's live current directory, Git's exit code and registration, and filesystem events through host exit. A successful Git exit followed by a recreated path would still leave a lifecycle problem. Only that test can establish whether the full backend's other directory handle also permits deletion.
+
+## Round 9 — two worktrees in one Rider JVM, 22 November 2026
+
+**Close the project, wait for its backend and workers to exit, then remove the worktree.** That order succeeded twice while the sibling project continued serving requests. Removing an open worktree also returned Git exit code 0 with the Roslyn patcher installed. Closing that still-open project five seconds later recreated its directory and two files. A clean Git exit alone does not meet the lifecycle requirement.
+
+### What ran and how routing was proved
+
+A and B were sibling detached worktrees of the same `365b011` commit. A was `C:\Dev\RoyderRemoteRound9\worktree`, B was `C:\Dev\RoyderRemoteRound9\sibling`, and both opened `ReSharperMcp.sln`. I used the [RemoteDevHost harness](../../experiments/RemoteDevHost/README.md) from `4239f08`, including the `35a2c2f` readiness change. The experimental copy added B’s exact directory to the private `trusted-paths.xml` that the harness creates. It launched Rider RD-263.7307.325 with `-Xmx768m`, private AppData and IDE paths, Royder build `2026-11-22_04-26-01-2911330`, [RemoteRoslynPatcher](../../experiments/RemoteRoslynPatcher/README.md) from `ad80651` and [RemoteCloseWorktree](../../experiments/RemoteCloseWorktree/README.md) from `7d2b496`. No client connected.
+
+- **One JVM.** The private Remote Development record reported Java PID **175272** and both absolute solution paths. A’s full backend PID **157228** survived all three openings of B. Each B backend had Java PID 175272 as its parent. Each short-lived Java launcher for opening B forwarded its request and exited 0 with its own job empty. Remote Development used loopback port 24931. A served as Royder primary on 24941 and B registered on 24942.
+- **Routing.** All tool calls went to **24941**, with an absolute file path and no `solutionName`. For each worktree, `go_to_definition` at `PluginBuild.IdentityOf` returned line 50, column 25 of that worktree’s `PluginBuild.cs`. At the same relative path, `list_symbols_in_file` returned `FirstWorktreeProbe` in A and `SecondWorktreeProbe` in B. A returned its own answers after each close, and between live removal and close.
+- **Roslyn.** The patcher logged selection of `%TEMP%\royder-headless\codex-1-round-9\worker` in the solution backends. The live Windows current directories of A’s worker **271760** and B’s workers **290464**, **125684**, and **266900** all matched it. I kept the round 3 generator and analyzer sources. The command-line package's Roslyn assembly version 42.42.42.42 was too new for the SDK compiler (CS9057), so I compiled the fixture against the installed SDK's Roslyn assemblies for the compiler and Rider checks. A lab-only parent `Directory.Build.targets` added the analyzer and an explicit source file to the real DevelopmentEnvironment project. The file lived under a Git-ignored directory in each worktree. Both compiler controls built and emitted `ROYDER301`. Both Rider backends returned exactly one usage of `Shapes.RoundThreeGenerated.Twice` with a generated declaration, and one `RoslynHighlighting` warning, “Round three analyzer reached RoundThreeAnalyzerTarget”, at 4:15.
+- **Readiness.** B initially reported `indexing=false` while those Roslyn-dependent calls still returned an unresolved symbol. Both subsequently succeeded without a reload. On the second and third openings, the interval from the first probe to the first fully positive pair was 7.9 s and 6.5 s. A’s probe kept working.
+
+### What opening and closing B cost
+
+Each row is the median of 12 samples of the supervised Windows job. The sampler waited ten seconds after indexed health before collecting each window, then checked health again at the end. Windows process private bytes measure committed private memory. Summed working sets can count shared pages more than once. System-wide physical availability, commit charge and commit headroom came from `GetPerformanceInfo`; the commit limit was 137.61 GiB throughout.
+
+| Indexed state | Job processes | Job private, MiB | Sum of working sets, MiB | Available physical, GiB | Commit charge, GiB | Commit headroom, GiB |
+|---|---:|---:|---:|---:|---:|---:|
+| A alone | 13 | 4,113.3 | 5,224.2 | 28.31 | 101.61 | 36.00 |
+| A + B, first open | 21 | 6,404.6 | 8,298.2 | 25.40 | 104.29 | 33.32 |
+| A after first close and removal | 13 | 4,149.0 | 5,275.8 | 23.53 | 106.08 | 31.54 |
+| A + B, reopened at the same path | 21 | 5,955.7 | 7,759.8 | 27.69 | 100.56 | 37.06 |
+| A after second close and removal | 13 | 4,112.8 | 5,252.5 | 29.58 | 98.44 | 39.18 |
+| A + B, third open for the live-removal control | 21 | 6,220.6 | 8,070.4 | 27.49 | 100.48 | 37.13 |
+| A after live removal and close | 15 | 4,152.3 | 5,362.7 | 29.63 | 97.71 | 39.90 |
+
+Opening B added **2,291.3 MiB** of job private bytes on the first cycle and **1,806.7 MiB** on the second. Closing B released **2,255.6 MiB** and **1,842.9 MiB**, respectively. A’s final private memory on those cycles was 35.7 MiB above and 0.5 MiB below its original baseline. Whole-machine commit headroom *fell* over the first close even as the job released 2.20 GiB. Other workloads affect admission headroom. These short windows in one session do not establish a leak rate or a bound on larger solutions.
+
+| Component | A alone, PID / private MiB | B first, PID / private MiB | B second, PID / private MiB | B third, PID / private MiB |
+|---|---|---|---|---|
+| Full Rider backend | 157228 / 1,384.1 | 284564 / 1,568.0 | 277420 / 1,123.6 | 107344 / 1,407.3 |
+| Roslyn | 271760 / 536.8 | 290464 / 538.1 | 125684 / 512.8 | 266900 / 535.6 |
+| MSBuild | 65364 / 74.5 | 54316 / 66.8 | 169636 / 67.0 | 237916 / 67.5 |
+| DPA backend | 243456 / 82.0 | 192152 / 82.4 | 186180 / 82.8 | 23988 / 80.2 |
+
+The shared JVM rose from 1,927.9 MiB private initially to 1,996.6 MiB at the final sample. The extra processes in the last A-only window were a JVM-child `dotnet.exe` and its console. All B process identities had exited. The per-process record includes the JVM, every backend and worker, the notifier, daemon and consoles, with private bytes and working set in every phase. [Per-process median measurements](round-9-process-memory.csv)
+
+### Removal order and project-store writes
+
+| Order | Authenticated HTTP close on the JVM’s verified loopback port 63344 | First plain `git worktree remove` | Result on disk |
+|---|---|---|---|
+| Close B, then remove | HTTP 200 in 403 ms | Exit 0 in 323 ms | Path and Git registration gone. Still absent 74 s later, just before deliberate recreation. |
+| Reopen B, close, then remove | HTTP 200 in 64 ms | Exit 0 in 280 ms | Path and registration gone. Still absent 48 s later, just before deliberate recreation. |
+| Remove B while open, then close | HTTP 200 in 172 ms, **after Git** | Exit 0 in 111 ms | Path was initially absent. The close recreated two IntelliJ project files. |
+
+On the first two cycles B’s full backend, Roslyn, MSBuild and DPA process identities disappeared, leaving the original A processes. All pre-removal Git status checks were clean. The tracked `.idea/.idea.ReSharperMcp/.idea/vcs.xml` retained its contents throughout the checked phases under `-Dvcs.root.auto.add=false`; no Git restoration was needed.
+
+On the third opening, the pre-removal Windows DELETE-access probe succeeded. B’s full backend still held handle 6488 on the root with access mask `0x100081`. Roslyn’s current directory was private. Git started at **12:49:14.908** and returned at **12:49:15.019**. Both B’s registration and directory were gone. B’s backend and worker PIDs remained alive, and Royder still listed B. At **12:49:19.223** its path was still absent. The manager sent the close at **12:49:20.324**. A directory-change watcher on the parent recorded the following creations, all before the HTTP reply at **12:49:20.496**.
+
+| Path relative to B | Observed creation, local time | Last write, local time | Bytes |
+|---|---|---|---:|
+| Worktree root and nested `.idea/.idea.ReSharperMcp/.idea/` | 12:49:20.375–.376 | — | — |
+| `.idea/.idea.ReSharperMcp/.idea/workspace.xml` | 12:49:20.377 | 12:49:20.378 | 5,860 |
+| `.idea/.idea.ReSharperMcp/.idea/projectSettingsUpdater.xml` | 12:49:20.453 | 12:49:20.454 | 308 |
+
+**Attribution.** The JVM log records project settings being saved during that close. The round 8 code trace identifies the JVM’s workspace writer. The second file contains the `RiderProjectSettingsUpdater` component, whose installed class in `lib/intellij.rider.jar` names `projectSettingsUpdater.xml`. These facts point to JVM 175272. The directory watcher identifies names and times but does not capture the writing PID. Both files retained their sizes and last-write times through the later JVM exit. No `.git`, solution, source file or `.name` reappeared.
+
+### Shutdown and evidence
+
+The JVM exited normally with code 0. The supervisor ended the remaining private `jetbrainsd.exe` (PID 87092) and verified an empty Windows job, zero surviving observed process identities and clear experiment ports. The 8 GiB admission check saw **33.07 GiB** available before launch. The supervised minimum was **22.48 GiB**, above the 2 GiB stop threshold. A also remained Git-clean and its final plain removal returned 0. I moved B’s two residual files to private evidence and removed the test directory. Both worktree registrations are gone.
+
+The profile audit covered **197 roaming files and 29 Local JetBrains entries**. Local entries, permanent IDs and home Git status matched. The only observed roaming change was replacement of one empty consent release log by another. The snapshots do not identify the writer; the private profile had its own two IDs and RemoteDev discovery records. I left the live profile as found.
+
+The harness plan, private launch arguments, sanitized status, MCP replies, memory samples, Git results, project-close replies, directory events and two residual files are retained under `%TEMP%\royder-headless\codex-1-round-9`. Keep the raw discovery and profile data private.
