@@ -12,10 +12,15 @@ if(args is ["capture-catalog", var port, var build, var file])
    await ToolCatalog.Capture(new RiderEndpoint(http, int.Parse(port)), build, file, CancellationToken.None);
    return 0;
 }
+if(args is ["stop", var stopSettings])
+{
+   await PrimaryControlPipe.Stop(PrimarySettings.Read(stopSettings).Port);
+   return 0;
+}
 if(args is ["remove-worktree", var config, var path])
 {
    var options = PrimarySettings.Read(config);
-   await WorktreeRemovalPipe.Remove(options.Port, path);
+   await PrimaryControlPipe.Remove(options.Port, path);
    Console.WriteLine("Worktree removed.");
    return 0;
 }
@@ -27,7 +32,7 @@ if(args is ["prepare-catalog", var optionsFile, var solution])
 }
 if(args is not ["serve", var settingsFile])
 {
-   Console.Error.WriteLine("Royder.Primary serve <settings.json>\nRoyder.Primary prepare-catalog <settings.json> <trusted solution>\nRoyder.Primary capture-catalog <Rider port> <tools build> <catalog.json>\nRoyder.Primary remove-worktree <settings.json> <linked worktree root>");
+   Console.Error.WriteLine("Royder.Primary serve <settings.json>\nRoyder.Primary stop <settings.json>\nRoyder.Primary prepare-catalog <settings.json> <trusted solution>\nRoyder.Primary capture-catalog <Rider port> <tools build> <catalog.json>\nRoyder.Primary remove-worktree <settings.json> <linked worktree root>");
    return 2;
 }
 
@@ -51,7 +56,7 @@ host.Services.AddSingleton<ManagedWorktrees>();
 host.Services.AddHostedService(it => it.GetRequiredService<ManagedWorktrees>());
 host.Services.AddSingleton<PrimaryToolCatalog>();
 host.Services.AddSingleton<PrimaryRequests>();
-host.Services.AddHostedService<WorktreeRemovalPipe>();
+host.Services.AddHostedService<PrimaryControlPipe>();
 host.Services.AddSingleton<ToolCatalogEvents>();
 host.Services.AddHostedService(it => it.GetRequiredService<ToolCatalogEvents>());
 

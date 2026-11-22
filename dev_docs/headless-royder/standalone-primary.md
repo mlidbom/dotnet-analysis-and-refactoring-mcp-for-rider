@@ -66,6 +66,11 @@ the task ready. For a cutover on 23751, start the task after the old ordinary Ri
 Start-ScheduledTask -TaskName RoyderPrimary
 ~~~
 
+For subsequent local updates, stage the new package and its verified `catalog.json` together in a new
+directory. `tools/Update-InstalledRoyderPrimary.ps1 -PackageDirectory <directory>` asks an idle primary to
+shut down, waits for requests to drain, updates the sign-in task and checks the new public listener. It keeps
+the old settings for rollback. Earlier packages that lack the `stop` command require a coordinated stop first.
+
 ## Call and removal behavior
 
 - A cold `tools/list` works immediately. File tools open a trusted main checkout or linked worktree on first use. Use an

@@ -1,6 +1,8 @@
 """Check MCP discovery with no IDE, and that the next request notices an ordinary Rider listener appearing or disappearing."""
 import argparse
+import concurrent.futures
 import json
+import socket
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import statistics
@@ -22,6 +24,8 @@ def verify(primary, source_settings, port, desktop_port):
     config.write_text(json.dumps(settings))
     solution = str(lab / "Ordinary.sln")
     public = f"http://127.0.0.1:{port}/"
+    call_started = threading.Event()
+    finish_call = threading.Event()
 
     def rpc(method, params=None):
         payload = json.dumps(dict(jsonrpc="2.0", id=1, method=method, params=params or {})).encode()
@@ -49,10 +53,15 @@ def verify(primary, source_settings, port, desktop_port):
     class OrdinaryEndpoint(BaseHTTPRequestHandler):
         def do_POST(self):
             incoming = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            assert incoming["params"]["name"] == "list_solutions"
-            listed = {"solutionCount": 1, "solutions": [{"name": "Ordinary", "path": solution, "toolCount": 25}]}
+            if incoming["params"]["name"] == "list_solutions":
+                text = json.dumps({"solutionCount": 1, "solutions": [{"name": "Ordinary", "path": solution, "toolCount": 25}]})
+            else:
+                assert incoming["params"]["name"] == "get_solution_structure"
+                call_started.set()
+                assert finish_call.wait(9)
+                text = "completed ordinary call"
             body = json.dumps({"jsonrpc": "2.0", "id": incoming["id"], "result": {
-                "content": [{"type": "text", "text": json.dumps(listed)}], "isError": False}}).encode()
+                "content": [{"type": "text", "text": text}], "isError": False}}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -67,6 +76,11 @@ def verify(primary, source_settings, port, desktop_port):
         try:
             wait_until(health, 20, "isolated primary")
             fast_with_desktop_closed()
+            if socket.has_ipv6:
+                with socket.socket(socket.AF_INET6) as other:
+                    other.bind(("::1", desktop_port))
+                    other.listen()
+                    fast_with_desktop_closed()
             guide = rpc("initialize")["instructions"]
             cold = listing()
             assert cold["solutions"] == [] and cold["solutionCount"] == 0
@@ -84,8 +98,23 @@ def verify(primary, source_settings, port, desktop_port):
             assert listing()["solutions"] == []
             fast_with_desktop_closed()
             assert not (lab / "profile" / "current.json").exists()
+            with ThreadingHTTPServer(("127.0.0.1", desktop_port), OrdinaryEndpoint) as ordinary:
+                threading.Thread(target=ordinary.serve_forever, daemon=True).start()
+                try:
+                    with concurrent.futures.ThreadPoolExecutor(1) as pool:
+                        pending = pool.submit(rpc, "tools/call", dict(name="get_solution_structure", arguments=dict(solutionName=solution)))
+                        assert call_started.wait(5)
+                        subprocess.run(["dotnet", str(primary.resolve()), "stop", str(config)], check=True, timeout=5)
+                        assert proc.poll() is None
+                        finish_call.set()
+                        assert pending.result()["content"][0]["text"] == "completed ordinary call"
+                    assert proc.wait(timeout=15) == 0
+                finally:
+                    finish_call.set()
+                    ordinary.shutdown()
         finally:
-            proc.terminate()
+            if proc.poll() is None:
+                proc.terminate()
             proc.wait(timeout=20)
     print("PASS: cold discovery, immediate desktop detection, and return to headless operation")
 
