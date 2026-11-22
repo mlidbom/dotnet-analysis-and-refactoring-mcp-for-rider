@@ -28,7 +28,8 @@ shows in `list_peers` once it has had a turn.
 
 1. Bring its branch up to `main` while it has nothing unmerged: `git -C <its checkout> merge --ff-only main`.
 2. Brief it with `send_to_peer` to `codex:<its id>`: a brief that stands alone, its points numbered, the limits in
-   so many words, what done is (committed on its branch, permanent specifications in
+   so many words (among them that it reaches other sessions, the tooling owner's and the symbol linker's included,
+   only through you: royder-codex-1 wrote to the tooling owner on its own, 2026-11-22), what done is (committed on its branch, permanent specifications in
    `tests/DotNetAnalysisAndRefactoringMcp.Specifications`, passing with the rest), and what to send back (its commits,
    what it ran and the result, what it verified and what it inferred, what it noticed and left).
 3. Review its commits once it replies, `git log main..royder-codex-2` and `git diff main...royder-codex-2`, for design
