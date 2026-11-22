@@ -180,6 +180,18 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   `Outer.NewName.cs`; and the outer type's rename renaming each `Outer.*.cs` with it, as in the bullet above. The
   subagent renamed it with `git mv` (`~/.claude` cef7332).
 
+- **`go_to_definition` returns the whole source where `maxTextLength` advertises a default of 200**
+  (codex-tool-call-size, a Codex session in Magnus's usage investigation, 2026-11-22, on 0.13.0, through the tooling
+  owner). `go_to_definition(solutionName: '.claude', symbolName: 'ProcessTypingIntoASession.LoggingWhatStopsIt')`
+  returned the method's full 1,238 characters of source; with `maxTextLength: 200` given explicitly, the same call
+  returned 200 characters and an ellipsis. Wanted: the default the schema advertises and the one the tool applies made
+  the same, one way or the other. Magnus asked for no particular default.
+- **In Codex, the server's instructions are paid once for each tool** (the same session and date). 0.13.0's
+  `initialize` reply carries 1,852 characters of instructions once, and `tools/list` has 26 descriptions. Codex's
+  tool list shows each description as its own text, two newlines, and the whole of those instructions: 48,152
+  characters of repeated instructions when every tool is listed. No claim yet of what that costs of a quota. It bears
+  on what goes into the server's instructions and what into each tool's description.
+
 ## The rename to Royder
 
 Magnus, 2026-11-19: Royder MCP is the preliminary name (see `CLAUDE.md`). When it is final, everything that isn't hard
