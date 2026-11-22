@@ -1,0 +1,58 @@
+using System.IO;
+using System.Text;
+using JetBrains.Application.BuildScript;
+using JetBrains.Application.BuildScript.Application;
+using JetBrains.Application.Components;
+using JetBrains.Application.Environment;
+using JetBrains.Application.Threading;
+using JetBrains.CommandLine.InspectCode;
+using JetBrains.CommandLine.InspectCode.Environment;
+using JetBrains.CommandLine.InspectCode.Unattended.Settings;
+using JetBrains.Lifetimes;
+using JetBrains.ReSharperAutomationTools.CommandLine.Common.Application;
+using JetBrains.ReSharperAutomationTools.CommandLine.Common.Console.Util;
+using JetBrains.Threading;
+using JetBrains.Util;
+using JetBrains.Util.Logging;
+
+namespace HeadlessHost;
+
+static class Program
+{
+   [STAThread]
+   static int Main(string[] args)
+   {
+      if(args.Length < 3)
+         throw new ArgumentException("Expected solution file, cache directory and Type.Member (or - for indexing only).");
+
+      using var lifetime = Lifetime.Define("HeadlessHost");
+      var shell = StartShell(lifetime.Lifetime, args[0], args[1]);
+      var locks = shell.GetComponent<IShellLocks>();
+      using var openedSolution = CommandLineProductMain.Main(lifetime.Lifetime, shell.GetComponent<IThreading>(),
+         shell, locks, Logger.GetLogger(typeof(Program)), shell.GetComponent<IInspectCodeSettings>(),
+         shell.GetComponent<InspectCodeCommandLineArguments>(), shell.GetComponent<IProductInfo>(),
+         (ref int? _) => null, out var solution, out var exitCode, isLiveSession: true);
+      if(exitCode.HasValue || solution == null) return exitCode ?? 1;
+
+      var session = new SolutionSession(solution, locks);
+      session.MeasureWhenIndexed();
+      if(args[2] != "-" && !session.FindUsages(args[2])) return 1;
+      if(args.Contains("--listen")) session.Listen();
+      return 0;
+   }
+
+   /// <summary>Uses InspectCode's product packages and settings. Selecting <see cref="IInspectCodeEnvironmentZone"/>
+   /// lets our process decide what to do with the composed shell.</summary>
+   static IComponentContainer StartShell(Lifetime lifetime, string solutionPath, string cacheDirectory)
+   {
+      Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+      var options = new[] { Path.GetFullPath(solutionPath), "--no-build", "--caches-home=" + Path.GetFullPath(cacheDirectory) };
+      var host = CommandLineProgram.Prepare<IInspectCodeEnvironmentZone>(typeof(InspectCodeProgram).Assembly,
+         HostInfo.CreateForCurrentWave("HeadlessHost"), isEverythingOnStdErr: true, loadAllPackages: false, options);
+      var timeout = TimeSpan.FromMinutes(3);
+      var environment = host.End().CreateDontRunAsync(lifetime).DispatcherWaitResult(timeout);
+      var products = environment.EnvironmentContainer.GetComponent<RunningProducts>();
+      JetDispatcher.Run(() => products.ShellContainerComposed.Value == null, timeout, bThrowOnTimeout: true);
+      return products.ShellContainerComposed.Value!;
+   }
+}
