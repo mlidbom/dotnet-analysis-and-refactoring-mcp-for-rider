@@ -457,6 +457,17 @@ The second round, under way:
   statistics. With it failing, a host indexed and answered `find_usages` as before; held unanswered, it gave up
   after 10 s while the projects went on loading. `UpdatesManager` honours `JETBRAINS_NO_CHECK_FOR_UPDATES`, which
   stopped the request: a headless host is to set it.
+- **Rider's own headless host, `remote-dev-server.exe`** (royder-codex-1, round 5, read only,
+  `dev_docs/headless-royder/rider-remote-dev-server.md`). A licensed route to the whole of Royder, editing included,
+  with Royder's plugin unchanged, if a host with no client allows the editing zone. Its `run` opens a project with no
+  client connected. Its license is checked on the client at connection, so what a never-connected host allows takes a
+  run to see. Its starter can hold several projects in one JVM; whether each solution gets a backend of its own, and so
+  what a worktree costs, takes a run too. Magnus, 2026-11-22, on whether a trial may use his license: "Of course you
+  can use my license."
+  - **Next, under way, its round 6:** the run on this machine, isolated as the sandbox Rider is, with Royder its own
+    primary on 24941. Phase A, no client: indexed, then `find_usages`, `get_diagnostics` and a dry-run rename, and
+    each process's memory. Phase B: a second solution, to see whether the JVM is shared. Magnus's JetBrains folders
+    are checked untouched before and after.
 
 ## Decided against
 
