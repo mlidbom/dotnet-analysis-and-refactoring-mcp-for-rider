@@ -322,22 +322,16 @@ how to run it and what it found:
 **The design, as decided so far** (headless-royder, 2026-11-22, on royder-codex-1's proposal,
 `dev_docs/headless-royder/design-proposal.md`, which gives the alternatives and their tradeoffs):
 
-- **A Royder primary of its own** holds the MCP port, 23751, whether or not a Rider runs, and needs no ReSharper:
-  it routes, and lists the tools from a manifest of the released tools when no solution is open. Riders and
-  headless hosts all register with it as peers, on ports of their own. It also keeps Royder up across a Rider
-  restart, which the coordinated restarts above lack. Started at logon, as the stall recorder is: a new scheduled
-  task on Magnus's machine, to be put to him before it is installed. The Riders' hosts stop competing for the port,
-  a host change: batched, for a restart. As royder-codex-1's draft has it (`dev_docs/headless-royder/
-  memory-admission-and-primary.md`, part 2): a `net10.0` program on Kestrel; a registration names the host's process
-  incarnation as well as its solution, so a dead or restarted host is told from a live one; and the manifest is
-  generated at build time from the same descriptions the tools give, and deployed with each tools build.
-  - **What it changes for the symbol linker,** to be agreed with whichever session works on the linker then, or
-    with Magnus, before it changes: its sandbox's primary is its own, on 23861, under the sandbox turn; and an
-    answer with no solutions becomes normal, which its development tools' `SandboxRider` doesn't expect, reading
-    `/health`'s first solution.
-- **Routing by the worktree** now precedes the only-solution shortcut for calls naming files. An unhosted nested or
-  sibling worktree gets a routing refusal naming the worktrees before disk sync. Starting its host on demand and
-  giving registrations a process identity remain part of the primary design.
+- **Deployed on Magnus's machine, 22 November 2026.** `RoyderPrimary` starts the standalone primary at sign-in.
+  Agent clients and the symbol linker use port 23751. Ordinary Rider serves its solutions on the cluster at
+  23761. The private shared Rider has a separate cluster for linked worktrees. The coordinated cutover restored
+  and indexed all seven ordinary solutions. An existing agent then opened its worktree on demand through the
+  original URL. [Setup, operation and verification](headless-royder/standalone-primary.md)
+  - The symbol linker now waits for its first solution when the primary is cold (`a2a37a4` in ClaudeSymbolLinker).
+    Its isolated sandbox still uses 23861.
+- **Routing by the worktree** precedes the only-solution shortcut for calls naming files. An absolute path in a
+  linked worktree of a trusted repository can start its project in the private Rider. Ordinary Rider takes
+  precedence when it has the same checkout open.
 - **Starting on demand:** one start, deduplicated by worktree and solution, from a call's first file or an explicit
   start. The call that starts a host waits for it up to about a minute, and answers that it is indexing, with the
   solution's path, past that; no edit is queued. Agents handle "retry" poorly, so most first calls should just take
