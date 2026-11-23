@@ -1,0 +1,30 @@
+[
+  {
+    "id": "deskmancer-startup-prewarm",
+    "folder": "C:\\Dev\\Deskmancer",
+    "question": "What does Deskmancer's startup prewarm do, step by step and in order, and from where and when is it started? Answer in a few lines, naming the classes and methods involved.",
+    "facts": ["DesktopMonitorMirrorCache", "OverlaysControllerHub", "PrewarmPan", "PrewarmBackgrounds", "PruneWallpaperPixelDiskCache", "Completed", "ScheduleOnIdle", "AppShell", "idle"],
+    "from": "claude deskmancer-performance-rep, 2026-11-18 04:58 UTC: PreWarm, Prewarm and WindowListMirror searched as text, 42 files hit"
+  },
+  {
+    "id": "compze-thread-gate",
+    "folder": "C:\\Dev\\Compze",
+    "question": "In Compze, what is IThreadGate for? How does a specification let exactly one thread through it, how does the code under test pass through it, and which class implements it? Answer in a few lines, naming the members involved.",
+    "facts": ["AwaitLetOneThreadPassThrough", "AwaitPassThrough", "Visitor", "Implementation", "Compze\\.Threading\\.Testing"],
+    "from": "claude taggregates-opus, 2026-11-16 06:22 UTC: IThreadGate and ThreadGate searched as text"
+  },
+  {
+    "id": "jastudio-note-serialization",
+    "folder": "C:\\Dev\\JAStudio",
+    "question": "How does JAStudio serialize a note to JSON for storage? Which class does it, which note types does it handle, and which JsonSerializerOptions settings does it use? Answer in a few lines.",
+    "facts": ["NoteSerializer", "KanjiNote", "VocabNote", "SentenceNote", "WriteIndented", "CamelCase", "Disallow", "NoteSerializationContext"],
+    "from": "claude taggregates-opus, 2026-11-18 12:55 UTC: JsonOptions, NoteSerializer and Serialize searched as text"
+  },
+  {
+    "id": "claude-tooling-session-inbox",
+    "folder": "C:\\Users\\magnu\\.claude",
+    "question": "In the ClaudeTooling solution, how does a peer message reach a Claude session's inbox? Name the class, the named pipe's name, what the sender writes to it, and what the sender gets back. Answer in a few lines.",
+    "facts": ["InboxOfAClaudeSession", "peers-inbox-", "process id|processid", "json", "delivered"],
+    "from": "codex owner-codex-2, 2026-11-22 02:12 UTC: HubExecutable, HubPipe and PipeName searched as text"
+  }
+]

@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 CLAUDE_ROOTS = [os.path.expanduser("~/.claude/projects"), os.path.expanduser("~/.claude/session-archive")]
 CODEX_ROOTS = [os.path.expanduser("~/.codex/sessions"), os.path.expanduser("~/.codex/archived_sessions")]
 CHARACTERS_PER_TOKEN = 4
+PROBE_SESSION_PREFIX = "royder-probe"
 CLAUDE_ROYDER_PREFIX = "mcp__dotnet-analysis-and-refactoring__"
 CODEX_ROYDER_PREFIX = "mcp__dotnet_analysis_and_refactoring__"
 CLAUDE_TOOLS = {"Read": "read", "Grep": "grep", "Glob": "glob", "Edit": "edit", "MultiEdit": "edit", "Write": "write",
@@ -385,7 +386,11 @@ def codex_sessions(since):
 
 
 def all_sessions(since, agents=("claude", "codex")):
+    """The agents' sessions, without the probes' (probe.py) and their subagents': theirs is work done to measure."""
+    sessions = []
     if "claude" in agents:
-        yield from claude_sessions(since)
+        sessions += claude_sessions(since)
     if "codex" in agents:
-        yield from codex_sessions(since)
+        sessions += codex_sessions(since)
+    probes = {it.id for it in sessions if it.name.startswith(PROBE_SESSION_PREFIX)}
+    return [it for it in sessions if it.id not in probes and it.parent not in probes]
