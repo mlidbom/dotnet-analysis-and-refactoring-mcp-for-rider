@@ -83,6 +83,17 @@ directory. `tools/Update-InstalledRoyderPrimary.ps1 -PackageDirectory <directory
 shut down, waits for requests to drain, updates the sign-in task and checks the new public listener. It keeps
 the old settings for rollback. Earlier packages that lack the `stop` command require a coordinated stop first.
 
+The update of 24 November 2026, as run: build into `%LOCALAPPDATA%/DotNetAnalysisAndRefactoringMcp/primary/<commit>`,
+then capture its catalog with a temporary settings file beside it. That file has no `desktopPort`, so the capture
+opens its own private Rider rather than verifying the desktop's build. It uses ports other than the running primary's
+(24930, 24931 and 24941) and a profile directory of its own, about 600 MB, deleted afterwards with the settings file.
+`catalogFile`, `assetsDirectory` and `toolsBuild` are the package's.
+
+~~~powershell
+& "$package/Royder.Primary.exe" prepare-catalog $temporarySettings C:/Dev/resharper-mcp/ReSharperMcp.sln
+./tools/Update-InstalledRoyderPrimary.ps1 -PackageDirectory $package
+~~~
+
 ## Call and removal behavior
 
 - A cold `tools/list` works immediately. File tools open a trusted main checkout or linked worktree on first use. Use an
