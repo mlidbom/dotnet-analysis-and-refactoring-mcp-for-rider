@@ -48,6 +48,22 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
+- **The standalone primary is ended by a console control event, by a sender not yet known** (2026-11-23). Twice it
+  ended with `0xC000013A` (Ctrl+C, Ctrl+Break, or its hidden console closing), with no shutdown line in its log:
+  - after the sign-in at 22:32 that followed a Windows update's restarts: listening at 22:32:13, gone when the first
+    Claude Code session connected at 22:35:06. Deskmancer, the stall recorder and Cloyd started in that window. Nothing
+    started it again then, since Task Scheduler restarts only a start that fails, and four sessions worked on C#
+    without Royder until Magnus noticed at about 22:57;
+  - at 23:12:22.667, 13 minutes after a start, while ClaudeTooling's specifications ran (sandbox hubs started at
+    23:12:15–19). One of them, `When_a_sessions_console_sends_control_events_while_a_process_is_attached_to_it`,
+    sends Ctrl+Break and Ctrl+C to every process on the console it attaches to. The private Rider runs in a console
+    of its own (`RiderSupervisor`, `CreateNoWindow`) and went on running.
+
+  The `RoyderPrimary` task now starts it again within a minute, and did at 23:13:02. Each run's log says when the task
+  started it; Claude Code's `mcp-logs-dotnet-analysis-and-refactoring` under `%LOCALAPPDATA%\claude-cli-nodejs\Cache`
+  give the millisecond each session lost it. Wanted: the sender found, and the primary out of reach of console
+  events: no console at all, rather than a hidden one inherited from the wrapper `powershell.exe`, which needs the
+  primary to write its own log.
 - **A peer that registers on a dead peer's port, between a refused call and its removal, is removed too**
   (royder-codex-3, 2026-11-22). A refused connection removes every registration on the port (`PeerSolution.Call`),
   since nothing listens there. The window is under a millisecond, and a peer registers only once its solution has
@@ -212,7 +228,9 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Testing Royder on a coding task
 
-`codex-headless-royder` owns benchmark design, execution and any resulting changes to Royder.
+`optimize-royder`, the Claude session in this checkout, owns benchmark design, execution and any resulting changes to
+Royder since 23 November 2026, when it took the work over from `codex-optimize-royder` (earlier `codex-headless-royder`).
+The trial waits for Magnus to name a real pending C# change and a start.
 `codex-tooling-owner` maintains the shared usage measurements. The four-run code-reading pilot is complete.
 Its questions, answers and grading are in `~/.claude/dev_docs/usage/royder-code-understanding-trial.md`.
 Its measurement script is `~/.claude/dev_docs/usage/analysis/code_comprehension_usage.py`.
@@ -359,15 +377,6 @@ how to run it and what it found:
   original URL. [Setup, operation and verification](headless-royder/standalone-primary.md)
   - The symbol linker now waits for its first solution when the primary is cold (`a2a37a4` in ClaudeSymbolLinker).
     Its isolated sandbox still uses 23861.
-  - **It ended unseen, 23 November 2026.** Started at sign-in at 22:32:09, listening at 22:32:13, then ended with
-    `0xC000013A` (a console control event: Ctrl+C, Ctrl+Break or its hidden console closing), with no shutdown line
-    in its log, before 22:35:06, when the first Claude Code session's connection was refused (Claude Code's
-    `mcp-logs-dotnet-analysis-and-refactoring` under `%LOCALAPPDATA%\claude-cli-nodejs\Cache` gives each session's
-    connection). That sign-in was the first after a Windows update's two restarts; the primary had survived the two
-    ordinary restarts earlier that evening. Nothing started it again: Task Scheduler restarts only a start that fails.
-    Four sessions worked on C# without Royder until Magnus noticed at about 22:57. The task now starts it again within
-    a minute (a trigger every minute) and each log says when the task started it. Who sent the event is unknown: the
-    next log that starts long after the machine did gives the time to look for it.
 - **Routing by the worktree** precedes the only-solution shortcut for calls naming files. An absolute path in a
   trusted main checkout or its linked worktree can start its project in the private Rider. Ordinary Rider takes
   precedence when it has the same checkout open.
@@ -588,6 +597,24 @@ The second round, under way:
     - **Several JVMs at once:** distinct config and system folders and `--port` values.
     - **Royder's rescans and saves have their handlers in the host's JVM**
       (`FileSystemModelProtocolListener`, `DocumentHostHelper.saveFiles`), as in the desktop frontend.
+
+## Reading dotTrace snapshots without desktop Rider
+
+Asked by testrun-performance, 2026-11-23: it needed a sampling snapshot's (`.dtp`) call tree with Rider closed after a
+reboot, and fell back to dotTrace's `Reporter.exe`, which gives each function's total and own time and callers but no
+tree to drill into and no filters by thread or time. Rider's dotTrace tools (`dotTraceGetCallTree`,
+`GetSnapshotInfo`, `GetSnapshotFilters`, `GetTimeline`, `GetTimelineEvents`) are `DotTraceMCPToolset` in Rider's bundled
+`dotTrace.dotMemory` plugin (`lib/modules/intellij.rider.plugins.dotTrace.dotMemory.mcp.jar`), served by JetBrains'
+built-in MCP server, with dotTrace's engine (`JetBrains.DotTrace.Dal` and others in the plugin's `DotFiles`) in the .NET
+backend.
+
+- **The route, decided:** forward those tools to the private Rider the primary already runs, which disables no plugins.
+  A spike first: does the private Rider load the dotTrace plugin, and can its built-in MCP server run there? About a
+  day with specifications if both hold. It starts the private Rider when none runs: about 4 GB, some tens of seconds.
+- **If the MCP server can't run headless:** Royder's tools in that backend call dotTrace's components themselves.
+  Internal API, days of work, at risk at each Rider release.
+- **Not:** reading snapshots in the primary's own process through `JetBrains.DotTrace.Dal`, which needs JetBrains'
+  component container.
 
 ## Decided against
 
