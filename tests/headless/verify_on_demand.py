@@ -140,6 +140,8 @@ def verify(args):
     profile = lab / "profile"
     def generation():
         current = Path(json.loads((profile/"current.json").read_text(encoding="utf-8-sig")))
+        environment = json.loads((current/"plan.json").read_text(encoding="utf-8-sig"))["environment"]
+        assert environment.get("DOTNET_ADD_GLOBAL_TOOLS_TO_PATH") == "false", "A private SDK home must opt out of user PATH registration."
         state = json.loads((current/"state.json").read_text(encoding="utf-8-sig"))
         return current, state["hostProcess"]["pid"]
 

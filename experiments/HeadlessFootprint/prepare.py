@@ -23,7 +23,7 @@ def private_environment():
         path = HOME / directory
         path.mkdir(parents=True, exist_ok=True)
         env[key] = str(path)
-    env.update(DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_GENERATE_ASPNET_CERTIFICATE="false",
+    env.update(DOTNET_ADD_GLOBAL_TOOLS_TO_PATH="false", DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_GENERATE_ASPNET_CERTIFICATE="false",
                DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE="1", DOTNET_NOLOGO="1",
                GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_TERMINAL_PROMPT="0")
     return env

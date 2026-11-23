@@ -102,7 +102,7 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
    }
    $plan.environment = @{ APPDATA=$folders.roaming; LOCALAPPDATA=$folders.local; TEMP=$folders.temp; TMP=$folders.temp
       JET_LOCAL_APPDATA_DIR=$folders.'resharper-local'; JET_ROAMING_APPDATA_DIR=$folders.'resharper-roaming'; JET_TEMP_DIR=$folders.temp
-      RESHARPER_HOST_LOG_DIR=(Join-Path $folders.log dotnet); DOTNET_CLI_HOME=$folders.cli
+      RESHARPER_HOST_LOG_DIR=(Join-Path $folders.log dotnet); DOTNET_CLI_HOME=$folders.cli; DOTNET_ADD_GLOBAL_TOOLS_TO_PATH='false'
       NUGET_PACKAGES=$folders.packages; NUGET_HTTP_CACHE_PATH=$folders.'nuget-http'; NUGET_PLUGINS_CACHE_PATH=$folders.'nuget-plugins'
       RestoreFallbackFolders=(Join-Path $env:USERPROFILE '.nuget/packages'); DOTNET_NOLOGO='1'; DOTNET_CLI_TELEMETRY_OPTOUT='1'
       DOTNET_GENERATE_ASPNET_CERTIFICATE='false'; DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE='1'

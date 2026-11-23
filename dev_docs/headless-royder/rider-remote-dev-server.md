@@ -131,6 +131,7 @@ $env:JET_TEMP_DIR = "$lab\temp"
 $env:TEMP = "$lab\temp"
 $env:TMP = $env:TEMP
 $env:DOTNET_CLI_HOME = "$lab\cli"
+$env:DOTNET_ADD_GLOBAL_TOOLS_TO_PATH = 'false'
 $env:NUGET_PACKAGES = "$lab\packages"
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'

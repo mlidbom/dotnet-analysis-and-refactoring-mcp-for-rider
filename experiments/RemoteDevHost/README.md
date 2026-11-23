@@ -70,7 +70,9 @@ variables cannot replace the harness's private directories, ports or tools build
 - **Start** builds a Java argument file from the Windows amd64 launch record in `product-info.json` and sets the
   `remoteDevHost` starter. It invokes the bundled Java executable directly so the child inherits private `APPDATA`
   and `LOCALAPPDATA`. It sets private `user.home`, temp, all four `idea.*.path` properties, ReSharper directories
-  and .NET CLI home. It disables IDE and plugin updates, statistics reporting and shared-index downloads and sets
+  and .NET CLI home. It sets `DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=false` so the SDK's first run keeps
+  the private home's `.dotnet/tools` directory out of the Windows user PATH.
+  It disables IDE and plugin updates, statistics reporting and shared-index downloads and sets
   `JETBRAINS_NO_CHECK_FOR_UPDATES=1`. It trusts the supplied solution directory in this profile.
 - The experiment copies Royder from the installed Rider profile and the named build from
   `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp\tools`. It hashes each copy and checks the build's `host.sha256`

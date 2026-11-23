@@ -177,7 +177,8 @@ if __name__ == "__main__":
         parser.error("--repeat must be positive")
     root = Path(tempfile.mkdtemp(prefix="royder-source-generator-readiness-"))
     print("Evidence:", root, flush=True)
-    env = {**os.environ, "DOTNET_CLI_HOME": str(root / "cli"), "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    env = {**os.environ, "DOTNET_CLI_HOME": str(root / "cli"), "DOTNET_ADD_GLOBAL_TOOLS_TO_PATH": "false",
+           "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
            "NUGET_PACKAGES": os.environ.get("NUGET_PACKAGES", str(Path.home() / ".nuget/packages")),
            "DOTNET_GENERATE_ASPNET_CERTIFICATE": "false", "DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE": "1"}
     build = stage_tools(root, options.rider, env)
