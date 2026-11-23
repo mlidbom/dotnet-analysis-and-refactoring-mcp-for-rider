@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
 
-public class GetSymbolSourceTool : IMcpTool
+public class GetSymbolSourceTool : IMcpAlwaysLoadedTool
 {
    /// <summary>Maximum length of a single declaration's source body before truncation.</summary>
    const int MaxSourceLength = 20000;

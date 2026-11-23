@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using DotNetAnalysisAndRefactoringMcp.Tools;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Protocol;
 
@@ -59,6 +61,17 @@ public class ToolDefinition
 
    [JsonProperty("annotations", NullValueHandling = NullValueHandling.Ignore)]
    public object Annotations { get; set; }
+
+   /// <summary>
+   ///   MCP's <c>_meta</c>: what particular clients read about the tool. So far only Claude Code's
+   ///   <c>anthropic/alwaysLoad</c>, for an <see cref="IMcpAlwaysLoadedTool"/>.
+   /// </summary>
+   [JsonProperty("_meta", NullValueHandling = NullValueHandling.Ignore)]
+   public object Meta { get; set; }
+
+   /// <summary>The <c>_meta</c> of <paramref name="tool"/>: none, unless Claude Code is to load it up front.</summary>
+   public static JObject MetaOf(IMcpTool tool) =>
+      tool is IMcpAlwaysLoadedTool ? new JObject { ["anthropic/alwaysLoad"] = true } : null;
 }
 
 public class CallToolResult

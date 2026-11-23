@@ -33,7 +33,8 @@ sealed class PeerSolution(IMcpServer server, PeerRegistration peer) : OpenSoluti
                                       Name = tool["name"]?.ToString(),
                                       Description = tool["description"]?.ToString(),
                                       Annotations = tool["annotations"],
-                                      InputSchema = tool["inputSchema"]
+                                      InputSchema = tool["inputSchema"],
+                                      Meta = tool["_meta"]
                                    })
                    .ToList();
 

@@ -9,7 +9,7 @@ using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
 
-public class ListSymbolsInFileTool : IMcpTool
+public class ListSymbolsInFileTool : IMcpAlwaysLoadedTool
 {
    readonly ISolution _solution;
 

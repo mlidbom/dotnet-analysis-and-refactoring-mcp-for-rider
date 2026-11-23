@@ -9,7 +9,7 @@ using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
 
-public class GoToDefinitionTool : IMcpTool
+public class GoToDefinitionTool : IMcpAlwaysLoadedTool
 {
    const int DefaultSourceTextLength = 200;
    readonly ISolution _solution;

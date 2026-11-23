@@ -15,7 +15,7 @@ using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
 
-public class FindUsagesTool : IMcpTool
+public class FindUsagesTool : IMcpAlwaysLoadedTool
 {
    readonly ISolution _solution;
 

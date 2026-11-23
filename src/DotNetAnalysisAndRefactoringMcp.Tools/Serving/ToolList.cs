@@ -49,6 +49,6 @@ static class ToolList
                                    };
       schema["properties"] = properties;
 
-      return new ToolDefinition { Name = tool.Name, Description = tool.Description, InputSchema = schema, Annotations = tool.Annotations };
+      return new ToolDefinition { Name = tool.Name, Description = tool.Description, InputSchema = schema, Annotations = tool.Annotations, Meta = tool.Meta };
    }
 }
