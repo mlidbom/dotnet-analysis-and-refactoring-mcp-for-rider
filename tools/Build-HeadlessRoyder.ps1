@@ -30,7 +30,13 @@ try {
    & dotnet publish "$root/src/Royder.Primary/Royder.Primary.csproj" -c Release -o $output --nologo -v:q
    if($LASTEXITCODE) { throw 'Building the standalone primary failed.' }
    & "$root/src/Royder.Primary/Hosting/Stage-SharedRider.ps1" -RiderHome $RiderHome -OutputDirectory (Join-Path $output RiderHost) -ToolsBuild $build -RoyderPlugin $plugin -ToolsDirectory $tools
-   [IO.Directory]::Move($output,$destination)
+   # A directory with a file open in it can't be moved, and a file just written is held for a moment, as by a virus
+   # scanner: on 2026-11-24 the move failed with access denied twice in a row, the deletion just after it succeeding.
+   for($attempt = 1; ; $attempt++) {
+      try { [IO.Directory]::Move($output,$destination); break }
+      catch [UnauthorizedAccessException], [IO.IOException] { if($attempt -ge 40) { throw }; Start-Sleep -Milliseconds 500 }
+   }
+   if($attempt -gt 1) { Write-Output "Moving the package into place took $attempt attempts." }
    Write-Output "Built $destination (tools $build)."
 } finally {
    if ((Split-Path -Parent $stage) -eq $parent -and (Split-Path -Leaf $stage) -eq $stagingName) {
