@@ -114,3 +114,63 @@ the records), and `move_type_to_namespace` moves one type at a time. Some of the
   `inspect_code` gives. Also a missing `newNamespace`, and `reload_projects` given a `.slnx`.
 - **Crashes:** `rename_symbol` cancelled (3, before the 18 November fix), `move_type_to_namespace` with
   `ArgumentOutOfRangeException` (1), and an `inspect_code` timeout.
+
+## The first fix, for finding 1 (2026-11-24)
+
+What went live, in UTC, so that `mine.py daily` can be read against it:
+
+- **23 November, 23:20:** Royder's handshake instructions say which tool replaces which text lookup: "Look up C#
+  symbols with go_to_definition, get_symbol_source, find_usages, not text search; list_symbols_in_file before
+  reading a big file." They stay under 250 characters, the part Codex shows before its tool discovery. Those four tools
+  carry `_meta: {"anthropic/alwaysLoad": true}`, so Claude Code loads them at a session's start instead of deferring
+  them behind its tool search (`IMcpAlwaysLoadedTool`). The definitions add about 9,500 characters to every request of
+  sessions whose project names Royder, which only C# projects do. Commits `2acab50` and `cccfc15`.
+- **23 November, 23:26:** the always-loaded tool-use rule in `~/.claude` says what each C# lookup returns: a
+  text search every spelling, comments and namesakes included; `go_to_definition` and `get_symbol_source` the
+  declaration alone; `find_usages` only the references; `list_symbols_in_file` an outline before a whole-file read.
+  It leaves the choice to the agent, as Magnus wants (2026-11-22). Codex's `AGENTS.md` was regenerated from it.
+  `tooling-owner` trimmed the path-scoped C# rule to what the tool-use rule lacks. `~/.claude` commits `8c0518f1`
+  and `10bcc9bd`.
+
+Each reaches sessions started after it. A session started earlier keeps the old instructions until it restarts.
+
+## Probes
+
+`tools/agent_sessions/probe.py` puts a question from a mined episode to a fresh Claude Code session in the episode's
+repository. The agent chooses its own tools, and is told only to change no files and to put nothing on the unanswered
+list. Each run records the facts its answer holds, its cost, and its calls: Royder navigation, symbols looked up as
+text, large files read whole. The runs are in `dev_docs/probe-runs.jsonl`, and the miner leaves probe sessions out.
+
+~~~bash
+python tools/agent_sessions/probe.py run --label "<what is live>"   # all probes; --probe <id> for one
+python tools/agent_sessions/probe.py report
+~~~
+
+The probes are in `tools/agent_sessions/probes.json`, each with the episode it came from. They ask about the main
+checkouts, so a probe's facts must be checked again when its code changes. They began after the first fix went live,
+so they have no "before" run: the mined days from 16 to 23 November are the before. From now on, they show the effect
+of later changes, and guard against regressions.
+
+### First runs, 23 November from 23:30 UTC, after the first fix
+
+| probe | facts | cost | seconds | characters taken in | Royder navigation | looked up as text |
+|---|---|---|---|---|---|---|
+| jastudio-note-serialization | 8/8 | $0.84 | 33 | 12,611 | 0 | 2 |
+| deskmancer-startup-prewarm | 9/9 | $0.86 | 34 | 31,989 | 0 | 6 |
+| compze-thread-gate | 5/5 | $0.72 | 23 | 24,780 | 1 | 2 |
+| claude-tooling-session-inbox | 5/5 | $0.52 | 18 | 10,574 | 0 | 0 |
+
+- **All four answered correctly, by text search and reads.** Of their 26 calls, one went to Royder's navigation,
+  though Claude Code had loaded the four tools at the start (none was among the deferred) and Royder's instructions
+  named them. On a short question, text search is fast, right and cheap.
+- **What Royder would have saved is in what the session carries.** For the same facts, Royder answers with about
+  2,200 characters where the JAStudio agent took in 12,600, and 4,300 where the Deskmancer agent took in 32,000; about
+  the same for the other two. In a probe that is cents. In a long session, every later request reads it again: that
+  is where the 35% of the mined cost was.
+- **The one Royder call answered with the wrong part.** `get_symbol_source` for Compze's `IThreadGate`, an
+  interface declared in two files, returned its private implementation's part, 11,042 characters, and the agent read
+  `IThreadGate.cs` after it. ReSharper lists a type's parts in no useful order. Fixed in `1be07a6`: the tools show
+  the part in the file named after the type (`MainDeclaration`).
+
+So the first fix makes the navigation tools present and named, and the probe agents still chose text search. Whether
+long sessions shift shows in `mine.py daily` over the coming days.

@@ -401,7 +401,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   CompilationContexts.cs               # Ambient CompilationContextCookie of an element's own file
   NamespaceFolders.cs                  # The directory of a namespace's files in a project, by the folders' expected namespaces
   SkippedElements.cs                   # Per-element guard for walks + the "skipped N elements" line
-  McpInstructions.cs                   # Usage guide sent in the initialize response (from the tools, so no restart)
+  McpInstructions.cs                   # The initialize response's guide, shared with the primary: which tool replaces which text lookup, under Codex's 250 characters
   Severities.cs                        # "error"/"warning"/... to and from ReSharper's Severity, and their order
   SuperMembers.cs                      # The members a member overrides/implements: what find_usages and call hierarchy follow
   DeclarationSite.cs                   # Where a declaration is: the file, line and column of its name (not its doc comment)
@@ -424,6 +424,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     IMcpMainThreadTool.cs              # Marker: main thread, read lock, as Rider runs a refactoring
     IMcpEditTool.cs                    # Markers: edits source files (stale guard); expands arguments
     IMcpAsyncTool.cs                   # Read phase, then mutation phase, no lock held in between
+    IMcpAlwaysLoadedTool.cs            # Marker: Claude Code loads the tool at a session's start (_meta anthropic/alwaysLoad)
     EditTransaction.cs                 # An edit tool's PSI transaction: committed, or rolled back and its files parsed anew
     ToolBatch.cs                       # Batch runner with per-item isolation; ToolText
     FindUsagesTool.cs                  # find_usages — IFinder.FindReferences()

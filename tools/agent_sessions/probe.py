@@ -1,5 +1,6 @@
 """Probes: questions taken from the mined episodes, put to a fresh agent that chooses its own tools. Recorded for each
-run: the tools it chose, what it cost, and whether its answer holds the facts the probe expects. Run them after a change
+run: the tools it chose, what it cost, whether its answer holds the facts the probe expects, and the characters of tool
+output it took in: what a longer session would read again with every later request. Run them after a change
 to Royder or to the instructions, and now and then as a guard against regressions. dev_docs/what-agents-lack.md says
 what they are for.
 
@@ -70,7 +71,7 @@ def calls_of(session_id):
     """What the probe's session and its subagents did, from their transcripts."""
     paths = [path for root in CLAUDE_ROOTS for pattern in (f"*/{session_id}.jsonl", f"*/{session_id}/subagents/*.jsonl")
              for path in glob.glob(os.path.join(root, pattern))]
-    tools, navigation, as_text, whole_files = Counter(), 0, 0, 0
+    tools, navigation, as_text, whole_files, taken_in = Counter(), 0, 0, 0, 0
     for path in paths:
         root = next(it for it in CLAUDE_ROOTS if os.path.normcase(path).startswith(os.path.normcase(it)))
         work = SessionWork(ClaudeTranscript(root, path, set()).read())
@@ -79,20 +80,22 @@ def calls_of(session_id):
         navigation += sum(call.tool in ROYDER_NAVIGATION for call in work.calls)
         as_text += sum(it.kind in LOOKED_UP_AS_TEXT for it in work.episodes)
         whole_files += sum(it.kind == "whole-file-read" for it in work.episodes)
+        taken_in += sum(len(call.output) for call in work.calls)
     return {"transcripts": len(paths), "royder_navigation_calls": navigation, "symbols_looked_up_as_text": as_text,
-            "large_files_read_whole": whole_files, "calls_by_tool": dict(tools.most_common())}
+            "large_files_read_whole": whole_files, "characters_taken_in": taken_in, "calls_by_tool": dict(tools.most_common())}
 
 
 def report():
     with open(RUNS, encoding="utf-8") as lines:
         runs = [json.loads(it) for it in lines if it.strip()]
-    print("time (UTC) | label | probe | facts | cost | turns | seconds | Royder navigation | looked up as text"
-          " | large files read whole | tools")
+    print("time (UTC) | label | probe | facts | cost | turns | seconds | characters taken in | Royder navigation"
+          " | looked up as text | large files read whole | tools")
     for it in runs:
         found = len(it["facts_found"])
         tools = ", ".join(f"{tool} {count}" for tool, count in it["calls_by_tool"].items())
         print(f"{it['time'][:16]} | {it['label']} | {it['probe']} | {found}/{found + len(it['facts_missing'])}"
-              f" | ${it['cost_usd']:.2f} | {it['turns']} | {it['seconds']} | {it['royder_navigation_calls']}"
+              f" | ${it['cost_usd']:.2f} | {it['turns']} | {it['seconds']} | {it.get('characters_taken_in', 0):,}"
+              f" | {it['royder_navigation_calls']}"
               f" | {it['symbols_looked_up_as_text']} | {it['large_files_read_whole']} | {tools}"
               f"{' | FAILED' if it['failed'] else ''}")
 

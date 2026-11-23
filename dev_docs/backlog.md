@@ -237,8 +237,40 @@ that costs them. `optimize-royder`, the Claude session in this checkout, owns th
 3. **Fix from the top of the list:** a tool's answer, a missing capability, or the instructions and descriptions.
    First: the instructions and the loading of the navigation tools. The rule involved is in `~/.claude`, with
    `tooling-owner`. `mine.py daily` measures the effect.
+
+   *The first fix went live on 2026-11-24, from 00:20 to 00:26 local time.* Royder's handshake instructions name the
+   tool for each kind of lookup, Claude Code loads the four navigation tools at a session's start, and the
+   always-loaded tool-use rule says what each C# lookup returns. `dev_docs/what-agents-lack.md` has the timeline.
+   Next: read `mine.py daily` for 24–26 November against 0–4% before. If the share stays low, read the new sessions'
+   lookups as text to see why. The probes' agents give a first look at that.
 4. **Check each fix:** probes taken from the mined episodes, run by fresh agents with free choice, before and after;
    and the mined figures over the following days. The probes stay, as a guard against regressions.
+
+   *Built 2026-11-24:* `tools/agent_sessions/probe.py`, four probes in `probes.json`, runs in
+   `dev_docs/probe-runs.jsonl`. They started after the first fix, so their first runs are its "after". Codex has no
+   probe runner yet: `codex exec -s read-only --json` would give one.
+
+Found while doing this, to fix:
+
+- **A tools change reaches the checkouts the primary opened only through a new primary package,** and switching to it
+  waits until no managed project is open. The private Rider serves the tools build pinned in the package, and the
+  primary checks that pin when it opens a checkout. Most agents' calls now go there. The desktop Riders take a tools
+  build at their next call. Better: let the primary's Rider swap tools builds as the desktop Riders do, the primary
+  checking the host's hash rather than the exact build. On 2026-11-24 the main declaration fix (`1be07a6`) waited
+  for the primary's idle managed projects to close, in a background job of `optimize-royder`.
+- **A cold open's first call answered "The operation timed out."** (2026-11-24, about 00:47 local time), for
+  `go_to_definition` on `Deskmancer.slnx` and on `Compze.AllProjects.slnx`. The same calls a minute later answered.
+  The primary's own message on a cold open's timeout says the solution is still opening and to retry; this one didn't
+  come from it, and the primary's log has no line for either call. An agent given this would likely fall back to text
+  search. The call log (step 1) would show where it came from: Claude Code's client or the desktop routing.
+- **`get_symbol_source` with `allDeclarations: true` returned one overload** of `NoteSerializer.Serialize` in JAStudio,
+  which has four. Its description promises every overload.
+- **`list_symbols_in_file` loses a type's nesting after a generic method:** in Compze's `IThreadGate.cs`, the members
+  after `ExecuteWithExclusiveLockWhen<TResult>` come under a "(IThreadGate)" heading, after its type parameter.
+- **Two specification runs out of three failed on what this change doesn't touch.** One:
+  `When_a_file_declaring_a_type_is_deleted_on_disk.find_usages_by_name_reports_the_symbol_was_not_found` found the
+  deleted type 10 seconds later. Two: 73 failures with "Multiple solutions are open", the peer sandbox's copy of the
+  fixture solution still registered while other specifications ran. The third run passed all 187.
 
 The pilot's questions, answers and grading are in `~/.claude/dev_docs/usage/royder-code-understanding-trial.md`;
 `codex-tooling-owner` maintains the shared usage measurements.
