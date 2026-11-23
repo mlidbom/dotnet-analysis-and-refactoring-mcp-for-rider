@@ -221,15 +221,22 @@ that costs them. `optimize-royder`, the Claude session in this checkout, owns th
 `codex-optimize-royder` (earlier `codex-headless-royder`) that day.
 
 1. **Royder's call log:** every call, its tool, its arguments' shape, its time, its answer's size, its error, whether
-   it opened a checkout cold; and a command that sums it up.
-2. **A miner over the sessions' records,** Claude Code's transcripts and Codex's rollouts, which
-   `~/.claude/dev_docs/usage/analysis` already reads (`claude_transcripts.py`, `codex_rollouts.py`). It finds C# work
-   in three kinds of episode, ranked by how often times what they cost, and samples of the costliest are read:
+   it opened a checkout cold; and a command that sums it up. *Moved after the first fixes (2026-11-24):* the miner
+   already sees every Royder call from the agents' side, with its answer and its time. Only cold opens and the
+   primary's own failures need the log.
+2. **A miner over the sessions' records,** Claude Code's transcripts and Codex's rollouts. It finds C# work in three
+   kinds of episode, ranked by how often times what they cost, and samples of the costliest are read:
    - **Royder fell short:** a call failed, or was followed by a text search or read for the same thing.
    - **Royder would have done better:** an identifier searched across files and its hits read, a rename by hand, a
      whole file read for one member.
    - **No Royder:** the server was down, or the agent didn't know of it.
+
+   *Built 2026-11-24:* `tools/agent_sessions/mine.py`. Its method, its limits and the first ranked list are in
+   `dev_docs/what-agents-lack.md`. At the top: agents look up 96–100% of symbols as text, and Claude sessions rarely
+   load Royder's deferred navigation tools.
 3. **Fix from the top of the list:** a tool's answer, a missing capability, or the instructions and descriptions.
+   First: the instructions and the loading of the navigation tools. The rule involved is in `~/.claude`, with
+   `tooling-owner`. `mine.py daily` measures the effect.
 4. **Check each fix:** probes taken from the mined episodes, run by fresh agents with free choice, before and after;
    and the mined figures over the following days. The probes stay, as a guard against regressions.
 
