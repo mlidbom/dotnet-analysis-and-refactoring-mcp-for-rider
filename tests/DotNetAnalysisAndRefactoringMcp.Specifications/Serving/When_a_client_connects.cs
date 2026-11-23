@@ -16,7 +16,8 @@ public class When_a_client_connects(TheSandboxWithTheFixtureSolution sandbox)
       _result.GetProperty("capabilities").GetProperty("tools").GetProperty("listChanged").GetBoolean().Must().Be(true);
 
    /// <summary>From the tools build since 2026-11-14, so that changing it needs no Rider restart.</summary>
-   [XF] public void it_sends_the_usage_guide() => _result.GetProperty("instructions").GetString().Must().Contain("ReSharper code intelligence");
+   [XF] public void its_usage_guide_names_the_tools_to_look_symbols_up_with_instead_of_text_search() =>
+      _result.GetProperty("instructions").GetString().Must().Contain("go_to_definition, get_symbol_source, find_usages, not text search");
 
    [XF] public void the_whole_guide_fits_in_the_250_characters_codex_shows_before_tool_discovery() =>
       _result.GetProperty("instructions").GetString()!.Length.Must().BeLessThan(250);

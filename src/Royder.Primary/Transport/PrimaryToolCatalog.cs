@@ -1,3 +1,4 @@
+using DotNetAnalysisAndRefactoringMcp;
 using Newtonsoft.Json.Linq;
 
 namespace Royder.Primary.Transport;
@@ -7,8 +8,8 @@ sealed class PrimaryToolCatalog(ToolCatalog pinned, OrdinaryRiders ordinary)
 {
    public const string Warm = "warm_worktree";
    public const string Close = "close_worktree";
-   public const string OpenOnDemand = "An absolute filePath or full .sln/.slnx path as solutionName opens a trusted checkout on demand, even with desktop Rider closed.";
-   public const string Instructions = "ReSharper navigation, inspections and refactoring for C# and other .NET languages. " + OpenOnDemand;
+   public const string OpenOnDemand = "An absolute filePath or .sln/.slnx solutionName opens its checkout, even with desktop Rider closed.";
+   public const string Instructions = McpInstructions.Purpose + " " + OpenOnDemand;
 
    const string SolutionName = "Full .sln/.slnx path to open a trusted checkout on demand, or an open solution's name or unique path segment. "
                              + "Omit when file paths identify the target or it is the only open solution.";

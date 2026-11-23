@@ -8,6 +8,6 @@
   <ItemGroup>
     <PackageReference Include="Compze.Threading" Version="0.9.0-alpha" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <Compile Include="../DotNetAnalysisAndRefactoringMcp.Tools/Serving/SolutionLocation.cs;../DotNetAnalysisAndRefactoringMcp.Tools/Serving/SolutionRouting.cs;../DotNetAnalysisAndRefactoringMcp.Tools/Serving/RequestedPath.cs;../DotNetAnalysisAndRefactoringMcp.Tools/Tools/FileArguments.cs" Link="Routing/%(Filename)%(Extension)" />
+    <Compile Include="../DotNetAnalysisAndRefactoringMcp.Tools/Serving/SolutionLocation.cs;../DotNetAnalysisAndRefactoringMcp.Tools/Serving/SolutionRouting.cs;../DotNetAnalysisAndRefactoringMcp.Tools/Serving/RequestedPath.cs;../DotNetAnalysisAndRefactoringMcp.Tools/Tools/FileArguments.cs;../DotNetAnalysisAndRefactoringMcp.Tools/McpInstructions.cs" Link="Routing/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>
