@@ -48,22 +48,6 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
-- **The standalone primary is ended by a console control event, by a sender not yet known** (2026-11-23). Twice it
-  ended with `0xC000013A` (Ctrl+C, Ctrl+Break, or its hidden console closing), with no shutdown line in its log:
-  - after the sign-in at 22:32 that followed a Windows update's restarts: listening at 22:32:13, gone when the first
-    Claude Code session connected at 22:35:06. Deskmancer, the stall recorder and Cloyd started in that window. Nothing
-    started it again then, since Task Scheduler restarts only a start that fails, and four sessions worked on C#
-    without Royder until Magnus noticed at about 22:57;
-  - at 23:12:22.667, 13 minutes after a start, while ClaudeTooling's specifications ran (sandbox hubs started at
-    23:12:15–19). One of them, `When_a_sessions_console_sends_control_events_while_a_process_is_attached_to_it`,
-    sends Ctrl+Break and Ctrl+C to every process on the console it attaches to. The private Rider runs in a console
-    of its own (`RiderSupervisor`, `CreateNoWindow`) and went on running.
-
-  The `RoyderPrimary` task now starts it again within a minute, and did at 23:13:02. Each run's log says when the task
-  started it; Claude Code's `mcp-logs-dotnet-analysis-and-refactoring` under `%LOCALAPPDATA%\claude-cli-nodejs\Cache`
-  give the millisecond each session lost it. Wanted: the sender found, and the primary out of reach of console
-  events: no console at all, rather than a hidden one inherited from the wrapper `powershell.exe`, which needs the
-  primary to write its own log.
 - **A peer that registers on a dead peer's port, between a refused call and its removal, is removed too**
   (royder-codex-3, 2026-11-22). A refused connection removes every registration on the port (`PeerSolution.Call`),
   since nothing listens there. The window is under a millisecond, and a peer registers only once its solution has
