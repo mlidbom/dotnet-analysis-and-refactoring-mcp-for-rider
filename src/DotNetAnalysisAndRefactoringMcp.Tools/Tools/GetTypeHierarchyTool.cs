@@ -254,8 +254,8 @@ public class GetTypeHierarchyTool : IMcpTool
                     ["relation"] = relation
                  };
 
-      var declarations = element.GetDeclarations();
-      var site = declarations.Count > 0 ? DeclarationSite.Of(declarations[0]) : null;
+      var declaration = MainDeclaration.Of(element);
+      var site = declaration != null ? DeclarationSite.Of(declaration) : null;
       if(site != null)
       {
          node["file"] = site.File;

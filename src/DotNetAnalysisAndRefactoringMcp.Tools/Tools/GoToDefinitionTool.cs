@@ -125,7 +125,7 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
          return $"{signature} — {assembly}{body}";
       }
 
-      var decl = declarations[0];
+      var decl = MainDeclaration.Of(declaredElement)!;
       var site = DeclarationSite.Of(decl);
       if(site == null)
          return new { error = "Could not resolve declaration location" };

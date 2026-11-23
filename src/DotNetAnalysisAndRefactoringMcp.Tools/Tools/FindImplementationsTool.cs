@@ -241,10 +241,10 @@ public class FindImplementationsTool : IMcpTool
    static ImplInfo BuildImplInfo(IDeclaredElement element)
    {
       if(element == null) return null;
-      var declarations = element.GetDeclarations();
-      if(declarations.Count == 0) return null;
+      var declaration = MainDeclaration.Of(element);
+      if(declaration == null) return null;
 
-      var site = DeclarationSite.Of(declarations[0]);
+      var site = DeclarationSite.Of(declaration);
       if(site == null) return null;
 
       var implFilePath = site.File.Length > 0 ? site.File : "[no source]";
@@ -256,7 +256,7 @@ public class FindImplementationsTool : IMcpTool
                 Kind = element.GetElementType().PresentableName,
                 File = implFilePath,
                 Line = implLine,
-                Text = PsiHelpers.TruncateSnippet(declarations[0].GetText(), 200)
+                Text = PsiHelpers.TruncateSnippet(declaration.GetText(), 200)
              };
    }
 

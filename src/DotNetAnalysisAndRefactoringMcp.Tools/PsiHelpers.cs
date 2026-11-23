@@ -350,11 +350,11 @@ public static class PsiHelpers
    }
 
    /// <summary>
-   /// The first source declaration with a file path, or (null, 0) for compiled or generated elements.
+   /// The <see cref="MainDeclaration"/> with a file path, or (null, 0) for compiled or generated elements.
    /// </summary>
    public static (string file, int line) Declaration(IDeclaredElement element)
    {
-      var site = DeclarationSite.OfFirstDeclarationOf(element);
+      var site = DeclarationSite.OfMainDeclarationOf(element);
       return site == null ? (null, 0) : (site.File, site.Line);
    }
 

@@ -275,7 +275,7 @@ public class SearchSymbolTool : IMcpTool
 
       static (string file, int line, int column) FirstDeclaration(IDeclaredElement element)
       {
-         var site = DeclarationSite.OfFirstDeclarationOf(element);
+         var site = DeclarationSite.OfMainDeclarationOf(element);
          return site == null ? (null, 0, 0) : (site.File, site.Line, site.Column);
       }
    }

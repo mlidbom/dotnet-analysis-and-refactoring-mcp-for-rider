@@ -60,20 +60,14 @@ public class GetSymbolSourceTool : IMcpAlwaysLoadedTool
 
       var declarationResults = new List<object>();
 
-      var declarations = declaredElement.GetDeclarations();
-      if(declarations != null)
+      foreach(var decl in MainDeclaration.InOrder(declaredElement))
       {
-         foreach(var decl in declarations)
-         {
-            if(decl == null) continue;
+         var info = BuildDeclarationInfo(decl);
+         if(info == null) continue;
 
-            var info = BuildDeclarationInfo(decl);
-            if(info == null) continue;
+         declarationResults.Add(info);
 
-            declarationResults.Add(info);
-
-            if(!allDeclarations) break;
-         }
+         if(!allDeclarations) break;
       }
 
       // A symbol compiled into a referenced assembly: its type, decompiled, as plain text.

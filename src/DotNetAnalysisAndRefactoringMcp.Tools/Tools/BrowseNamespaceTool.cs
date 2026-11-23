@@ -164,10 +164,8 @@ public class BrowseNamespaceTool : IMcpTool
       sb.Append("  ").Append(typeElement.GetElementType().PresentableName);
       sb.Append(' ').Append(typeElement.ShortName);
 
-      var declarations = typeElement.GetDeclarations();
-      if(declarations.Count > 0)
+      if(MainDeclaration.Of(typeElement) is {} decl)
       {
-         var decl = declarations[0];
          var sf = decl.GetSourceFile();
          if(sf != null)
          {

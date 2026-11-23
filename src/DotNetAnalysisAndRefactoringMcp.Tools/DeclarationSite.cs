@@ -48,7 +48,20 @@ public sealed class DeclarationSite
       return new DeclarationSite(sourceFile.GetLocation().FullPath, line, column);
    }
 
+   /// <summary>
+   ///   The site of the element's <see cref="MainDeclaration"/> in a file with a path, or else of its first other one
+   ///   there; nothing for compiled elements.
+   /// </summary>
+   public static DeclarationSite? OfMainDeclarationOf(IDeclaredElement element) =>
+      MainDeclaration.InOrder(element).Select(Of).FirstOrDefault(it => it is { File.Length: > 0 });
+
    /// <summary>The site of the element's first declaration in a file with a path; nothing for compiled elements.</summary>
+   /// <remarks>
+   ///   todo: The JSON forms, which the .NET Terminal Symbol Linker reads, still use it, so a type declared in parts is
+   ///   at whichever part ReSharper lists first. Move them to <see cref="OfMainDeclarationOf"/> and delete this once
+   ///   the linker's session has been told, as CLAUDE.md's "What the symbol linker relies on" asks (optimize-royder,
+   ///   2026-11-24).
+   /// </remarks>
    public static DeclarationSite? OfFirstDeclarationOf(IDeclaredElement element) =>
       element.GetDeclarations().Select(Of).FirstOrDefault(it => it is { File.Length: > 0 });
 }

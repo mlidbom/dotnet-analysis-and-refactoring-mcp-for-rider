@@ -115,7 +115,7 @@ public class GetSymbolInfoTool : IMcpTool
       }
 
       // Declaration location
-      var site = DeclarationSite.OfFirstDeclarationOf(declaredElement);
+      var site = DeclarationSite.OfMainDeclarationOf(declaredElement);
       if(site != null)
          sb.Append("declared: ").Append(site.File).Append(':').Append(site.Line).Append(':').AppendLine(site.Column.ToString());
 
@@ -177,7 +177,7 @@ public class GetSymbolInfoTool : IMcpTool
 
    static (string summary, string remarks) TryReadXmlDocumentationFromSource(IDeclaredElement declaredElement)
    {
-      var declaration = declaredElement.GetDeclarations().FirstOrDefault();
+      var declaration = MainDeclaration.Of(declaredElement);
       if(declaration == null)
          return default;
 
