@@ -15,7 +15,7 @@ function Copy-PluginTree([string]$Source, [string]$Target) {
    }
 }
 
-function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $RemoteDevPort, $RoyderPort, $HeapMiB, $ExtraPlugin, $ManagedAssets, [bool]$IsolateProjectStores = $false) {
+function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $RemoteDevPort, $RoyderPort, $HeapMiB, $ExtraPlugin, $ManagedAssets, [bool]$IsolateProjectStores = $false, [string]$ToolsFolder) {
    $solutionFile = Get-Item -LiteralPath $Solution
    if ($solutionFile.PSIsContainer -or $solutionFile.Extension -notin '.sln','.slnx') { throw "Expected a solution file: $Solution" }
    if ($ToolsBuild -in '.', '..' -or $ToolsBuild -notmatch '^[A-Za-z0-9_.-]+$') { throw 'ToolsBuild must name one deployed build directory.' }
@@ -36,7 +36,11 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
    foreach ($name in 'config','system','home','temp','local','roaming','resharper-local','resharper-roaming','cli','packages','nuget-http','nuget-plugins') {
       $folders[$name] = [IO.Directory]::CreateDirectory((Join-Path $ProfilePath $name)).FullName
    }
-   foreach ($name in 'plugins','tools','log') { $folders[$name] = [IO.Directory]::CreateDirectory((Join-Path $Run $name)).FullName }
+   foreach ($name in 'plugins','log') { $folders[$name] = [IO.Directory]::CreateDirectory((Join-Path $Run $name)).FullName }
+   # A shared folder of tools builds, such as the everyday Riders', is served from like theirs: its newest build for this
+   # host. The pinned build is then the plugin's own, as an installed plugin's is, served while the shared folder has none.
+   $folders.tools = [IO.Directory]::CreateDirectory($(if ($ToolsFolder) { [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($ToolsFolder)) } else { Join-Path $Run tools })).FullName
+   $plan.tools = $folders.tools
    $plugin = 'DotNetAnalysisAndRefactoringMcp'
    $installedPlugin = Join-Path $env:APPDATA "JetBrains/$($product.dataDirectoryName)/plugins/$plugin"
    $toolsSource = Join-Path $env:LOCALAPPDATA "$plugin/tools/$ToolsBuild"
@@ -54,7 +58,7 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
       if (!$dir.PSIsContainer) { throw "Expected an extracted plugin directory: $source" }
       Copy-PluginTree $dir.FullName (Join-Path $folders.plugins $dir.Name)
    }
-   $buildDir = Join-Path $folders.tools $ToolsBuild
+   $buildDir = if ($ToolsFolder) { Join-Path $folders.plugins "$plugin/tools/$ToolsBuild" } else { Join-Path $folders.tools $ToolsBuild }
    Copy-PluginTree $toolsSource $buildDir
    $plan.hostHash = (Get-FileHash -LiteralPath (Join-Path $folders.plugins "$plugin/dotnet/$plugin.dll")).Hash.ToLowerInvariant()
    if (([IO.File]::ReadAllText((Join-Path $buildDir host.sha256))).Trim() -ne $plan.hostHash) { throw 'Deployed build and copied host have different host.sha256.' }

@@ -8,6 +8,7 @@ param(
    [ValidateRange(1,65526)][int]$RoyderPort,
    [ValidateRange(128,131072)][int]$HeapMiB = 768,
    [string]$ToolsBuild,
+   [string]$ToolsFolder,
    [string[]]$ExtraPlugin = @(),
    [switch]$IsolateProjectStores,
    [hashtable]$ExtraEnvironment = @{},
@@ -103,7 +104,7 @@ try {
    if (!$Solution -or !$ToolsBuild -or !$RemoteDevPort -or !$RoyderPort) { throw 'Start requires -Solution, -ToolsBuild, -RemoteDevPort and -RoyderPort.' }
    . "$PSScriptRoot/HostProfile.ps1"
    $run = [IO.Directory]::CreateDirectory((Join-Path $profilePath "runs/$([guid]::NewGuid().ToString('N'))")).FullName
-   $plan = New-HostPlan $profilePath $run $Solution $RiderHome $ToolsBuild $RemoteDevPort $RoyderPort $HeapMiB $ExtraPlugin $ManagedAssets $IsolateProjectStores.IsPresent
+   $plan = New-HostPlan $profilePath $run $Solution $RiderHome $ToolsBuild $RemoteDevPort $RoyderPort $HeapMiB $ExtraPlugin $ManagedAssets $IsolateProjectStores.IsPresent $ToolsFolder
    foreach ($key in $ExtraEnvironment.Keys) {
       if ($plan.environment.ContainsKey($key) -or $key -in 'JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS') {
          throw "$key is set by the private launch profile."

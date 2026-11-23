@@ -57,6 +57,7 @@ internal sealed class RiderSupervisor(SharedRiderSettings settings)
       {
          Add("-RiderHome", settings.RiderHome);
          Add("-ToolsBuild", settings.ToolsBuild);
+         if(settings.ToolsFolder != null) Add("-ToolsFolder", settings.ToolsFolder);
          Add("-RemoteDevPort", settings.RemoteDevPort.ToString(CultureInfo.InvariantCulture));
          Add("-RoyderPort", settings.BackendMcpPort.ToString(CultureInfo.InvariantCulture));
          Add("-HeapMiB", settings.HeapMiB.ToString(CultureInfo.InvariantCulture));

@@ -1,7 +1,10 @@
 #requires -Version 7.4
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$PackageDirectory,
-      [string]$SettingsFile = (Join-Path $env:LOCALAPPDATA 'DotNetAnalysisAndRefactoringMcp/primary/settings.json'))
+      [string]$SettingsFile = (Join-Path $env:LOCALAPPDATA 'DotNetAnalysisAndRefactoringMcp/primary/settings.json'),
+      # A folder of tools builds for the private Rider to serve the newest of, such as the everyday Riders'. An update
+      # keeps the one the settings name.
+      [string]$ToolsFolder)
 
 $ErrorActionPreference = 'Stop'
 $package = (Get-Item -LiteralPath $PackageDirectory).FullName
@@ -93,6 +96,7 @@ $updated = $original | ConvertFrom-Json
 $updated.catalogFile = $newCatalog
 $updated.rider.assetsDirectory = $assets
 $updated.rider.toolsBuild = $manifest.build
+if ($ToolsFolder) { $updated.rider | Add-Member -Force -NotePropertyName toolsFolder -NotePropertyValue (Get-Item -LiteralPath $ToolsFolder).FullName }
 $label = Split-Path -Leaf $package
 $updated.rider.profileDirectory = Join-Path $installation ("everyday-state-" + $label)
 $backup = Join-Path $installation ("settings.before-" + $label + "-" + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + ".json")

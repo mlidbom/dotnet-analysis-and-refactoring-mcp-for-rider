@@ -1,7 +1,7 @@
 #requires -Version 7.4
 param([Parameter(Mandatory)][ValidateSet('start','stop','open','close','discard','status','projects')][string]$Operation,
       [Parameter(Mandatory)][string]$Profile, [string]$Solution, [string]$Generation,
-      [string]$RiderHome, [string]$ToolsBuild, [int]$RemoteDevPort, [int]$RoyderPort, [int]$HeapMiB,
+      [string]$RiderHome, [string]$ToolsBuild, [string]$ToolsFolder, [int]$RemoteDevPort, [int]$RoyderPort, [int]$HeapMiB,
       [Parameter(Mandatory)][string]$ResultFile)
 . "$PSScriptRoot/Common.ps1"
 
@@ -9,7 +9,7 @@ function Invoke-ManagedOperation {
 $profileDir = Get-ProfilePath $Profile -Managed
 $assets = Split-Path -Parent $PSScriptRoot
 if ($Operation -eq 'start') {
-   $null = & "$PSScriptRoot/RemoteDevHost.ps1" start -Profile $profileDir -Solution $Solution -ManagedAssets $assets -RiderHome $RiderHome -ToolsBuild $ToolsBuild -RemoteDevPort $RemoteDevPort -RoyderPort $RoyderPort -HeapMiB $HeapMiB
+   $null = & "$PSScriptRoot/RemoteDevHost.ps1" start -Profile $profileDir -Solution $Solution -ManagedAssets $assets -RiderHome $RiderHome -ToolsBuild $ToolsBuild -ToolsFolder $ToolsFolder -RemoteDevPort $RemoteDevPort -RoyderPort $RoyderPort -HeapMiB $HeapMiB
    $null = Get-AdvertisedPort (Read-HostJson (Join-Path $profileDir current.json))
    return
 }

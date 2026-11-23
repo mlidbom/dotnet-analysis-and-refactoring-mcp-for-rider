@@ -23,7 +23,10 @@ hashes. `-RiderHome`, `-LifecyclePlugin`, `-RoyderPlugin` and `-ToolsDirectory` 
 user plugin and named deployed tools build. The running primary uses the **staged copies**.
 
 Construct `SharedRiderSettings(ProfileDirectory, RiderHome, AssetsDirectory, ToolsBuild, RemoteDevPort,
-BackendMcpPort, HeapMiB)` with absolute paths. `AssetsDirectory` is the staged `RiderHost` directory.
+BackendMcpPort, HeapMiB, ToolsFolder)` with absolute paths. `AssetsDirectory` is the staged `RiderHost` directory.
+`ToolsFolder`, optional, names a folder of tools builds, such as the everyday Riders' deployment folder: the private
+Rider then serves its newest build for the packaged host, and swaps to a newer one between calls, as they do. The
+pinned build is the fallback. Without it, the private Rider serves the pinned build only.
 Use a dedicated, private, current-user profile and disjoint loopback port ranges. Reserve the RD port and ten
 ports starting at `BackendMcpPort` for this host, separately from the public primary. Use a loopback HTTP client
 with proxies and automatic redirects disabled for MCP health/registration. The default heap is 768 MiB.
@@ -55,8 +58,8 @@ Roslyn working directory. [Launcher behavior](../../../experiments/RemoteDevHost
 - When the last project closes Rider can retain an empty backend in the lobby. The adapter confirms the private
   JVM's project inventory is empty and no sibling backend is alive, then stops the whole job. For surviving
   projects it waits for the private MCP primary watchdog's promotion if needed and re-registers missing peers
-  from verified local backend health and tool catalogs. Readiness requires the exact solution, run-specific
-  tools directory, build and host hash. The primary waits separately for indexing and generator synchronization, so other projects can close during that wait.
+  from verified local backend health and tool catalogs. Readiness requires the exact solution and host hash, and a
+  tools build from the generation's tools folder or the pinned one. The primary waits separately for indexing and generator synchronization, so other projects can close during that wait.
 
 The profile retains a per-generation plan, private logs, PID history and shutdown evidence. Raw discovery and
 backend logs can carry private project data. Package staging installs nothing in everyday Riders and registers no

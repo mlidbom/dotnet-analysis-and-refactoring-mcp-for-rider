@@ -88,8 +88,8 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
          await worktrees.YieldToOrdinaryRider(chosen.WorkTree, cancel);
          return await Forward(chosen.Endpoint, chosen.FilePath);
       }
-      if(!pinned.Provides(tool))
-         return Rpc.ToolResult(id, $"The configured headless tools build does not provide '{tool}'.", true);
+      if(!await catalog.Provides(tool, cancel))
+         return Rpc.ToolResult(id, $"No tools build Royder serves provides '{tool}'.", true);
       var explicitPath = AbsoluteSolution(selector);
       if(chosen == null && selector != null && explicitPath == null) return Rpc.ToolResult(id, $"{refusal} {PrimaryToolCatalog.OpenOnDemand}", true);
       var absolutePaths = paths.Where(Path.IsPathFullyQualified).Select(Path.GetFullPath).ToArray();

@@ -3,7 +3,14 @@ using Royder.Primary.Transport;
 
 namespace Royder.Primary.Worktrees;
 
-/// <summary>Waits for the requested tools build, project indexing and source generators in the original Git worktree.</summary>
+/// <summary>
+///   Waits until the packaged host serves the original Git worktree with a tools build, and its indexing and source
+///   generators are done.
+/// </summary>
+/// <remarks>
+///   Any tools build the host serves will do: it serves the newest one built against it, from the shared folder of
+///   everyday builds when the settings name one, which is newer than the pinned build once a tools change is deployed.
+/// </remarks>
 sealed class RiderReadiness(PrimarySettings settings, ToolCatalog catalog, RiderEndpoint backend)
 {
    public async Task Wait(ManagedWorktree worktree, CancellationToken cancel)
@@ -15,7 +22,7 @@ sealed class RiderReadiness(PrimarySettings settings, ToolCatalog catalog, Rider
          var row = (health?["solutions"] as JArray)?.OfType<JObject>().SingleOrDefault(it =>
             RegisteredWorktree.SamePath((string?)it["path"], worktree.SolutionPath));
          if(row != null && (bool?)row["indexing"] == false && row["healthFailed"] == null &&
-            (string?)row.SelectToken("tools.build") == settings.Rider.ToolsBuild &&
+            (string?)row.SelectToken("tools.build") != null &&
             (string?)row.SelectToken("tools.host") == catalog.HostHash)
          {
             var generators = row.Property("sourceGeneratorsReady");

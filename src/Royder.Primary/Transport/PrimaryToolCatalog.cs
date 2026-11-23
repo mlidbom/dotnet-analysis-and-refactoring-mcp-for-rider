@@ -1,10 +1,19 @@
+using System.Net.Sockets;
 using DotNetAnalysisAndRefactoringMcp;
 using Newtonsoft.Json.Linq;
+using Royder.Primary.Worktrees;
 
 namespace Royder.Primary.Transport;
 
-/// <summary>The pinned headless tools, any additional ordinary Rider tools, and explicit worktree lifecycle operations.</summary>
-sealed class PrimaryToolCatalog(ToolCatalog pinned, OrdinaryRiders ordinary)
+/// <summary>
+///   The tools the primary lists: those ordinary Rider and the private Rider serve now, the pinned catalog's for a cold
+///   start, and explicit worktree lifecycle operations.
+/// </summary>
+/// <remarks>
+///   The Riders' own lists come first, since the pinned catalog was captured from the package's build, and they serve
+///   the newest build deployed since.
+/// </remarks>
+sealed class PrimaryToolCatalog(ToolCatalog pinned, OrdinaryRiders ordinary, ManagedWorktrees worktrees, RiderEndpoint backend)
 {
    public const string Warm = "warm_worktree";
    public const string Close = "close_worktree";
@@ -17,16 +26,29 @@ sealed class PrimaryToolCatalog(ToolCatalog pinned, OrdinaryRiders ordinary)
    public async Task<JArray> Listed(CancellationToken cancel)
    {
       var desktop = await ordinary.Tools(cancel) ?? [];
-      var tools = desktop.Concat(pinned.Tools).OfType<JObject>().DistinctBy(it => (string?)it["name"]);
+      var managed = await ManagedTools(cancel) ?? [];
+      var tools = desktop.Concat(managed).Concat(pinned.Tools).OfType<JObject>().DistinctBy(it => (string?)it["name"]);
       var listed = new JArray(tools,
          ManagementTool(Warm, "Optionally open a trusted checkout ahead of the first analysis call. Pass its absolute solution filename and wait for readiness."),
          ManagementTool(Close, "Close the managed Rider project and await its workers' exit. The worktree stays on disk."));
       listed.OfType<JObject>().Single(it => (string?)it["name"] == "list_solutions")["description"] =
          "List currently open solutions. " + OpenOnDemand;
       foreach(var tool in listed.OfType<JObject>())
-         if(tool.SelectToken("inputSchema.properties.solutionName") is JObject selector && pinned.Provides((string)tool["name"]!))
+         if(tool.SelectToken("inputSchema.properties.solutionName") is JObject selector)
             selector["description"] = SolutionName;
       return listed;
+   }
+
+   /// <summary>Whether a call to <paramref name="tool"/> can be served: the pinned catalog has it, or a Rider lists it now.</summary>
+   public async Task<bool> Provides(string tool, CancellationToken cancel) =>
+      pinned.Provides(tool) || (await Listed(cancel)).OfType<JObject>().Any(it => (string?)it["name"] == tool);
+
+   /// <summary>The private Rider's tools, while it has a managed worktree open.</summary>
+   async Task<JArray?> ManagedTools(CancellationToken cancel)
+   {
+      if(worktrees.Open.Length == 0) return null;
+      try { return await backend.Catalog(cancel); }
+      catch(HttpRequestException ex) when(ex.GetBaseException() is SocketException { SocketErrorCode: SocketError.ConnectionRefused }) { return null; } // It closed since.
    }
 
    static JObject ManagementTool(string name, string description) => new()

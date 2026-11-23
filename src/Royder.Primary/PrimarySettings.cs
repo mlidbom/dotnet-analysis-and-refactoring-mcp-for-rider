@@ -28,7 +28,8 @@ sealed class PrimarySettings
          throw new InvalidDataException("Choose separate primary, desktop, remote-development and backend ports, including each backend's ten-port range.");
       if(settings.IdleSeconds < 1 || settings.FirstCallWaitSeconds < 1)
          throw new InvalidDataException("Idle and first-call waits must be positive.");
-      foreach(var location in new[] { settings.Rider.ProfileDirectory, settings.Rider.RiderHome, settings.Rider.AssetsDirectory, settings.CatalogFile })
+      foreach(var location in new[] { settings.Rider.ProfileDirectory, settings.Rider.RiderHome, settings.Rider.AssetsDirectory, settings.CatalogFile }
+                 .Concat(settings.Rider.ToolsFolder is { } toolsFolder ? [toolsFolder] : []))
          if(!Path.IsPathFullyQualified(location)) throw new InvalidDataException($"Expected an absolute installation path: {location}");
       if(OperatingSystem.IsWindows()) SharedRiderHost.CheckProfile(Path.GetFullPath(settings.Rider.ProfileDirectory));
       settings.GitDirectories = settings.Repositories.Select(repo =>

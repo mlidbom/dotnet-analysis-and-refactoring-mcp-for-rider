@@ -73,6 +73,7 @@ internal sealed class RiderGeneration
    public void Adopt(SharedRiderSettings settings, bool stopping = false)
    {
       if(!stopping && (!Same(Launch.ManagedAssets,settings.AssetsDirectory) || Launch.Build != settings.ToolsBuild ||
+         !Same(Launch.Tools, settings.ToolsFolder is {} shared ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(shared)) : Path.Combine(Launch.Run,"tools")) ||
          Launch.HeapMiB != settings.HeapMiB || Launch.RoyderPort != settings.BackendMcpPort ||
          Launch.RemoteDevPort != settings.RemoteDevPort || !Same(Launch.Java, Path.Combine(settings.RiderHome,"jbr","bin","java.exe"))))
          throw new InvalidOperationException("The running Rider generation uses different settings. Stop it before switching builds or ports.");
@@ -85,6 +86,18 @@ internal sealed class RiderGeneration
       }
       RiderSupervisor.Write(path,RiderSupervisor.Owner());
    }
+
+   /// <summary>
+   ///   Whether a solution's health row says this generation's host serves it: its host, and a tools build from one of
+   ///   its two folders. They are the folder its environment names, <see cref="Plan.Tools"/>, and the plugin's own,
+   ///   which holds the pinned build when the first is a shared folder of everyday builds. Any build either holds is one
+   ///   the host chose for itself.
+   /// </summary>
+   public bool Serves(JsonNode? solution) =>
+      solution?["tools"]?["build"]?.GetValue<string>() != null &&
+      Same(solution["tools"]?["host"]?.GetValue<string>(), Launch.HostHash) &&
+      solution["tools"]?["folder"]?.GetValue<string>() is {} folder &&
+      (Same(folder, Launch.Tools) || Same(folder, Path.Combine(Launch.Run, "plugins", "DotNetAnalysisAndRefactoringMcp", "tools")));
 
    public void AssertRunning()
    {
