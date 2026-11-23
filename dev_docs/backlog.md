@@ -210,19 +210,31 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   snapshot only counts projects open at that instant. Session records later that evening showed a successful
   Cloyd specification lookup by symbol and a ClaudeTooling inspection of 17 changed files.
 
-## Testing Royder on a coding task
+## Finding what agents lack, from their real work (under way)
 
-`optimize-royder`, the Claude session in this checkout, owns benchmark design, execution and any resulting changes to
-Royder since 23 November 2026, when it took the work over from `codex-optimize-royder` (earlier `codex-headless-royder`).
-The trial waits for Magnus to name a real pending C# change and a start.
-`codex-tooling-owner` maintains the shared usage measurements. The four-run code-reading pilot is complete.
-Its questions, answers and grading are in `~/.claude/dev_docs/usage/royder-code-understanding-trial.md`.
-Its measurement script is `~/.claude/dev_docs/usage/analysis/code_comprehension_usage.py`.
+Decided with Magnus on 2026-11-23 ("That sounds a lot better to me yes"), in place of the proposed whole-task trial
+of text tools against text and Royder. That trial would answer whether Royder helps overall, from one or two noisy
+runs a side, and not what to change. The four-run code-reading pilot showed it: both sides scored 15.5 of 16, and
+what was worth changing came from reading the runs (seven full tool descriptions printed, 16,458 characters; a whole
+class fetched where one member would do). Agents keep their free choice of tools; we see what they choose, and what
+that costs them. `optimize-royder`, the Claude session in this checkout, owns this since taking the work over from
+`codex-optimize-royder` (earlier `codex-headless-royder`) that day.
 
-The proposed follow-up compares text tools with free choice of text and Royder on the same real C# change.
-Define behavioral and regression cases before either run, then grade the anonymized changes. Keep each
-session through debugging, verification and a related follow-up so first-use costs and later use can be
-compared. Report measured token counts separately from estimated subscription allowance.
+1. **Royder's call log:** every call, its tool, its arguments' shape, its time, its answer's size, its error, whether
+   it opened a checkout cold; and a command that sums it up.
+2. **A miner over the sessions' records,** Claude Code's transcripts and Codex's rollouts, which
+   `~/.claude/dev_docs/usage/analysis` already reads (`claude_transcripts.py`, `codex_rollouts.py`). It finds C# work
+   in three kinds of episode, ranked by how often times what they cost, and samples of the costliest are read:
+   - **Royder fell short:** a call failed, or was followed by a text search or read for the same thing.
+   - **Royder would have done better:** an identifier searched across files and its hits read, a rename by hand, a
+     whole file read for one member.
+   - **No Royder:** the server was down, or the agent didn't know of it.
+3. **Fix from the top of the list:** a tool's answer, a missing capability, or the instructions and descriptions.
+4. **Check each fix:** probes taken from the mined episodes, run by fresh agents with free choice, before and after;
+   and the mined figures over the following days. The probes stay, as a guard against regressions.
+
+The pilot's questions, answers and grading are in `~/.claude/dev_docs/usage/royder-code-understanding-trial.md`;
+`codex-tooling-owner` maintains the shared usage measurements.
 
 ## The rename to Royder
 
