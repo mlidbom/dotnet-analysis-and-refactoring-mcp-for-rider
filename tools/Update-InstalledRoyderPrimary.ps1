@@ -18,6 +18,8 @@ function Get-Listener {
 }
 
 function Stop-Primary([string]$Executable) {
+   # Its repeating trigger would start the stopped build again. Registering the task anew enables it.
+   Disable-ScheduledTask -TaskName $taskName -TaskPath '\' | Out-Null
    $listener = Get-Listener
    if ($listener) {
       if ($listener.Path -ne $Executable) { throw "The public port belongs to $($listener.Path)." }
@@ -104,13 +106,14 @@ try {
    $failure = $_.Exception.Message
    $remaining = Get-Listener
    if ($remaining -and $remaining.Path -eq $oldExecutable) {
+      Enable-ScheduledTask -TaskName $taskName -TaskPath '\' | Out-Null
       throw "Update stopped before cutover: $failure. The previous executable still holds the public port. Previous settings: $backup"
    }
    try {
       Stop-Primary $newExecutable
       Set-Configuration $original
       Start-Primary $oldExecutable
-   } catch { throw "Update failed: $failure. Rollback also failed: $($_.Exception.Message). Previous settings: $backup" }
+   } catch { throw "Update failed: $failure. Rollback also failed: $($_.Exception.Message). The $taskName task stays disabled until it is registered again. Previous settings: $backup" }
    throw "Restored the previous primary after the update failed: $failure"
 }
 Write-Output "Active primary: $newExecutable on $($current.port). Previous settings: $backup."

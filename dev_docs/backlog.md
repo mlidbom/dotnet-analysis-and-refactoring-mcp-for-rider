@@ -359,6 +359,15 @@ how to run it and what it found:
   original URL. [Setup, operation and verification](headless-royder/standalone-primary.md)
   - The symbol linker now waits for its first solution when the primary is cold (`a2a37a4` in ClaudeSymbolLinker).
     Its isolated sandbox still uses 23861.
+  - **It ended unseen, 23 November 2026.** Started at sign-in at 22:32:09, listening at 22:32:13, then ended with
+    `0xC000013A` (a console control event: Ctrl+C, Ctrl+Break or its hidden console closing), with no shutdown line
+    in its log, before 22:35:06, when the first Claude Code session's connection was refused (Claude Code's
+    `mcp-logs-dotnet-analysis-and-refactoring` under `%LOCALAPPDATA%\claude-cli-nodejs\Cache` gives each session's
+    connection). That sign-in was the first after a Windows update's two restarts; the primary had survived the two
+    ordinary restarts earlier that evening. Nothing started it again: Task Scheduler restarts only a start that fails.
+    Four sessions worked on C# without Royder until Magnus noticed at about 22:57. The task now starts it again within
+    a minute (a trigger every minute) and each log says when the task started it. Who sent the event is unknown: the
+    next log that starts long after the machine did gives the time to look for it.
 - **Routing by the worktree** precedes the only-solution shortcut for calls naming files. An absolute path in a
   trusted main checkout or its linked worktree can start its project in the private Rider. Ordinary Rider takes
   precedence when it has the same checkout open.

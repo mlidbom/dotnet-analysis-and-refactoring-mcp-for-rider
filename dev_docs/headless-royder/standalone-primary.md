@@ -61,6 +61,14 @@ cluster reserves ten consecutive MCP ports. Omit `desktopPort` on an installatio
 To run the primary at Windows sign-in, register the task under the current user's account. The command leaves
 the task ready. For a cutover on 23751, start the task after the old ordinary Rider releases that port.
 
+The task also starts the primary again within a minute whenever it has ended, while the user is signed in: a
+second trigger fires every minute, and does nothing while the primary runs. Task Scheduler's restart settings
+cover only a start that fails, and on 23 November 2026 a primary that started at sign-in ended later with
+`0xC000013A` (a console control event), leaving every session without Royder until someone noticed. To keep the
+primary stopped, `Disable-ScheduledTask -TaskName RoyderPrimary` first. Each run's log, under `logs/`, starts with
+the time the task started it and the time the machine started: a log that starts long after the machine did, with
+no update just before it, marks an unexpected end of the run before, in the minute before.
+
 ~~~powershell
 ./tools/Register-RoyderPrimaryAtLogon.ps1 -PrimaryExecutable $primary -SettingsFile $config
 Start-ScheduledTask -TaskName RoyderPrimary
