@@ -306,6 +306,23 @@ Found while doing this, to fix:
   waited for it, and then started a new Rider. The agent took "still opening" as a reason to fall back to grep. Now:
   30 idle minutes (`idleSeconds`), and the answer says opening takes about a minute and to retry in half a minute.
   Left open: a call that comes during an idle close waits for the close and then a cold start.
+- *Done 2026-11-24 (`3225eb8`, `c89f915`, `c46c236`, primary `c46c236` installed 15:10):* **every managed worktree
+  answered "still opening" for 10 to 40 minutes, then "Access is denied"** (compze-agent-rep, a JAStudio worktree,
+  tessaging-and-taggregates, surrogate-session-ids). Three faults:
+  - **An open waited for every sibling backend** in `RiderBackendCluster.WaitForRouting`. Two couldn't be verified: a
+    worktree `git worktree remove` had unregistered while its backend held the folder, and one deleted while open. So
+    each open ran out its four minutes though Rider had the solution ready in seconds. Now an open verifies its own
+    backend only, and the timeout names the backends it couldn't verify.
+  - **`close_worktree` refused a worktree Git no longer lists** (from tooling-owner): "Expected a configured main
+    checkout or one of its linked worktrees.". Now it closes what Royder has open for the solution;
+    `verify_on_demand.py --check-unregistered-close` checks it.
+  - **`RiderProcessIdentity.IsAlive` threw "Access is denied"** for a reused PID now held by a process this user may not
+    open: the maintenance loop's warnings all day, and after the private Rider's processes were ended, the primary
+    failed to start until `current.json` of the dead run was moved aside (`current.json.dead-150546`). Now such a
+    process counts as not ours.
+  Learned restarting it: `Stop-ScheduledTask RoyderPrimary` ends the console wrapper and leaves `Royder.Primary.exe`
+  running; end the process itself. `verify_on_demand.py` left its private Rider running after a failed run, holding
+  its ports; end it before the next run. Its calls now retry "still opening", as an agent does.
 - *Done 2026-11-24 (`bb98d23`):* **a rename landed at old offsets and corrupted a file** (`unanswered-in-cloyd`):
   `KindOfUnansweredItem WaitingForYourGo` became `KinSuggestionsm WaitingForYourGo`, after a script had rewritten the
   file while the private Rider was opening the solution. Rider's frontend applies the backend's edit at the backend's
@@ -733,11 +750,3 @@ backend.
   67 s, and stopping and starting the sandbox, with the fresh copy's restore, about 20 s of it. It would add a second
   way to run, and weaken the check that ReSharper keeps nothing of the tools build that first ran each feature, which
   takes a fresh process.
-- **`close_worktree` can't close a worktree git has already unregistered (from tooling-owner, 2026-11-24).** Removing
-  `C:\Users\magnu\.claude.worktrees\cloyd-remembers-tree-width` through the hub's directory cleanup: `git worktree
-  remove` unregistered it but left the folder, held by the headless Rider's backend for that worktree's solution
-  (Rider.BackendHost.exe under Royder's java host). `close_worktree` with the worktree's `ClaudeTooling.slnx` then
-  answered "Expected a configured main checkout or one of its linked worktrees.", so there was no way to let go of
-  it; the hub's retrying cleanup finished the folder about a minute later on its own (Royder's backend let go). Wanted:
-  `close_worktree` accepts a solution Royder has open whatever git says of its folder now, and ideally Royder lets go
-  of a managed solution whose worktree git no longer lists.
