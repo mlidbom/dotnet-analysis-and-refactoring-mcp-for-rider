@@ -35,7 +35,7 @@ public sealed class DeclarationJson
 
    public static DeclarationJson Of(IDeclaredElement element)
    {
-      var site = DeclarationSite.OfMainDeclarationOf(element) ?? SiteWhereItIsWritten(element);
+      var site = DeclarationSite.WhereWritten(element);
       return new DeclarationJson
              {
                 Kind = JsonNaming.KindOf(element),
@@ -47,22 +47,5 @@ public sealed class DeclarationJson
                 Column = site?.Column,
                 Assembly = site == null ? PsiHelpers.AssemblyFileNameOf(element) : null
              };
-   }
-
-   /// <summary>
-   ///   Where a member with no declaration of its own is written: a positional record's property, at the parameter of
-   ///   the same name in its type's header; anything else, at its type's name.
-   /// </summary>
-   static DeclarationSite? SiteWhereItIsWritten(IDeclaredElement element)
-   {
-      if(element is not ITypeMember member || element is ITypeElement || member.ContainingType is not { } type)
-         return null;
-
-      return type.Constructors
-                 .SelectMany(it => it.Parameters)
-                 .Where(it => it.ShortName == member.ShortName)
-                 .Select(DeclarationSite.OfMainDeclarationOf)
-                 .FirstOrDefault(it => it != null)
-          ?? DeclarationSite.OfMainDeclarationOf(type);
    }
 }

@@ -54,4 +54,25 @@ public sealed class DeclarationSite
    /// </summary>
    public static DeclarationSite? OfMainDeclarationOf(IDeclaredElement element) =>
       MainDeclaration.InOrder(element).Select(Of).FirstOrDefault(it => it is { File.Length: > 0 });
+
+   /// <summary>
+   ///   The site of the element's <see cref="MainDeclaration"/>, or for a member with no declaration of its own, where
+   ///   it is written: a positional record's property at the parameter of the same name in its type's header, anything
+   ///   else, such as an implicit constructor, at its type's name. Nothing for compiled elements.
+   /// </summary>
+   public static DeclarationSite? WhereWritten(IDeclaredElement element) =>
+      OfMainDeclarationOf(element) ?? WhereAMemberWithoutADeclarationIsWritten(element);
+
+   static DeclarationSite? WhereAMemberWithoutADeclarationIsWritten(IDeclaredElement element)
+   {
+      if(element is not ITypeMember member || element is ITypeElement || member.ContainingType is not { } type)
+         return null;
+
+      return type.Constructors
+                 .SelectMany(it => it.Parameters)
+                 .Where(it => it.ShortName == member.ShortName)
+                 .Select(OfMainDeclarationOf)
+                 .FirstOrDefault(it => it != null)
+          ?? OfMainDeclarationOf(type);
+   }
 }
