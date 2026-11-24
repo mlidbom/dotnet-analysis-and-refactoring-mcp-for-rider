@@ -323,6 +323,9 @@ Found while doing this, to fix:
   Learned restarting it: `Stop-ScheduledTask RoyderPrimary` ends the console wrapper and leaves `Royder.Primary.exe`
   running; end the process itself. `verify_on_demand.py` left its private Rider running after a failed run, holding
   its ports; end it before the next run. Its calls now retry "still opening", as an agent does.
+- **Waiting for the next primary install:** `baa5512`, a `solutionName` that isn't the worktree's says whether the
+  file is missing or unlisted, and names the worktree's solutions. Committed after `c46c236` was installed; not worth a
+  cold start of every worktree alone.
 - *Done 2026-11-24 (`bb98d23`):* **a rename landed at old offsets and corrupted a file** (`unanswered-in-cloyd`):
   `KindOfUnansweredItem WaitingForYourGo` became `KinSuggestionsm WaitingForYourGo`, after a script had rewritten the
   file while the private Rider was opening the solution. Rider's frontend applies the backend's edit at the backend's
