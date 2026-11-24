@@ -385,6 +385,14 @@ Found while doing this, to fix:
   primary's own log lines carried no time, so the timeline had to come from the backends' logs: they do since
   `9a00ffd`. Installing it met a third fault, fixed in `5eb7e8d`: the private Rider reset a `/health` connection
   under load, the primary's own `/health` answered 500, and the update gave up; the warm-up polls the same health.
+- *Done 2026-11-24 (primary `b6daf05` installed 22:00; `41cc064`, `5f7c8b4`):* **a Rider update stopped every on-demand
+  open** (surrogate-session-ids, "Private Rider start failed: Staged tools or Rider version does not match the
+  configured pin"). Magnus let a security update force-close Rider at 21:39, 263.7307.325 to .355. The management
+  plugins were pinned to .325 in three places by hand. Installing the rebuilt package then met two more faults: every
+  call's failed open left a journal entry, and the dead run stayed 'Failed', so the update waited for projects open
+  nowhere. Now the build stamps the Rider it compiles against into both plugins, the update counts a dead private
+  Rider's projects as closed, and the start failure says Rider was updated and what is needed. Left open: on-demand
+  opens still stop at each Rider update until a package is built, verified and installed: about 20 minutes by hand.
 - *Done 2026-11-24 (`7a916f5`):* **`inspect_code` with `changedSince` failed on "git rev-parse timed out after 15s"**
   under heavy load (tessaging-and-taggregates); a retry ran into the 55 s answer deadline, and folders in `filePaths`
   worked. The rev-parse only found the work tree's root, which `SolutionRoot` knows: gone. A git timeout now says to

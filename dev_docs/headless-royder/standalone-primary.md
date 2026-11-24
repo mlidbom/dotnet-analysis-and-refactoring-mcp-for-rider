@@ -107,7 +107,14 @@ than verifying the desktop's build. It uses ports other than the running primary
 profile directory of its own, about 600 MB, deleted afterwards with the settings file. `catalogFile`,
 `assetsDirectory` and `toolsBuild` are the package's, and it names no `toolsFolder`, so the capture checks the
 package's own build. The update refuses while the primary has a managed project open; `-Install` retries it until
-they have closed, which they do after 30 idle minutes (`idleSeconds`), for an hour at most.
+they have closed, which they do after 30 idle minutes (`idleSeconds`), for an hour at most. Projects in a journal
+whose private Rider runs nothing any more, its run stopped or failed with no process left, count as closed.
+
+**When Rider updates,** the private Rider no longer starts: its two management plugins use Rider's internals and are
+pinned to the Rider build their package was built against, and every on-demand open answers that Rider was updated.
+Build a package on the new Rider, verify it with `tests/headless/verify_on_demand.py`, and install it, as above:
+`New-RoyderPrimaryPackage.ps1` stamps the new build into both plugins. On 2026-11-24 a security update from
+263.7307.325 to .355 stopped on-demand opens from 21:39 to 22:00.
 
 ## Call and removal behavior
 
