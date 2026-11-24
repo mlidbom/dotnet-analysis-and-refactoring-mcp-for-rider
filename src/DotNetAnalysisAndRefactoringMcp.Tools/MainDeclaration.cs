@@ -12,7 +12,8 @@ namespace DotNetAnalysisAndRefactoringMcp;
 /// </summary>
 /// <remarks>
 ///   ReSharper lists a symbol's declarations in no order a reader would choose: the part in <c>Palette.Mixing.cs</c>
-///   before the one in <c>Palette.cs</c>. On 2026-11-24 get_symbol_source for Compze's <c>IThreadGate</c> returned the
+///   before the one in <c>Palette.cs</c>. The symbol linker's session saw it list the part edited last first: a freshly
+///   indexed solution gave <c>Palette.cs</c>, and after an edit of <c>Palette.Mixing.cs</c> that part. On 2026-11-24 get_symbol_source for Compze's <c>IThreadGate</c> returned the
 ///   220 lines of its private implementation's part, and the agent read <c>IThreadGate.cs</c> after it.
 /// </remarks>
 static class MainDeclaration
