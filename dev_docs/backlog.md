@@ -19,7 +19,10 @@ Magnus's ideas, 2026-11-20, as Claude judged them against what the tools answere
 tools' answers, and above the known bugs: nearly every task in which an agent reads code would use it, where each bug
 bites now and then. In the order to build them:
 
-1. **`get_reachable_source`, the reachable source of a method, in one call:** the source of a method and of every
+1. **`get_call_hierarchy`'s incoming tree:** the same text outline, with each call site's line of code, as `find_usages`
+   shows it, so the agent sees what is passed without opening the file. First, since the tool answers outgoing in text
+   and incoming in JSON until then (Claude's call, 2026-11-25).
+2. **`get_reachable_source`, the reachable source of a method, in one call:** the source of a method and of every
    method in the scope below that its calls can reach, to a depth, each once, after an outline of the call tree. A call
    through an interface or a virtual member reaches every implementation and override in the scope, up to a cap,
    beyond which they are named and counted. A budget in lines of source, and the answer says where it stopped: at the
@@ -31,8 +34,6 @@ bites now and then. In the order to build them:
    doesn't yet follow the calls C# makes without their being written: `Dispose` at the end of a `using`,
    `GetEnumerator` in a `foreach`, `Deconstruct`, an implicit conversion. A delegate's `Invoke` it leaves out: that is
    where this tool says it stopped.
-2. **`get_call_hierarchy`'s incoming tree:** the same text outline, with each call site's line of code, as `find_usages`
-   shows it, so the agent sees what is passed without opening the file.
 
 `get_symbol_source`'s answer, item 4 here until 2026-11-24, is text now; so is `get_call_hierarchy`'s outgoing tree,
 item 1 until 2026-11-25, which follows implementations, `new`, properties, indexers and operators, within the scope
