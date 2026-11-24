@@ -18,6 +18,7 @@ public class When_going_to_a_definition_in_the_JSON_form(TheSandboxWithTheFixtur
    readonly List<string> _unknown = DeclarationsOf(sandbox, "NoSuchSymbol");
    readonly List<string> _recordProperty = DeclarationsOf(sandbox, "Measurement.Unit");
    readonly List<string> _extensionMember = DeclarationsOf(sandbox, "Grown");
+   readonly List<string> _typeInParts = DeclarationsOf(sandbox, "Shapes.Palette");
    readonly JsonNode _compiled = Answer(sandbox, "System.Math")["declarations"]![0]!;
 
    [XF] public void a_type_is_one_declaration_where_its_name_is() => _type.Must().Satisfy(it => it.SequenceEqual(["class Circle Shapes.Circle Circle.cs:4:21"]));
@@ -34,6 +35,13 @@ public class When_going_to_a_definition_in_the_JSON_form(TheSandboxWithTheFixtur
 
    [XF] public void an_extension_blocks_member_is_in_its_static_class() =>
       _extensionMember.Must().Satisfy(it => it.SequenceEqual(["method Grown Shapes.ShapeExtensions.Grown ShapeExtensions.cs:17:19"]));
+
+   /// <summary>
+   ///   Palette is declared in Palette.cs and Palette.Mixing.cs, and ReSharper lists Palette.Mixing.cs first: until
+   ///   2026-11-24 the JSON form gave that part, where the other tools gave Palette.cs.
+   /// </summary>
+   [XF] public void a_type_declared_in_parts_is_in_the_file_named_after_it() =>
+      _typeInParts.Must().Satisfy(it => it.SequenceEqual(["class Palette Shapes.Palette Palette.cs:4:29"]));
 
    [XF] public void a_compiled_type_is_in_its_assembly_with_no_file() =>
       _compiled.Must().Satisfy(it => it["file"] == null && ((string?)it["assembly"])!.EndsWith(".dll") && (string?)it["kind"] == "class");

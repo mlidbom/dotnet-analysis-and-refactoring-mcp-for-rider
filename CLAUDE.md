@@ -167,7 +167,9 @@ before any of the following changes, so it can add a specification first (2026-1
 - the JSON form, `format: "json"`, of `go_to_definition` and `browse_namespace`, and `list_solutions`' JSON, which it
   reads: a contract (`Tools/Json/`), agreed with its session, which the `JsonForm` specifications check. Its 0.2.11
   reads only the JSON form, and requires our 0.15.0, the first release with it; its releases up to 0.2.10 parsed the
-  text of `list_solutions`, `browse_namespace`, `get_symbol_info`'s members section and `go_to_definition` instead;
+  text of `list_solutions`, `browse_namespace`, `get_symbol_info`'s members section and `go_to_definition` instead.
+  Since 2026-11-24 a type declared in parts is at its `MainDeclaration`, the part in the file named after it, as in
+  the other tools, not at whichever part ReSharper lists first; the session `symbol-linker` was told first;
 - what its sandbox Rider copies from ours: the everyday plugin folder, the tools builds in
   `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp\tools`, each with its `host.sha256`, and `/health`'s
   `solutions[].tools.build` and `.host`, by which it waits until its sandbox serves the newest build;

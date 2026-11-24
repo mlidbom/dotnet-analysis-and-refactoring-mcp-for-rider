@@ -25,6 +25,10 @@ public class When_browsing_a_namespace_in_the_JSON_form(TheSandboxWithTheFixture
 
    [XF] public void a_type_with_where_its_name_is() => $"{Type("Circle")["kind"]} {Type("Circle")["qualifiedName"]} {Type("Circle")["line"]}:{Type("Circle")["column"]}".Must().Be("class Shapes.Circle 4:21");
 
+   /// <summary>Palette is declared in Palette.cs and Palette.Mixing.cs, which ReSharper lists first.</summary>
+   [XF] public void a_type_declared_in_parts_where_its_name_is_in_the_file_named_after_it() =>
+      $"{Path.GetFileName((string?)Type("Palette")["file"])}:{Type("Palette")["line"]}:{Type("Palette")["column"]}".Must().Be("Palette.cs:4:29");
+
    [XF] public void with_its_members_by_their_C_sharp_names() => MembersOf(Type("Circle")).Must().Satisfy(it => it.SequenceEqual(["public method Area", "public constructor Circle"]));
 
    [XF] public void a_member_of_each_kind() =>

@@ -27,7 +27,7 @@ public sealed class DeclarationJson
 
    public static DeclarationJson Of(IDeclaredElement element)
    {
-      var site = DeclarationSite.OfFirstDeclarationOf(element) ?? SiteWhereItIsWritten(element);
+      var site = DeclarationSite.OfMainDeclarationOf(element) ?? SiteWhereItIsWritten(element);
       return new DeclarationJson
              {
                 Kind = JsonNaming.KindOf(element),
@@ -52,8 +52,8 @@ public sealed class DeclarationJson
       return type.Constructors
                  .SelectMany(it => it.Parameters)
                  .Where(it => it.ShortName == member.ShortName)
-                 .Select(DeclarationSite.OfFirstDeclarationOf)
+                 .Select(DeclarationSite.OfMainDeclarationOf)
                  .FirstOrDefault(it => it != null)
-          ?? DeclarationSite.OfFirstDeclarationOf(type);
+          ?? DeclarationSite.OfMainDeclarationOf(type);
    }
 }
