@@ -659,6 +659,13 @@ The second round, under way:
     - **Several JVMs at once:** distinct config and system folders and `--port` values.
     - **Royder's rescans and saves have their handlers in the host's JVM**
       (`FileSystemModelProtocolListener`, `DocumentHostHelper.saveFiles`), as in the desktop frontend.
+- **To merge: royder-codex-3's "Release a rejected worktree after verifying its absence"** (52bd04e, 2026-11-22),
+  never merged into main. It is on the branch `royder-codex-3-rejected-open`, pushed to origin on 2026-11-24 when
+  `worktree-cleanup` removed the worktree. The commit records open attempts in their private Rider generation. When
+  the JVM reports the solution absent and a fresh job sample accounts for every backend and worker, cleanup succeeds
+  without dispatching a close; `verify_on_demand.py --check-rejected-open` exercises it. de5f76b, on a lost open
+  reply, is a different case. The merge into main conflicts in `SharedRiderHost.cs` and `verify_on_demand.py`. Its
+  Codex session is archived: `ClaudeTooling sessions restore codex:01a200ba-ae8a-7a03-8129-80982bcaf875`.
 
 ## Reading dotTrace snapshots without desktop Rider
 
