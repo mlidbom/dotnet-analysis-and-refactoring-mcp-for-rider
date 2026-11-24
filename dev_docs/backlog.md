@@ -343,6 +343,12 @@ Found while doing this, to fix:
   Learned restarting it: `Stop-ScheduledTask RoyderPrimary` ends the console wrapper and leaves `Royder.Primary.exe`
   running; end the process itself. `verify_on_demand.py` left its private Rider running after a failed run, holding
   its ports; end it before the next run. Its calls now retry "still opening", as an agent does.
+- *Done 2026-11-24 (`4400e24`, installed 19:41):* **a busy backend's rotated log hid what it served** (tessaging-and-
+  taggregates, all evening). The primary read only `backend.….{pid}.log` for a backend's solution and port; after
+  rotation they were in `.1.log` and on. The backend was the private cluster's primary, so every open waited out its
+  four minutes, and a close refused, "Cannot identify the current backend … Unassigned backend PIDs: 96428". Now
+  all of a backend's logs are read, oldest first. To install it, the primary was restarted to clear a journal the bug
+  had stuck.
 - *Installed 2026-11-24 18:09, primary `f9318d9`:* `baa5512`, a `solutionName` that isn't the
   worktree's says whether the file is missing or unlisted; and `f9318d9`, the private Rider's worktree identity query
   (fsutil) gets 20 s and a second try, and its failure is logged. Two opens failed with "HTTP 409: Cannot establish
