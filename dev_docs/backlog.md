@@ -243,6 +243,10 @@ that costs them. `optimize-royder`, the Claude session in this checkout, owns th
    always-loaded tool-use rule says what each C# lookup returns. `dev_docs/what-agents-lack.md` has the timeline.
    Next: read `mine.py daily` for 24–26 November against 0–4% before. If the share stays low, read the new sessions'
    lookups as text to see why. The probes' agents give a first look at that.
+   Magnus passed the rule's part on to `optimize-royder` on 2026-11-24 and dropped it from his list: optimize-royder's
+   change to the C# paragraph of `~/.claude/rules/030-proactive-tool-use.md` (c35aff8f), and tooling-owner's trim of
+   `rules/claude-tooling/csharp-code-intelligence.md` (10bcc9bd). Judging them by this measurement is optimize-royder's.
+   A change to the rules themselves still goes through `tooling-owner`.
 4. **Check each fix:** probes taken from the mined episodes, run by fresh agents with free choice, before and after;
    and the mined figures over the following days. The probes stay, as a guard against regressions.
 
