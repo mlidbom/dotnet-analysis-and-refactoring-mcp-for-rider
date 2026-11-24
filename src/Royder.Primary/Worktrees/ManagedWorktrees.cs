@@ -111,6 +111,30 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
          throw new InvalidOperationException($"An ordinary Rider has worktree '{tree.Root}' open.");
    }
 
+   /// <summary>
+   ///   Closes the project open for <paramref name="solutionPath"/> in a worktree Git no longer lists, such as one
+   ///   <c>git worktree remove</c> unregistered while Rider's backend held its folder. Whether one was open.
+   /// </summary>
+   /// <remarks>
+   ///   The maintenance loop closes such a project by itself once it is idle, and a call that comes while it does waits
+   ///   for it here. Until 2026-11-24 <c>close_worktree</c> refused the solution, as in no trusted checkout, and the hub's
+   ///   cleanup of the folder had nothing to ask Royder.
+   /// </remarks>
+   public async Task<bool> CloseUnregistered(string solutionPath, CancellationToken cancel)
+   {
+      foreach(var starting in _starting.Where(it => RegisteredWorktree.SamePath(it.Value.Solution, solutionPath)))
+         starting.Value.Cancel();
+      await _changes.WaitAsync(cancel);
+      try
+      {
+         var opened = _open.Values.FirstOrDefault(it => RegisteredWorktree.SamePath(it.SolutionPath, solutionPath));
+         if(opened == null) return false;
+         await Close(opened, true, cancel);
+         return true;
+      }
+      finally { _changes.Release(); }
+   }
+
    public async Task CloseRequested(RegisteredWorktree expected, string path, bool remove, CancellationToken cancel)
    {
       if(remove) expected.RequireLinkedForRemoval();

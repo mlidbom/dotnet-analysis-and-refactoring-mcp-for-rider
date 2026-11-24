@@ -196,6 +196,18 @@ def verify(args):
                 raise AssertionError(f"{timeout}. Royder listed last: {seen.get('last')}") from None
             print("PASS: a project added to the solution file joins the others", flush=True)
             return lab
+        if args.check_unregistered_close:
+            generated(first)
+            # On 2026-11-24 git worktree remove unregistered a worktree but left its folder, which Rider's backend held,
+            # and close_worktree refused the solution as in no trusted checkout.
+            shutil.rmtree(repo / ".git" / "worktrees" / first.name)
+            answer = request("tools/call", dict(name="close_worktree", arguments=dict(solutionPath=str(first / SOLUTION))))
+            text = answer["content"][0]["text"]
+            assert not answer.get("isError") and (text.startswith("Closed") or text.startswith("Nothing to close")), answer
+            wait_until(lambda: not listing(), 100, "the unregistered worktree's project to close")
+            shutil.rmtree(first)
+            print(f"PASS: close_worktree let go of a worktree Git no longer lists: {text}", flush=True)
+            return lab
         previous = set((profile/"runs").glob("*"))
         with concurrent.futures.ThreadPoolExecutor(2) as pool:
             assert len(list(pool.map(generated, [first, first]))) == 2
@@ -285,5 +297,6 @@ if __name__ == "__main__":
     parser.add_argument("--check-idle", action="store_true", help="Wait for the final idle solution and JVM to stop")
     parser.add_argument("--check-timeout", action="store_true", help="Verify a timed-out cold edit never executes")
     parser.add_argument("--check-solution-edit", action="store_true", help="Verify a project added to an open solution's file joins the others")
+    parser.add_argument("--check-unregistered-close", action="store_true", help="Verify close_worktree lets go of a worktree Git no longer lists")
     parser.add_argument("--main-checkout", action="store_true", help="Start with the trusted main checkout; verify it can serve tools but cannot be removed")
     verify(parser.parse_args())
