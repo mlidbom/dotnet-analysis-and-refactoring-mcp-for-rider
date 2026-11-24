@@ -13,6 +13,9 @@ namespace Royder.Primary.Hosting;
 /// <summary>Waits for the private Royder cluster to route to the right indexed backend, including after primary promotion.</summary>
 internal sealed class RiderBackendCluster(HttpClient http, RiderGeneration generation)
 {
+   /// <summary>The backends the last check couldn't verify, for the timeout's message.</summary>
+   IReadOnlyList<string> _unverified = [];
+
    async Task<JsonNode?> Call(int port, string method, object parameters, CancellationToken cancellation)
    {
       using var call = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -30,6 +33,11 @@ internal sealed class RiderBackendCluster(HttpClient http, RiderGeneration gener
 
    /// <summary>Polls the local identities reported by the current primary. A surviving peer registers only once on
    /// solution open. A promoted primary may therefore need its siblings' registrations restored.</summary>
+   /// <remarks>
+   ///   For an open, <paramref name="requested"/>, only its own backend has to be verified. Until 2026-11-24 every
+   ///   backend had to be: one whose worktree Git had removed under it kept every other open in the JVM waiting out
+   ///   the four minutes, and three agents got "still opening" for 10 to 40 minutes.
+   /// </remarks>
    public async Task WaitForRouting(string? requested, CancellationToken cancellation, string? closed = null, string[]? siblings = null)
    {
       var timer = Stopwatch.StartNew();
@@ -41,14 +49,17 @@ internal sealed class RiderBackendCluster(HttpClient http, RiderGeneration gener
          var siblingsPresent = siblings == null || siblings.All(path => backends.Any(it => RiderGeneration.Same(it.Solution,path)));
          if(siblingsPresent && requested == null && backends.Count == 0) return;
          if(siblingsPresent && (requested == null || backends.Any(it => RiderGeneration.Same(it.Solution,requested))) &&
-            await RepairAndCheck(backends, closed, cancellation).ConfigureAwait(false)) return;
+            await RepairAndCheck(backends, requested, closed, cancellation).ConfigureAwait(false)) return;
          await Task.Delay(500,cancellation).ConfigureAwait(false);
       }
-      throw new TimeoutException($"Private Royder cluster at {generation.Launch.RoyderPort} did not verify its registrations and indexed build for '{requested ?? "the remaining solutions"}'.");
+      throw new TimeoutException($"Private Royder cluster at {generation.Launch.RoyderPort} did not verify its registrations and indexed build for '{requested ?? "the remaining solutions"}'"
+                               + (_unverified.Count > 0 ? $": unverified {string.Join(", ", _unverified)}." : "."));
    }
 
-   async Task<bool> RepairAndCheck(IReadOnlyList<RiderGeneration.Backend> backends, string? closed, CancellationToken cancellation)
+   async Task<bool> RepairAndCheck(IReadOnlyList<RiderGeneration.Backend> backends, string? requested, string? closed, CancellationToken cancellation)
    {
+      var checkedBackends = requested == null ? backends : [.. backends.Where(it => RiderGeneration.Same(it.Solution, requested))];
+      _unverified = [.. checkedBackends.Select(it => it.Solution)];
       var port = generation.Launch.RoyderPort;
       var primary = await Call(port, "internal/status", new {}, cancellation).ConfigureAwait(false);
       if(primary?["role"]?.GetValue<string>() != "primary" || primary["solutions"] is not JsonArray registrations) return false;
@@ -63,7 +74,7 @@ internal sealed class RiderBackendCluster(HttpClient http, RiderGeneration gener
       }
       var solutions = await Health(port,cancellation).ConfigureAwait(false);
       if(solutions == null) return false;
-      foreach(var backend in backends)
+      foreach(var backend in checkedBackends)
       {
          if(solutions.Any(it => generation.Serves(it) && RiderGeneration.Same(backend.Solution,it?["path"]?.GetValue<string>()))) continue;
          if(backend.InitialPort == port || !backend.Process.IsAlive()) return false;
@@ -85,8 +96,10 @@ internal sealed class RiderBackendCluster(HttpClient http, RiderGeneration gener
          return false; // Verify from the primary on a fresh sample.
       }
 
-      return backends.All(backend => solutions.Any(row => RiderGeneration.Same(backend.Solution,row?["path"]?.GetValue<string>()) &&
-         generation.Serves(row)));
+      _unverified = [.. checkedBackends.Where(backend => !solutions.Any(row => RiderGeneration.Same(backend.Solution,row?["path"]?.GetValue<string>()) &&
+                                                                         generation.Serves(row)))
+                                       .Select(it => it.Solution)];
+      return _unverified.Count == 0;
    }
 
    async Task<JsonArray?> Health(int port,CancellationToken cancellation)
