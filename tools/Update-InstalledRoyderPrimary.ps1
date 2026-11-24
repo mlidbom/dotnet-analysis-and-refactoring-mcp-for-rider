@@ -81,16 +81,21 @@ if (($oldListener -and $oldListener.Path -ne $oldExecutable) -or (!$oldListener 
 if ($oldExecutable -eq $newExecutable) { throw 'Stage the updated primary in a new package directory.' }
 
 $health = if ($oldListener) { Invoke-RestMethod $publicUrl -NoProxy -TimeoutSec 15 }
-$journal = Join-Path $current.rider.profileDirectory 'worktrees.json'
-if (($health -and @($health.openingWorktrees).Count) -or ((Test-Path -LiteralPath $journal) -and @(Get-Content -Raw -LiteralPath $journal | ConvertFrom-Json).Count)) {
-   throw 'The primary has managed projects open or opening. Switch after they close.'
-}
+# The private Rider runs nothing once its run has stopped or failed and no process of its job is left. Its journal's
+# projects are then open nowhere. On 2026-11-24 a Rider update closed it, the old package could no longer start one, and
+# every agent's call left an entry behind: the journal never emptied, and the run stayed 'Failed'.
 $runFile = Join-Path $current.rider.profileDirectory 'current.json'
-if (Test-Path -LiteralPath $runFile) {
+$riderRuns = if (Test-Path -LiteralPath $runFile) {
    $run = Get-Content -Raw -LiteralPath $runFile | ConvertFrom-Json
    $state = Get-Content -Raw -LiteralPath (Join-Path $run 'state.json') | ConvertFrom-Json
-   if ($state.phase -ne 'Stopped' -or $state.jobRemaining.Count -or $state.survivors.Count) { throw 'The private Rider job has not drained.' }
+   $state.phase -notin 'Stopped','Failed' -or $state.jobRemaining.Count -or $state.survivors.Count
+} else { $false }
+$journal = Join-Path $current.rider.profileDirectory 'worktrees.json'
+if (($health -and @($health.openingWorktrees).Count) -or
+    ($riderRuns -and (Test-Path -LiteralPath $journal) -and @(Get-Content -Raw -LiteralPath $journal | ConvertFrom-Json).Count)) {
+   throw 'The primary has managed projects open or opening. Switch after they close.'
 }
+if ($riderRuns) { throw 'The private Rider job has not drained.' }
 
 $updated = $original | ConvertFrom-Json
 $updated.catalogFile = $newCatalog

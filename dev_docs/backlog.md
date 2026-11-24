@@ -386,9 +386,18 @@ Found while doing this, to fix:
   ended, it was ready in 2 minutes. Now Rider gets 4 minutes to open the solution, counted once nothing is in its
   way, then 15 minutes to load, index and generate it, and "still opening" says how long the warm-up has run and what
   it waits for (`WarmUp`). Left open: serving a call before the source generators have run, with a note, which would
-  have answered sooner; unsafe while Rider reloads its projects, as it did here, with indexing reported done. And
-  the primary's own log lines carry no time, so the timeline had to come from the backends' logs: give its console
-  logger a timestamp with the next primary change.
+  have answered sooner; unsafe while Rider reloads its projects, as it did here, with indexing reported done. The
+  primary's own log lines carried no time, so the timeline had to come from the backends' logs: they do since
+  `9a00ffd`. Installing it met a third fault, fixed in `5eb7e8d`: the private Rider reset a `/health` connection
+  under load, the primary's own `/health` answered 500, and the update gave up; the warm-up polls the same health.
+- *Done 2026-11-24 (primary `b6daf05` installed 22:00; `41cc064`, `5f7c8b4`):* **a Rider update stopped every on-demand
+  open** (surrogate-session-ids, "Private Rider start failed: Staged tools or Rider version does not match the
+  configured pin"). Magnus let a security update force-close Rider at 21:39, 263.7307.325 to .355. The management
+  plugins were pinned to .325 in three places by hand. Installing the rebuilt package then met two more faults: every
+  call's failed open left a journal entry, and the dead run stayed 'Failed', so the update waited for projects open
+  nowhere. Now the build stamps the Rider it compiles against into both plugins, the update counts a dead private
+  Rider's projects as closed, and the start failure says Rider was updated and what is needed. Left open: on-demand
+  opens still stop at each Rider update until a package is built, verified and installed: about 20 minutes by hand.
 - *Done 2026-11-24 (`7a916f5`):* **`inspect_code` with `changedSince` failed on "git rev-parse timed out after 15s"**
   under heavy load (tessaging-and-taggregates); a retry ran into the 55 s answer deadline, and folders in `filePaths`
   worked. The rev-parse only found the work tree's root, which `SolutionRoot` knows: gone. A git timeout now says to
@@ -486,6 +495,23 @@ for the solutions that were open, and after, for when they are indexed again, an
   swapped between calls (`dev_docs/swappable-tools.md`) because a restart was expensive. Once restarts are cheap,
   measure one, from closing a Rider until its solutions answer indexed again, and see whether each still earns its
   complexity. Swapping still saves the edit-and-test loop a restart per change, which is likely to keep it worth having.
+
+## The private Rider's cost on a loaded machine (open)
+
+Magnus asked, through tooling-with-magnus, 2026-11-24 23:25, with the 16 cores saturated most of the evening: what
+does Royder's private Rider cost? Measured at 23:26, six ClaudeTooling solutions open, all idle by their health:
+52 processes, 11.6 GB. Each worktree has a backend (0.3–1.5 GB), a Roslyn worker (0.4–1 GB) and an MSBuild node
+(about 0.1 GB); the JVM adds 1.5 GB. Idle, a backend takes 1–2% of a processor. Solution-wide analysis, on by
+Rider's default, re-analyzes every file: each open makes a full pass over about 2,600 files, roughly 3 processors
+for 1–2 minutes, and a change can start another; one backend took 3.3 processors at 23:26, 1,050 files in that
+minute. Over the evening, about 1.3 processors on average for the whole private Rider. A shorter idle close is no
+answer: 10 minutes gave agents a cold start nearly every call.
+
+- **Solution-wide analysis off in the private Rider.** It is most of the processor time, and only `inspect_code`'s
+  solution-wide inspections need it. To decide first: what `inspect_code` answers for a managed worktree without them,
+  or whether it turns the analysis on for that solution and waits.
+- **At most about 4 managed worktrees open,** the least recently used closed to open another: it bounds the memory
+  without the cold starts of a shorter idle time.
 
 ## Headless Royder for agents' worktrees: a spike first
 
