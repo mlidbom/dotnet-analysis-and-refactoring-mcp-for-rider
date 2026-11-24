@@ -14,16 +14,23 @@ public static class GitChanges
 {
    static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
 
+   /// <param name="workTree">The work tree's root folder: the paths git gives are relative to it.</param>
    /// <returns>Absolute paths of changed files that still exist.</returns>
-   /// <exception cref="InvalidOperationException">Git is missing, the directory is not a work tree, or the ref is unknown.</exception>
-   public static IReadOnlyList<string> Since(string directory, string reference)
+   /// <exception cref="InvalidOperationException">
+   ///   Git is missing, <paramref name="workTree"/> is not a work tree, the ref is unknown, or git took longer than
+   ///   <see cref="Timeout"/>.
+   /// </exception>
+   /// <remarks>
+   ///   Until 2026-11-24 a <c>git rev-parse --show-toplevel</c> found the root first, which the caller already knows: on
+   ///   a machine under heavy load, it was that call that timed out.
+   /// </remarks>
+   public static IReadOnlyList<string> Since(string workTree, string reference)
    {
-      var root = Git(directory, "rev-parse", "--show-toplevel").Single();
-      var changed = Git(root, "diff", "--name-only", "--diff-filter=d", reference, "--");
-      var untracked = Git(root, "ls-files", "--others", "--exclude-standard");
+      var changed = Git(workTree, "diff", "--name-only", "--diff-filter=d", reference, "--");
+      var untracked = Git(workTree, "ls-files", "--others", "--exclude-standard");
 
       return changed.Concat(untracked)
-                    .Select(x => Path.GetFullPath(Path.Combine(root, x)))
+                    .Select(x => Path.GetFullPath(Path.Combine(workTree, x)))
                     .Where(File.Exists)
                     .Distinct()
                     .ToList();
@@ -48,7 +55,8 @@ public static class GitChanges
          if(!git.WaitForExit((int)Timeout.TotalMilliseconds))
          {
             git.Kill();
-            throw new InvalidOperationException($"git {arguments[0]} timed out after {Timeout.TotalSeconds}s");
+            throw new InvalidOperationException($"git {arguments[0]} took longer than {Timeout.TotalSeconds} s, as it does on a machine under heavy load: " +
+                                                "retry, or name the folders to cover in filePaths");
          }
 
          if(git.ExitCode != 0)
