@@ -80,7 +80,7 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
          arguments = expandable.Expand(arguments);
 
       var disk = await new DiskSync(_solution.Solution, _locks, _solution.Changes, _solution.DiskSyncState)
-                      .Run(lifetime, execution, FileArguments.Absolute(arguments, _solution.Root))
+                      .Run(lifetime, execution, FileArguments.Absolute(arguments, _solution.Root), EditsFiles(arguments))
                       .ConfigureAwait(false);
 
       var refusal = Refusal(disk, arguments);
@@ -93,12 +93,12 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
 
       var unsavedBefore = EditsFiles(arguments) ? await _unsaved.Now(lifetime).ConfigureAwait(false) : null;
       var result = await Work(arguments, lifetime, execution).ConfigureAwait(false);
-      var notSaved = unsavedBefore == null ? [] : await _unsaved.SaveThoseUnsavedSince(unsavedBefore, lifetime).ConfigureAwait(false);
+      var saved = unsavedBefore == null ? SavedEdit.Nothing : await _unsaved.SaveThoseUnsavedSince(unsavedBefore, lifetime).ConfigureAwait(false);
       var moved = _tool is IMcpFileMovingTool mover && EditsFiles(arguments)
-                     ? await new FileMoves(_solution.Solution, _locks).Make(mover.FileMoves, notSaved, lifetime, execution, _solution.Root).ConfigureAwait(false)
+                     ? await new FileMoves(_solution.Solution, _locks).Make(mover.FileMoves, saved.NotSaved, lifetime, execution, _solution.Root).ConfigureAwait(false)
                      : [];
 
-      return WithNotes(result, [.. moved, .. Notes(disk, requested, indexingAsTheWorkBegan, notSaved)], JsonFormat.IsAskedFor(arguments));
+      return WithNotes(result, [.. moved, .. Notes(disk, requested, indexingAsTheWorkBegan, saved)], JsonFormat.IsAskedFor(arguments));
    }
 
    /// <summary>The tool's work, on the thread and under the lock its kind asks for.</summary>
@@ -189,7 +189,7 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       return $"Refused: {_tool.Name} edits Rider's copy of files and saves it.\n" + string.Join("\n", reasons);
    }
 
-   List<string> Notes(DiskReport disk, IReadOnlyList<string> requested, bool indexingAsTheWorkBegan, List<DocumentNotSaved> notSaved)
+   List<string> Notes(DiskReport disk, IReadOnlyList<string> requested, bool indexingAsTheWorkBegan, SavedEdit saved)
    {
       var notes = new List<string>();
       if(disk.Stale.Count > 0)
@@ -202,9 +202,14 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       if(absent.Count > 0)
          notes.Add($"note: {Listed(absent)} {(absent.Count == 1 ? "is" : "are")} on disk but in no project yet");
 
-      if(notSaved.Count > 0)
-         notes.Add($"note: Rider hadn't saved {Listed([.. notSaved.Select(it => it.File)])} after this edit yet: a build started before it has reads the text before the edit. "
-                 + string.Join("; ", notSaved.Take(3).Select(it => $"{_solution.Root.Relative(it.File)} differs {it.HowTheFileDiffers}")));
+      if(saved.NotSaved.Count > 0)
+         notes.Add($"note: Rider hadn't saved {Listed([.. saved.NotSaved.Select(it => it.File)])} after this edit yet: a build started before it has reads the text before the edit. "
+                 + string.Join("; ", saved.NotSaved.Take(3).Select(it => $"{_solution.Root.Relative(it.File)} differs {it.HowTheFileDiffers}")));
+
+      if(saved.NotTheEditsResult.Count > 0)
+         notes.Add($"WARNING: {Listed([.. saved.NotTheEditsResult.Select(it => it.File)])} on disk {(saved.NotTheEditsResult.Count == 1 ? "doesn't" : "don't")} hold this edit's result: "
+                 + "Rider applied it to a copy that hadn't taken in a change on disk yet, at the wrong places. Check and fix the file before going on. "
+                 + string.Join("; ", saved.NotTheEditsResult.Take(3).Select(it => $"{_solution.Root.Relative(it.File)} differs {it.HowTheFileDiffers}")));
 
       if(indexingAsTheWorkBegan)
          notes.Add("(index still building — results may be incomplete)");

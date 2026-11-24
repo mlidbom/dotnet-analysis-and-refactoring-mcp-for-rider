@@ -42,6 +42,12 @@ public sealed class DiskSync
    static readonly TimeSpan ReloadTimeout = TimeSpan.FromSeconds(10);
    static readonly TimeSpan ReloadPoll = TimeSpan.FromMilliseconds(100);
 
+   /// <summary>
+   ///   How long the watcher's events of a change on disk may take to arrive. A rename sent as a file was written found
+   ///   the backend's copy still old, since the watcher hadn't reported the file yet (2026-11-24).
+   /// </summary>
+   static readonly TimeSpan WatcherLatency = TimeSpan.FromMilliseconds(100);
+
    // Files compared with disk per call; past it (a branch switch), the rest are only rescanned.
    const int MaxChecked = 500;
 
@@ -60,9 +66,18 @@ public sealed class DiskSync
    }
 
    /// <param name="named">Absolute paths of the files the call names.</param>
-   public async Task<DiskReport> Run(Lifetime lifetime, McpToolExecution execution, IReadOnlyCollection<string> named)
+   /// <param name="beforeAnEdit">
+   ///   Whether an edit follows. Rider's frontend applies an edit to its own copy of each file, at the offsets the backend
+   ///   computed on its copy: the two must hold the same text (<see cref="FileNotTheEditsResult"/>). So the watcher's
+   ///   events get <see cref="WatcherLatency"/> to arrive, and the frontend is asked to rescan every suspect, not only
+   ///   those the backend had stale: the frontend can lag where the backend doesn't, as it did while the private Rider
+   ///   was opening a solution.
+   /// </param>
+   public async Task<DiskReport> Run(Lifetime lifetime, McpToolExecution execution, IReadOnlyCollection<string> named, bool beforeAnEdit)
    {
       await WatchProjects(execution);
+      if(beforeAnEdit)
+         await Task.Delay(WatcherLatency, lifetime);
 
       var (changes, suspects) = TakeSuspects(named);
       var unverified = changes.Files.Where(x => !suspects.Contains(x)).ToList();
@@ -79,6 +94,7 @@ public sealed class DiskSync
                   .Concat(absent.Select(Path.GetDirectoryName))
                   .Concat(changes.Directories)
                   .Concat(unverified.Select(PathToRescan))
+                  .Concat(beforeAnEdit ? suspects.Where(File.Exists) : [])
                   .Distinct()
                   .ToList();
 

@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Application.Threading;
@@ -46,9 +47,14 @@ sealed class Rescans(ISolution solution, IShellLocks locks)
                                                 return _solution.GetProtocolSolution().GetFileSystemModel().RefreshPaths.Start(lifetime, request).AsTask();
                                              });
 
+         var asked = Stopwatch.StartNew();
          // WhenAny hands back a faulted task without throwing; await it to see why.
          if(await Task.WhenAny(refresh, Task.Delay(RefreshTimeout)).ConfigureAwait(false) == refresh)
+         {
             await refresh.ConfigureAwait(false);
+            Log.Verbose($"Rider's frontend answered a rescan of {paths.Count} paths in {asked.ElapsedMilliseconds} ms.");
+         } else
+            Log.Warn($"Rider's frontend didn't answer a rescan of {paths.Count} paths within {RefreshTimeout.TotalSeconds} s.");
       }
       catch(Exception exception) when(exception is not OperationCanceledException)
       {

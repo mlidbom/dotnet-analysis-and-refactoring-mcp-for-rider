@@ -67,21 +67,33 @@ sealed class UnsavedDocuments
    /// <summary>
    ///   Saves the documents unsaved now that weren't <paramref name="before"/>, and returns once Rider's frontend has saved
    ///   them, or after <see cref="HowLongSavingMayTake"/> with those it hadn't, and how their files differed. What Rider
-   ///   saves by itself within <see cref="HowLongRidersOwnSaveMayTake"/> isn't saved again.
+   ///   saves by itself within <see cref="HowLongRidersOwnSaveMayTake"/> isn't saved again. A saved file that doesn't
+   ///   hold the text the edit gave Rider's copy is returned too: see <see cref="FileNotTheEditsResult"/>.
    /// </summary>
    /// <remarks>
    ///   Not those unsaved before: their unsaved text is someone's work in progress, such as Magnus's typing in Rider,
    ///   which is his to save.
    /// </remarks>
-   public async Task<List<DocumentNotSaved>> SaveThoseUnsavedSince(List<IDocument> before, Lifetime lifetime)
+   public async Task<SavedEdit> SaveThoseUnsavedSince(List<IDocument> before, Lifetime lifetime)
    {
       var edited = (await UnsavedOf(() => _operations.GetUnsavedDocuments(), lifetime).ConfigureAwait(false))
                   .Where(it => !before.Contains(it.Document) && HasItsFile(it.Document))
                   .ToDictionary(it => it.Document, it => it.Text);
       var leftByRider = await UnsavedAfter(edited, [.. edited.Keys], HowLongRidersOwnSaveMayTake, lifetime).ConfigureAwait(false);
-      if(leftByRider.Count == 0)
-         return [];
+      var unsaved = leftByRider.Count == 0 ? [] : await SavedByTheFrontend(edited, leftByRider, lifetime).ConfigureAwait(false);
 
+      var saved = edited.Where(it => unsaved.All(notSaved => notSaved.Document != it.Key)).ToList();
+      return new SavedEdit([.. unsaved.Select(it => new DocumentNotSaved(it.Document.Moniker, DiskText.DifferenceOf(it.Document.Moniker, it.Text)))],
+                           [.. saved.Select(it => new { File = it.Key.Moniker, Difference = DiskText.DifferenceOf(it.Key.Moniker, it.Value) })
+                                    .Where(it => it.Difference != null)
+                                    .Select(it => new FileNotTheEditsResult(it.File, it.Difference))]);
+   }
+
+   /// <summary>Asks the frontend to save what Rider left, and returns those it still hadn't saved after <see cref="HowLongSavingMayTake"/>.</summary>
+   async Task<List<(IDocument Document, string Text)>> SavedByTheFrontend(IReadOnlyDictionary<IDocument, string> edited,
+                                                                           List<(IDocument Document, string Text)> leftByRider,
+                                                                           Lifetime lifetime)
+   {
       await OnTheMainThread(lifetime,
                             () =>
                             {
@@ -90,8 +102,7 @@ sealed class UnsavedDocuments
                                return leftByRider;
                             }).ConfigureAwait(false);
 
-      var unsaved = await UnsavedAfter(edited, [.. leftByRider.Select(it => it.Document)], HowLongSavingMayTake, lifetime).ConfigureAwait(false);
-      return [.. unsaved.Select(it => new DocumentNotSaved(it.Document.Moniker, DiskText.DifferenceOf(it.Document.Moniker, it.Text)))];
+      return await UnsavedAfter(edited, [.. leftByRider.Select(it => it.Document)], HowLongSavingMayTake, lifetime).ConfigureAwait(false);
    }
 
    /// <summary>
