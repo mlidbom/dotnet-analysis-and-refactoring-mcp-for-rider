@@ -323,9 +323,15 @@ Found while doing this, to fix:
   Learned restarting it: `Stop-ScheduledTask RoyderPrimary` ends the console wrapper and leaves `Royder.Primary.exe`
   running; end the process itself. `verify_on_demand.py` left its private Rider running after a failed run, holding
   its ports; end it before the next run. Its calls now retry "still opening", as an agent does.
-- **Waiting for the next primary install:** `baa5512`, a `solutionName` that isn't the worktree's says whether the
-  file is missing or unlisted, and names the worktree's solutions. Committed after `c46c236` was installed; not worth a
-  cold start of every worktree alone.
+- **Waiting for the next primary install, package `f9318d9`, verified:** `baa5512`, a `solutionName` that isn't the
+  worktree's says whether the file is missing or unlisted; and `f9318d9`, the private Rider's worktree identity query
+  (fsutil) gets 20 s and a second try, and its failure is logged. Two opens failed with "HTTP 409: Cannot establish
+  the worktree's filesystem identity" under load, one a reopen after a `.slnx` edit. A background loop installs it
+  once no managed project is open.
+- **A primary update waits until no managed project is open,** which on a busy day may not come until evening: at
+  15:40 on 2026-11-24 six agents had worktrees open. A fix for two blocked agents then waits on six working ones, or
+  closes their projects by force, a cold start each. Better: an update that hands the private Rider, and its open
+  projects, over to the new primary, so only the primary restarts.
 - *Done 2026-11-24 (`bb98d23`):* **a rename landed at old offsets and corrupted a file** (`unanswered-in-cloyd`):
   `KindOfUnansweredItem WaitingForYourGo` became `KinSuggestionsm WaitingForYourGo`, after a script had rewritten the
   file while the private Rider was opening the solution. Rider's frontend applies the backend's edit at the backend's
