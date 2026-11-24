@@ -3,9 +3,29 @@
 What Claude found the plugin lacking, or would build next, most valuable first. Sessions in other projects add what
 they run into here (see the user-level rule that the dotnet-analysis-and-refactoring MCP is a development tool you own). An item that is done goes from the list.
 
-## First: every tool's answer, as an agent reads it
+## First: the private Rider's cost on a loaded machine (open)
 
-Magnus, 2026-11-20: first in the backlog. `get_symbol_source` and `get_call_hierarchy` answer in pretty-printed JSON
+Ordered first on 2026-11-24, above the pass over the tools' answers: Magnus's machine pays it every evening, he asked
+about it himself, and the first change below is small. The primary's, so royder-agent-rep's to take up.
+
+Magnus asked, through tooling-with-magnus, 2026-11-24 23:25, with the 16 cores saturated most of the evening: what
+does Royder's private Rider cost? Measured at 23:26, six ClaudeTooling solutions open, all idle by their health:
+52 processes, 11.6 GB. Each worktree has a backend (0.3–1.5 GB), a Roslyn worker (0.4–1 GB) and an MSBuild node
+(about 0.1 GB); the JVM adds 1.5 GB. Idle, a backend takes 1–2% of a processor. Solution-wide analysis, on by
+Rider's default, re-analyzes every file: each open makes a full pass over about 2,600 files, roughly 3 processors
+for 1–2 minutes, and a change can start another; one backend took 3.3 processors at 23:26, 1,050 files in that
+minute. Over the evening, about 1.3 processors on average for the whole private Rider. A shorter idle close is no
+answer: 10 minutes gave agents a cold start nearly every call.
+
+- **Solution-wide analysis off in the private Rider.** It is most of the processor time, and only `inspect_code`'s
+  solution-wide inspections need it. To decide first: what `inspect_code` answers for a managed worktree without them,
+  or whether it turns the analysis on for that solution and waits.
+- **At most about 4 managed worktrees open,** the least recently used closed to open another: it bounds the memory
+  without the cold starts of a shorter idle time.
+
+## Then: every tool's answer, as an agent reads it
+
+Magnus, 2026-11-20: first in the backlog, until the private Rider's cost went above it on 2026-11-24. `get_symbol_source` and `get_call_hierarchy` answer in pretty-printed JSON
 where text would serve an agent better: source in an escaped string, each file's full path repeated at every node, an
 empty `"children": []` at every leaf. That costs tokens and makes the answer harder to read. Other tools may do the
 same; only these two were checked. Wanted: go through every tool's answer as an agent reads it, and for each that
@@ -495,23 +515,6 @@ for the solutions that were open, and after, for when they are indexed again, an
   swapped between calls (`dev_docs/swappable-tools.md`) because a restart was expensive. Once restarts are cheap,
   measure one, from closing a Rider until its solutions answer indexed again, and see whether each still earns its
   complexity. Swapping still saves the edit-and-test loop a restart per change, which is likely to keep it worth having.
-
-## The private Rider's cost on a loaded machine (open)
-
-Magnus asked, through tooling-with-magnus, 2026-11-24 23:25, with the 16 cores saturated most of the evening: what
-does Royder's private Rider cost? Measured at 23:26, six ClaudeTooling solutions open, all idle by their health:
-52 processes, 11.6 GB. Each worktree has a backend (0.3–1.5 GB), a Roslyn worker (0.4–1 GB) and an MSBuild node
-(about 0.1 GB); the JVM adds 1.5 GB. Idle, a backend takes 1–2% of a processor. Solution-wide analysis, on by
-Rider's default, re-analyzes every file: each open makes a full pass over about 2,600 files, roughly 3 processors
-for 1–2 minutes, and a change can start another; one backend took 3.3 processors at 23:26, 1,050 files in that
-minute. Over the evening, about 1.3 processors on average for the whole private Rider. A shorter idle close is no
-answer: 10 minutes gave agents a cold start nearly every call.
-
-- **Solution-wide analysis off in the private Rider.** It is most of the processor time, and only `inspect_code`'s
-  solution-wide inspections need it. To decide first: what `inspect_code` answers for a managed worktree without them,
-  or whether it turns the analysis on for that solution and waits.
-- **At most about 4 managed worktrees open,** the least recently used closed to open another: it bounds the memory
-  without the cold starts of a shorter idle time.
 
 ## Headless Royder for agents' worktrees: a spike first
 
