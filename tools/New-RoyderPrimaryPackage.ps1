@@ -69,7 +69,7 @@ if ($Install) {
    while ($true) {
       try { & "$PSScriptRoot/Update-InstalledRoyderPrimary.ps1" -PackageDirectory $package; break }
       catch {
-         if ($_.Exception.Message -notmatch 'managed projects open|has not drained' -or (Get-Date) -gt $until) { throw }
+         if ($_.Exception.Message -notmatch 'managed projects open|has not drained|HttpClient.Timeout' -or (Get-Date) -gt $until) { throw }
          Start-Sleep -Seconds 30
       }
    }
