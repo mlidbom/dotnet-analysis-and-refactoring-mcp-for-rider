@@ -9,6 +9,8 @@ using JetBrains.DocumentModel;
 using JetBrains.DocumentModel.Storage;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
+using JetBrains.Util;
+using JetBrains.Util.Logging;
 
 namespace DotNetAnalysisAndRefactoringMcp.Disk;
 
@@ -32,6 +34,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Disk;
 /// </remarks>
 sealed class UnsavedDocuments
 {
+   static readonly ILogger Log = Logger.GetLogger<UnsavedDocuments>();
    static readonly TimeSpan HowLongSavingMayTake = TimeSpan.FromSeconds(10);
 
    /// <summary>
@@ -48,11 +51,13 @@ sealed class UnsavedDocuments
 
    readonly DocumentOperationsImpl _operations;
    readonly IShellLocks _locks;
+   readonly Reconciliation _reconciliation;
 
    public UnsavedDocuments(ISolution solution)
    {
       _operations = (DocumentOperationsImpl)solution.GetComponent<IDocumentStorageHelpers>();
       _locks = solution.Locks;
+      _reconciliation = new Reconciliation(solution, solution.Locks);
    }
 
    /// <summary>Those unsaved now: before an edit, the ones its saving leaves alone.</summary>
@@ -70,8 +75,10 @@ sealed class UnsavedDocuments
    /// </remarks>
    public async Task<List<DocumentNotSaved>> SaveThoseUnsavedSince(List<IDocument> before, Lifetime lifetime)
    {
-      var changed = (await Now(lifetime).ConfigureAwait(false)).Except(before).Where(HasItsFile).ToList();
-      var leftByRider = await UnsavedAfter(changed, HowLongRidersOwnSaveMayTake, lifetime).ConfigureAwait(false);
+      var edited = (await UnsavedOf(() => _operations.GetUnsavedDocuments(), lifetime).ConfigureAwait(false))
+                  .Where(it => !before.Contains(it.Document) && HasItsFile(it.Document))
+                  .ToDictionary(it => it.Document, it => it.Text);
+      var leftByRider = await UnsavedAfter(edited, [.. edited.Keys], HowLongRidersOwnSaveMayTake, lifetime).ConfigureAwait(false);
       if(leftByRider.Count == 0)
          return [];
 
@@ -83,15 +90,24 @@ sealed class UnsavedDocuments
                                return leftByRider;
                             }).ConfigureAwait(false);
 
-      var unsaved = await UnsavedAfter([.. leftByRider.Select(it => it.Document)], HowLongSavingMayTake, lifetime).ConfigureAwait(false);
+      var unsaved = await UnsavedAfter(edited, [.. leftByRider.Select(it => it.Document)], HowLongSavingMayTake, lifetime).ConfigureAwait(false);
       return [.. unsaved.Select(it => new DocumentNotSaved(it.Document.Moniker, DiskText.DifferenceOf(it.Document.Moniker, it.Text)))];
    }
 
    /// <summary>
    ///   Those of <paramref name="documents"/> whose files don't hold their text once they all do, or once
-   ///   <paramref name="howLong"/> has passed.
+   ///   <paramref name="howLong"/> has passed. One whose file holds the text the edit gave it, while Rider's copy has gone
+   ///   back to an older one, is reconciled with its file meanwhile.
    /// </summary>
-   async Task<List<(IDocument Document, string Text)>> UnsavedAfter(List<IDocument> documents, TimeSpan howLong, Lifetime lifetime)
+   /// <remarks>
+   ///   Rider takes in its own save of a document as a change on disk, and reads the file for it: mostly after the
+   ///   frontend has written it, at times before, and then its copy goes back to the text before the edit while the file
+   ///   gets the edit's. Its own save was taken in as an external change 102 times in 104 renames in a row, and in one the
+   ///   copy went back (<c>tests/live_edit_race.py</c>, 2026-11-24). Until the next call's <see cref="DiskSync"/>
+   ///   reconciled it, the PSI had the old text, and a move found the file unsaved and didn't move it.
+   /// </remarks>
+   /// <param name="edited">The documents the edit changed, with the text it gave them.</param>
+   async Task<List<(IDocument Document, string Text)>> UnsavedAfter(IReadOnlyDictionary<IDocument, string> edited, List<IDocument> documents, TimeSpan howLong, Lifetime lifetime)
    {
       var deadline = DateTime.UtcNow + howLong;
       while(true)
@@ -99,6 +115,13 @@ sealed class UnsavedDocuments
          var unsaved = await UnsavedOf(() => documents, lifetime).ConfigureAwait(false);
          if(unsaved.Count == 0 || DateTime.UtcNow >= deadline)
             return unsaved;
+
+         var wentBack = unsaved.Where(it => DiskText.Holds(it.Document.Moniker, edited[it.Document])).Select(it => it.Document).ToList();
+         if(wentBack.Count > 0)
+         {
+            Log.Warn($"Rider's copy of {string.Join(", ", wentBack.Select(it => it.Moniker))} went back to an older text after the edit, which its file holds: reconciling it with disk.");
+            await _reconciliation.Reconcile(lifetime, () => wentBack).ConfigureAwait(false);
+         }
          await Task.Delay(BetweenChecks, lifetime).ConfigureAwait(false);
       }
    }
