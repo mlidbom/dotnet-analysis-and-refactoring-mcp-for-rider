@@ -86,6 +86,13 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   The headless host has no frontend to service that rescan. In the spike a tracker commit removed the symbol and
   reloading the owning project removed the remaining empty project item.
   [Headless observations](../experiments/HeadlessHost/README.md#freshness-in-the-standalone-fixture)
+- **A compiled member's signature loses its arrays, and no signature shows `ref`, `out`, `params` or defaults**
+  (optimize-royder, 2026-11-24, `StringBuilder.Insert` on the everyday Royder). `FormatSignature` prints a compiled
+  member's types in its presentation language: `Insert(index:Int32, value:) : StringBuilder` for the `char[]`
+  overload, where a source member reads `int`. And it prints every parameter as `name:type`, so an agent writing a
+  call to an overload can't tell `out result:int` from `result:int`, which the tooling owner's C# rule sends agents to
+  Sherlock for. Wanted: types in C#, modifiers before the name, a default after the type. `symbol-linker`, whose
+  picker shows the JSON `signature`, was told first.
 - **`get_diagnostics` takes one `filePath`, and drops a `filePaths` without a word** (optimize-royder, 2026-11-24).
   Its siblings `get_file_errors` and `inspect_code` take `filePaths`, so an agent passes it; the call then names no
   file, and the router answers "Multiple solutions are open", which points at routing, not at the argument. Wanted:
@@ -306,10 +313,9 @@ Found while doing this, to fix:
   merged overloads, and never followed one overload's call into another; it uses ReSharper's
   `DeclaredElementEqualityComparer` now, and a node whose member has overloads carries its signature. Its outgoing
   tree also missed every call an expression-bodied member makes: it read the member's block `Body`, which such a
-  member hasn't. Left open: a
-  parameter list in the name doesn't pick one overload, since `SymbolName` strips it. Waiting on the deploy of
-  `4aef221`: check a compiled member's overloads by name on the everyday Royder, and tell `tooling-owner` that its C#
-  rule's "Ours shows one overload of a compiled method", under Sherlock, is stale.
+  member hasn't. Deployed and checked on the everyday Royder: `StringBuilder.Insert` by name gives all 18 overloads;
+  `tooling-owner` was told that its C# rule's "Ours shows one overload of a compiled method" is stale. Left open: a
+  parameter list in the name doesn't pick one overload, since `SymbolName` strips it.
 - *Done 2026-11-24:* **`list_symbols_in_file` lost a type's nesting after a generic method:** in Compze's
   `IThreadGate.cs`, the members after `ExecuteWithExclusiveLockWhen<TResult>` came under a "(IThreadGate)" heading.
   ReSharper models a type parameter as a type, and the outline took it for a nested type's heading. Type parameters
