@@ -19,10 +19,16 @@ sealed class RiderEndpoint(HttpClient http, int port)
       return JObject.Parse(await response.Content.ReadAsStringAsync(cancellation));
    }
 
+   /// <summary>The endpoint's <c>/health</c>; null while nothing there answers, such as while a peer takes over its port.</summary>
+   /// <remarks>
+   ///   A connection reset counts as nothing answering too. On 2026-11-24, with the machine's CPU at 100%, one failed the
+   ///   primary's own <c>/health</c> with a 500, which ended an update of the primary; and the warm-up polls this, which it
+   ///   would have failed.
+   /// </remarks>
    public async Task<JObject?> Health(CancellationToken cancellation)
    {
       try { return JObject.Parse(await http.GetStringAsync(new Uri(_address, "health"), cancellation)); }
-      catch(HttpRequestException ex) when(ex.GetBaseException() is SocketException { SocketErrorCode: SocketError.ConnectionRefused }) { return null; }
+      catch(HttpRequestException ex) when(ex.GetBaseException() is SocketException { SocketErrorCode: SocketError.ConnectionRefused or SocketError.ConnectionReset }) { return null; }
    }
 
    public async Task<JArray> Catalog(CancellationToken cancellation)

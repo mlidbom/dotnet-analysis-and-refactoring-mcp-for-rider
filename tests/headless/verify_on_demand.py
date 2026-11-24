@@ -124,7 +124,7 @@ def verify(args):
 
     def tool(name, args):
         # The primary answers a call to a solution still opening within its deadline, saying so: retry it, as an agent
-        # does. The opening itself gives up after 4 minutes.
+        # does. Four minutes covers a cold open on an idle machine many times over.
         end = time.monotonic() + 240
         while True:
             result = request("tools/call", dict(name=name, arguments=args))
@@ -172,6 +172,9 @@ def verify(args):
             answer = request("tools/call", dict(name="rename_symbol", arguments=dict(
                 filePath=str(source), line=2, column=14, newName="RenameMustNeverRun", dryRun=False)))
             assert answer.get("isError") and "still opening" in answer["content"][0]["text"], answer
+            # Since 2026-11-24 it says how long the warm-up has run and what it waits for.
+            assert "waits for" in answer["content"][0]["text"], answer
+            print("Still opening:", answer["content"][0]["text"], flush=True)
             wait_until(lambda: first/SOLUTION in listing(), 150, "warm-up after the edit timed out")
             generated(first)
             assert source.read_bytes() == original and source.exists() and not (first/"RenameMustNeverRun.cs").exists()

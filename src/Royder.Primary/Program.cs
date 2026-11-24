@@ -41,6 +41,8 @@ using var owner = WorktreeJournal.OwnProfile(settings.Rider.ProfileDirectory);
 var pinned = new ToolCatalog(settings.CatalogFile, settings.Rider.ToolsBuild);
 var host = WebApplication.CreateSlimBuilder();
 host.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, settings.Port));
+// Without a time, what happened when had to be worked out from the private Rider's own logs (2026-11-24).
+host.Logging.AddSimpleConsole(it => it.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ");
 host.Services.Configure<HostOptions>(it => it.ShutdownTimeout = TimeSpan.FromMinutes(3));
 host.Services.AddSingleton(settings);
 host.Services.AddSingleton(settings.Rider);

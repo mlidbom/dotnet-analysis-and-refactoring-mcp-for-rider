@@ -117,7 +117,8 @@ they have closed, which they do after 30 idle minutes (`idleSeconds`), for an ho
   dispatched once.
 - Every tool call is answered within `answerWithinSeconds`, 55 by default, since Claude Code gives up on an MCP call
   after 60 seconds and then tells the agent only "The operation timed out.". A cold open still running by then answers
-  that the solution is still opening, and only the warm-up continues. A call Rider is still working on answers that
+  that the solution is still opening, how long the warm-up has run and what it waits for, such as Rider indexing it,
+  and only the warm-up continues. A call Rider is still working on answers that
   it goes on in Rider: an edit in it still lands. The 60 seconds is Claude Code's default per-request limit for an
   HTTP server; `MCP_TOOL_TIMEOUT`, or a `timeout` on the server's entry in `.mcp.json`, raises it. The tooling owner
   kept the default (2026-11-24): "still opening, retry" tells an agent more than a long wait.
@@ -125,7 +126,11 @@ they have closed, which they do after 30 idle minutes (`idleSeconds`), for an ho
   checkout, including when the list is empty. The primary checks the local TCP listener table before contacting
   ordinary Rider, so a closed desktop endpoint adds no connection-refusal wait.
 - A newly opened solution must report finished indexing and source generator synchronization or confirmed
-  non-applicability. The primary checks that the staged tools are serving. Its health response also lists the
+  non-applicability. The primary checks that the staged tools are serving. Rider gets 4 minutes to open a solution,
+  counted once no other worktree's open or close is in the way, and then 15 minutes to load, index and generate it;
+  past either, the warm-up fails and its project is closed. Until 2026-11-24 the 4 minutes covered all of it, and a
+  build in a Compze worktree, which made Rider reload all 117 of its projects mid-warm-up, had it fail twice and
+  start over cold each time. Its health response also lists the
   worktrees currently opening.
 - `close_worktree` closes an agent project and waits for its workers. Unused agent projects close after 30 minutes (`idleSeconds`), and the private Rider with the last of them: an agent calling every 10 to 20 minutes otherwise met a cold start nearly every time.
 - When an agent project's solution file changes, such as by a project added to it, the primary closes the project

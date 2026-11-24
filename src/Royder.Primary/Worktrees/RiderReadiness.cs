@@ -13,7 +13,7 @@ namespace Royder.Primary.Worktrees;
 /// </remarks>
 sealed class RiderReadiness(PrimarySettings settings, ToolCatalog catalog, RiderEndpoint backend)
 {
-   public async Task Wait(ManagedWorktree worktree, CancellationToken cancel)
+   public async Task Wait(ManagedWorktree worktree, WarmUp warmUp, CancellationToken cancel)
    {
       while(true)
       {
@@ -21,15 +21,27 @@ sealed class RiderReadiness(PrimarySettings settings, ToolCatalog catalog, Rider
          var health = await backend.Health(cancel);
          var row = (health?["solutions"] as JArray)?.OfType<JObject>().SingleOrDefault(it =>
             RegisteredWorktree.SamePath((string?)it["path"], worktree.SolutionPath));
-         if(row != null && (bool?)row["indexing"] == false && row["healthFailed"] == null &&
-            (string?)row.SelectToken("tools.build") != null &&
-            (string?)row.SelectToken("tools.host") == catalog.HostHash)
-         {
-            var generators = row.Property("sourceGeneratorsReady");
-            if(generators == null) throw new InvalidOperationException("This managed Rider build does not report source generator readiness.");
-            if(generators.Value.Type == JTokenType.Null || (bool?)generators.Value == true) return;
-         }
+         var waitingFor = WhatRiderHasYetToDo(row);
+         if(waitingFor == null) return;
+         warmUp.WaitsFor(waitingFor);
          await Task.Delay(250, cancel);
       }
+   }
+
+   /// <summary>
+   ///   What Rider has yet to do, by <paramref name="row"/>, its health of the solution, before it can answer for the
+   ///   solution: null when nothing.
+   /// </summary>
+   string? WhatRiderHasYetToDo(JObject? row)
+   {
+      if(row == null) return "Rider's backend to register the solution";
+      if(row["healthFailed"] != null) return "Rider to report the solution's state, which it failed to";
+      if((bool?)row["indexing"] != false) return "Rider to finish indexing it";
+      if((string?)row.SelectToken("tools.build") == null || (string?)row.SelectToken("tools.host") != catalog.HostHash) return "Rider to serve the staged tools";
+      var generators = row.Property("sourceGeneratorsReady");
+      if(generators == null) throw new InvalidOperationException("This managed Rider build does not report source generator readiness.");
+      return generators.Value.Type == JTokenType.Null || (bool?)generators.Value == true
+                ? null
+                : "Rider to load its projects and run their source generators";
    }
 }

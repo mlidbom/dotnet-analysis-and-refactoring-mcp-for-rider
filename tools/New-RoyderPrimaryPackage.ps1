@@ -69,7 +69,8 @@ if ($Install) {
    while ($true) {
       try { & "$PSScriptRoot/Update-InstalledRoyderPrimary.ps1" -PackageDirectory $package; break }
       catch {
-         if ($_.Exception.Message -notmatch 'managed projects open|has not drained|HttpClient.Timeout' -or (Get-Date) -gt $until) { throw }
+         # A primary before 2026-11-24's answered its /health with a 500 when the private Rider's reset the connection.
+         if ($_.Exception.Message -notmatch 'managed projects open|has not drained|HttpClient.Timeout|500 \(Internal Server Error\)' -or (Get-Date) -gt $until) { throw }
          Start-Sleep -Seconds 30
       }
    }

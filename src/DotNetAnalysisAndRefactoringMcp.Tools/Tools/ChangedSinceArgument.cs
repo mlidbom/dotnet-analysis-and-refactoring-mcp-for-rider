@@ -36,9 +36,9 @@ static class ChangedSinceArgument
       expanded["changedScope"] = $"changed since {reference}";
       try
       {
-         var directory = SolutionRoot.Of(solution).Workspace
-                      ?? throw new InvalidOperationException("the solution has no directory");
-         expanded["filePaths"] = new JArray(GitChanges.Since(directory, reference!)
+         var workTree = SolutionRoot.Of(solution).Workspace
+                     ?? throw new InvalidOperationException("the solution has no directory");
+         expanded["filePaths"] = new JArray(GitChanges.Since(workTree, reference!)
                                                       .Where(it => SourceExtensions.Contains(Path.GetExtension(it)))
                                                       .ToList());
       }
