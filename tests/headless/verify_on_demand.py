@@ -123,7 +123,14 @@ def verify(args):
         return response["result"]
 
     def tool(name, args):
-        result = request("tools/call", dict(name=name, arguments=args))
+        # The primary answers a call to a solution still opening within its deadline, saying so: retry it, as an agent
+        # does. The opening itself gives up after 4 minutes.
+        end = time.monotonic() + 240
+        while True:
+            result = request("tools/call", dict(name=name, arguments=args))
+            if not (result.get("isError") and "still opening" in result["content"][0]["text"]) or time.monotonic() > end:
+                break
+            time.sleep(5)
         assert not result.get("isError"), result
         return result["content"][0]["text"]
 
