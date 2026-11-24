@@ -7,13 +7,13 @@ using Newtonsoft.Json;
 namespace DotNetAnalysisAndRefactoringMcp.Tools.Json;
 
 /// <summary>One node of <c>get_call_hierarchy</c>'s outgoing tree in the <see cref="JsonFormat">JSON form</see>: a member, and the calls under it.</summary>
-public sealed class CallJson(
+public sealed class CalleeJson(
    DeclarationJson member,
    string? accessors,
    string? reachedAs,
    string? repetition,
-   List<CallJson>? calls,
-   List<CallJson>? overriders,
+   List<CalleeJson>? calls,
+   List<CalleeJson>? overriders,
    int? overridersNotListed)
 {
    [JsonProperty("member")] public DeclarationJson Member { get; } = member;
@@ -30,14 +30,14 @@ public sealed class CallJson(
    /// <summary>Why its calls aren't listed under it: "listed above", under an earlier node at least as deep, or "recursive".</summary>
    [JsonProperty("repetition", NullValueHandling = NullValueHandling.Ignore)] public string? Repetition { get; } = repetition;
 
-   [JsonProperty("calls", NullValueHandling = NullValueHandling.Ignore)] public List<CallJson>? Calls { get; } = calls;
+   [JsonProperty("calls", NullValueHandling = NullValueHandling.Ignore)] public List<CalleeJson>? Calls { get; } = calls;
 
    /// <summary>The members that implement or override it, at the same depth: a call to it may run them instead.</summary>
-   [JsonProperty("overriders", NullValueHandling = NullValueHandling.Ignore)] public List<CallJson>? Overriders { get; } = overriders;
+   [JsonProperty("overriders", NullValueHandling = NullValueHandling.Ignore)] public List<CalleeJson>? Overriders { get; } = overriders;
 
    [JsonProperty("overridersNotListed", NullValueHandling = NullValueHandling.Ignore)] public int? OverridersNotListed { get; } = overridersNotListed;
 
-   public static CallJson Of(CallTreeNode node) =>
+   public static CalleeJson Of(OutgoingCallTreeNode node) =>
       new(DeclarationJson.Of(node.Callee.Member),
           node.Callee.Accessors switch { CallTrees.Accessors.Get => "get", CallTrees.Accessors.Set => "set", CallTrees.Accessors.GetAndSet => "get and set", _ => null },
           node.Reached switch { HowReached.AsDelegate => "delegate", HowReached.Implementation => "implementation", HowReached.Override => "override", _ => null },

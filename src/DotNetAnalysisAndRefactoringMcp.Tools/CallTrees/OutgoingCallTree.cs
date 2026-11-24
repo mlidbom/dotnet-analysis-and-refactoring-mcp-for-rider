@@ -27,7 +27,7 @@ public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget b
    readonly int _maxDepth = maxDepth;
    readonly NodeBudget _budget = budget;
    readonly CallsNotShown _notShown = new(scope);
-   readonly List<CallTreeNode> _starts = [];
+   readonly List<OutgoingCallTreeNode> _starts = [];
 
    /// <summary>For each callee with something listed under it, its calls or its overriders: how many levels of its calls.</summary>
    readonly Dictionary<Callee, int> _levelsListed = new();
@@ -35,7 +35,7 @@ public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget b
    /// <summary>Adds the tree of the calls <paramref name="start"/> makes, and of its implementations or overrides.</summary>
    public void Add(Callee start)
    {
-      var node = new CallTreeNode(start, HowReached.Start);
+      var node = new OutgoingCallTreeNode(start, HowReached.Start);
       Fill(node, depth: 0, callers: [], mayListOverriders: true);
       _starts.Add(node);
    }
@@ -67,10 +67,10 @@ public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget b
       return text.ToString().TrimEnd();
    }
 
-   public CallTreeJson Json() =>
+   public OutgoingCallTreeJson Json() =>
       new(_maxDepth,
           _scope.Description,
-          [.. _starts.Select(CallJson.Of)],
+          [.. _starts.Select(CalleeJson.Of)],
           _notShown.IntoAssemblies,
           _notShown.OutsideTheNamespaces,
           _budget.Truncated);
@@ -81,7 +81,7 @@ public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget b
    ///   <see cref="CallTrees.Repetition"/>. <paramref name="callers"/> are the callees whose code runs on the way to it,
    ///   for recursion. A leaf, with nothing listed under it, is no reason to mark a later node of the same callee.
    /// </summary>
-   void Fill(CallTreeNode node, int depth, IReadOnlyList<Callee> callers, bool mayListOverriders)
+   void Fill(OutgoingCallTreeNode node, int depth, IReadOnlyList<Callee> callers, bool mayListOverriders)
    {
       var levelsLeft = _maxDepth - depth;
       var listsCalls = levelsLeft > 0;
@@ -102,7 +102,7 @@ public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget b
       bool IsListedAbove() => _levelsListed.TryGetValue(node.Callee, out var levelsListed) && levelsListed >= levelsLeft;
    }
 
-   void ListCalls(CallTreeNode node, int depth, IReadOnlyList<Callee> callers)
+   void ListCalls(OutgoingCallTreeNode node, int depth, IReadOnlyList<Callee> callers)
    {
       foreach(var call in CallsInCode.Of(node.Callee))
       {
@@ -115,7 +115,7 @@ public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget b
          if(!_budget.TryTake())
             return;
 
-         var calleeNode = new CallTreeNode(call.Callee, call.Reached);
+         var calleeNode = new OutgoingCallTreeNode(call.Callee, call.Reached);
          node.Calls.Add(calleeNode);
          Fill(calleeNode, depth + 1, callers, mayListOverriders: !call.IsThroughBase);
       }
@@ -126,7 +126,7 @@ public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget b
    ///   Its own overriders are among the member's, so they aren't searched for again. In the order of their names, which
    ///   ReSharper's search doesn't keep from one call to the next.
    /// </summary>
-   void ListOverriders(CallTreeNode node, int depth, IReadOnlyList<Callee> callers)
+   void ListOverriders(OutgoingCallTreeNode node, int depth, IReadOnlyList<Callee> callers)
    {
       var overriders = node.Callee.Overriders().Where(_scope.Contains).OrderBy(it => it.Name, StringComparer.Ordinal).ToList();
       var reached = node.Callee.IsAnInterfacesMember ? HowReached.Implementation : HowReached.Override;
@@ -135,7 +135,7 @@ public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget b
          if(!_budget.TryTake())
             break;
 
-         var overriderNode = new CallTreeNode(overrider, reached);
+         var overriderNode = new OutgoingCallTreeNode(overrider, reached);
          node.Overriders.Add(overriderNode);
          Fill(overriderNode, depth, callers, mayListOverriders: false);
       }

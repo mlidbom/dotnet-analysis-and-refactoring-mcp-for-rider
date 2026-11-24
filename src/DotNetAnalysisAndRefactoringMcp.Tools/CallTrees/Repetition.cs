@@ -1,6 +1,6 @@
 namespace DotNetAnalysisAndRefactoringMcp.CallTrees;
 
-/// <summary>Why a <see cref="CallTreeNode"/>'s calls aren't listed under it again, when they aren't.</summary>
+/// <summary>Why a <see cref="OutgoingCallTreeNode"/>'s calls aren't listed under it again, when they aren't.</summary>
 public enum Repetition
 {
    /// <summary>Its calls are listed under it, if the depth allows.</summary>

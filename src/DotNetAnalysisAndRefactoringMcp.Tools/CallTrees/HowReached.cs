@@ -1,6 +1,6 @@
 namespace DotNetAnalysisAndRefactoringMcp.CallTrees;
 
-/// <summary>How a <see cref="CallTreeNode"/> is reached from the node above it.</summary>
+/// <summary>How a <see cref="OutgoingCallTreeNode"/> is reached from the node above it.</summary>
 public enum HowReached
 {
    /// <summary>It is where the tree starts: the member asked about.</summary>

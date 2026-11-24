@@ -13,7 +13,7 @@ using JetBrains.ReSharper.Psi.Tree;
 namespace DotNetAnalysisAndRefactoringMcp.CallTrees;
 
 /// <summary>
-///   What a call runs, which a <see cref="CallTreeNode"/> shows: a method, a constructor, an operator or a local
+///   What a call runs, which a <see cref="OutgoingCallTreeNode"/> shows: a method, a constructor, an operator or a local
 ///   function, or the <see cref="CallTrees.Accessors"/> of a property or an indexer that a call reads or writes it through.
 /// </summary>
 public sealed class Callee : IEquatable<Callee>

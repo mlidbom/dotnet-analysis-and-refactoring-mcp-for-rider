@@ -6,10 +6,10 @@ using System.Text;
 namespace DotNetAnalysisAndRefactoringMcp.CallTrees;
 
 /// <summary>
-///   One node of a call tree: a <see cref="CallTrees.Callee"/>, how the node above reaches it, the calls its code makes,
+///   One node of an <see cref="OutgoingCallTree"/>: a <see cref="CallTrees.Callee"/>, how the node above reaches it, the calls its code makes,
 ///   and, for a member that can be overridden, the members that implement or override it.
 /// </summary>
-public sealed class CallTreeNode(Callee callee, HowReached reached)
+public sealed class OutgoingCallTreeNode(Callee callee, HowReached reached)
 {
    public Callee Callee { get; } = callee;
 
@@ -18,10 +18,10 @@ public sealed class CallTreeNode(Callee callee, HowReached reached)
    public Repetition Repetition { get; set; }
 
    /// <summary>The calls its code makes, in the order written.</summary>
-   public List<CallTreeNode> Calls { get; } = [];
+   public List<OutgoingCallTreeNode> Calls { get; } = [];
 
    /// <summary>The members that implement or override it, which a call to it may run instead, at the same depth as it.</summary>
-   public List<CallTreeNode> Overriders { get; } = [];
+   public List<OutgoingCallTreeNode> Overriders { get; } = [];
 
    /// <summary>How many more members implement or override it than <see cref="Overriders"/> lists.</summary>
    public int OverridersNotListed { get; set; }
