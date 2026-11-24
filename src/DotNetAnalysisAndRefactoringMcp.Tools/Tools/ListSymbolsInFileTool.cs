@@ -36,7 +36,7 @@ public class ListSymbolsInFileTool : IMcpAlwaysLoadedTool
                                                                   items = new { type = "string" }
                                                                },
                                                    kinds = new { type = "string", description = "Comma-separated filter: 'type', 'method', 'property', 'field', 'event'. Default: all (excluding locals/parameters)." },
-                                                   includeLocals = new { type = "boolean", description = "Include local variables and parameters. Default: false." }
+                                                   includeLocals = new { type = "boolean", description = "Include local variables, parameters and type parameters. Default: false." }
                                                 },
                                    required = Array.Empty<string>()
                                 };
@@ -97,8 +97,7 @@ public class ListSymbolsInFileTool : IMcpAlwaysLoadedTool
                           if(element == null) return;
                           if(element is INamespace) return;
 
-                          // Exclude local variables and parameters by default
-                          if(!includeLocals && (element is ILocalVariable || element is IParameter))
+                          if(!includeLocals && (element is ILocalVariable || element is IParameter || element is ITypeParameter))
                              return;
 
                           // Skip compiler-generated accessors (get_X/set_X, add_X/remove_X)
@@ -138,7 +137,7 @@ public class ListSymbolsInFileTool : IMcpAlwaysLoadedTool
                                          Element = element,
                                          ContainingType = containingType,
                                          Line = line,
-                                         IsType = element is ITypeElement
+                                         IsType = element is ITypeElement and not ITypeParameter // A type parameter is a type element to ReSharper.
                                       });
                        });
       }
