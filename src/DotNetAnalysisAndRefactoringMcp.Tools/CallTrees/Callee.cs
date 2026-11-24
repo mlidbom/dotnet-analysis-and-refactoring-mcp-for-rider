@@ -126,6 +126,8 @@ public sealed class Callee : IEquatable<Callee>
    {
       var member = (IOverridableMember)Member;
       var overriders = new List<Callee>();
+      //refactor: the same search as FindImplementationsTool's and FlowTool.FindSingleImplementation. One type, such
+      //   as Overriders.Of(member) beside SuperMembers, should search, with a cap and a stop, for all three.
       member.GetPsiServices().Finder.FindImplementingMembers(
          member,
          member.GetSearchDomain(),

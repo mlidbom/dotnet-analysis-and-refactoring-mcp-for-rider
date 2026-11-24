@@ -152,6 +152,8 @@ public class FindImplementationsTool : IMcpTool
       {
          var psiServices = _solution.GetPsiServices();
 
+         //refactor: the same search as Callee.Overriders and FlowTool.FindSingleImplementation. One type, such as
+         //   Overriders.Of(member) beside SuperMembers, should search, with a cap and a stop, for all three.
          psiServices.Finder.FindImplementingMembers(
             overridable,
             overridable.GetSearchDomain(),
