@@ -94,6 +94,9 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
       if(error != null) return error;
       using var context = CompilationContexts.For(declaredElement);
 
+      // A member's name stands for all its overloads, as a text search for it would; a position, for the one there.
+      var searched = string.IsNullOrEmpty(arguments["symbolName"]?.ToString()) ? [declaredElement] : Overloads.Of(declaredElement);
+
       var excludeDeclFile = arguments["excludeDeclarationFile"]?.Value<bool>() ?? false;
       var excludeTests = arguments["excludeTests"]?.Value<bool>() ?? false;
       var pathPrefix = PathPrefix(arguments["pathPrefix"]?.ToString());
@@ -106,7 +109,7 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
       var declFilePaths = new HashSet<string>();
       if(excludeDeclFile)
       {
-         foreach(var decl in declaredElement.GetDeclarations())
+         foreach(var decl in searched.SelectMany(it => it.GetDeclarations()))
          {
             var sf = decl.GetSourceFile();
             if(sf != null)
@@ -170,21 +173,14 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
          return FindExecution.Continue;
       }
 
-      // Find direct usages
-      psiServices.Finder.FindReferences(
-         declaredElement,
-         searchDomain,
-         new FindResultConsumer(HandleResult),
-         NullProgressIndicator.Create());
-
-      // Also search for usages of the source members it overrides or implements: a call through an interface
-      // is a call to every implementation.
-      var superMembers = SuperMembers.Of(declaredElement);
-      foreach(var superMember in superMembers.InSource)
+      // The usages of each member searched, and of the source members it overrides or implements: a call through an
+      // interface is a call to every implementation.
+      var superMembers = searched.Select(SuperMembers.Of).ToList();
+      foreach(var member in searched.Concat(superMembers.SelectMany(it => it.InSource)))
       {
          if(hitLimit) break;
          psiServices.Finder.FindReferences(
-            superMember,
+            member,
             searchDomain,
             new FindResultConsumer(HandleResult),
             NullProgressIndicator.Create());
@@ -202,6 +198,7 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
 
       sb.Append(declaredElement.GetElementType().PresentableName).Append(' ');
       sb.Append(declaredElement.ShortName);
+      if(searched.Count > 1) sb.Append(" (all ").Append(searched.Count).Append(" overloads)");
       sb.Append(" — ").Append(deduped.Count);
       if(hitLimit) sb.Append('+');
       sb.Append(" usages in ");
@@ -210,13 +207,10 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
       if(hitLimit)
          sb.AppendLine($"(stopped counting at {SearchCap}; narrow with pathPrefix or excludeTests)");
 
-      var superMembersLine = superMembers.Line("usages");
-      if(superMembersLine != null)
+      foreach(var superMembersLine in superMembers.Select(it => it.Line("usages")).Where(it => it != null).Distinct())
          sb.AppendLine(superMembersLine);
 
-      var (declPath, declLine) = PsiHelpers.Declaration(declaredElement);
-      sb.Append("declared: ")
-        .AppendLine(declPath != null ? $"{Relative(declPath)}:{declLine}" : PsiHelpers.Location(declaredElement));
+      sb.Append("declared: ").AppendLine(string.Join(", ", searched.Select(Declared)));
 
       switch(mode)
       {
@@ -235,6 +229,12 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
       }
 
       return sb.ToString().TrimEnd();
+   }
+
+   string Declared(IDeclaredElement member)
+   {
+      var (path, line) = PsiHelpers.Declaration(member);
+      return path != null ? $"{Relative(path)}:{line}" : PsiHelpers.Location(member);
    }
 
    /// <summary>
