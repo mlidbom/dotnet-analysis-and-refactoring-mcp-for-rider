@@ -94,17 +94,19 @@ the old settings for rollback. Earlier packages that lack the `stop` command req
 A new package is needed for a change to the primary, the host or the management plugins, not for a tools change.
 `-ToolsFolder <folder>` adds `toolsFolder` to the settings; an update keeps the one they name.
 
-The update of 24 November 2026, as run: build into `%LOCALAPPDATA%/DotNetAnalysisAndRefactoringMcp/primary/<commit>`,
-then capture its catalog with a temporary settings file beside it. That file has no `desktopPort`, so the capture
-opens its own private Rider rather than verifying the desktop's build. It uses ports other than the running primary's
-(24930, 24931 and 24941) and a profile directory of its own, about 600 MB, deleted afterwards with the settings file.
-`catalogFile`, `assetsDirectory` and `toolsBuild` are the package's, and it names no `toolsFolder`, so the capture
-checks the package's own build.
+On this machine, `tools/New-RoyderPrimaryPackage.ps1 -Install` does all of it, from the checked-out commit:
 
 ~~~powershell
-& "$package/Royder.Primary.exe" prepare-catalog $temporarySettings C:/Dev/resharper-mcp/ReSharperMcp.sln
-./tools/Update-InstalledRoyderPrimary.ps1 -PackageDirectory $package
+./tools/New-RoyderPrimaryPackage.ps1 -Install
 ~~~
+
+It builds into `%LOCALAPPDATA%/DotNetAnalysisAndRefactoringMcp/primary/<commit>`, then captures the catalog with a
+temporary settings file beside it. That file has no `desktopPort`, so the capture opens its own private Rider rather
+than verifying the desktop's build. It uses ports other than the running primary's (24930, 24931 and 24941) and a
+profile directory of its own, about 600 MB, deleted afterwards with the settings file. `catalogFile`,
+`assetsDirectory` and `toolsBuild` are the package's, and it names no `toolsFolder`, so the capture checks the
+package's own build. The update refuses while the primary has a managed project open; `-Install` retries it until
+they have closed, which they do after ten idle minutes, for an hour at most.
 
 ## Call and removal behavior
 
