@@ -119,6 +119,13 @@ then goes back to the text before the edit, as if it had read the file before th
 file holds the edit's text while its copy differs is reconciled with disk (`Disk/Reconciliation.cs`), as the disk sync does.
 `tests/live_edit_race.py` reproduces that race in the sandbox.
 
+Rider's backend computes an edit on its copy of a file and sends it to the frontend as changes at offsets, which the
+frontend applies to its own copy and saves: when one copy hasn't taken in a change on disk, the edit lands at the wrong
+places (2026-11-24). So before an edit the disk sync gives the watcher 100 ms, and asks the frontend to rescan every
+suspect, not only those the backend had stale. After the save, a file that doesn't hold the text the edit gave Rider's
+copy gets a WARNING in the answer (`Disk/FileNotTheEditsResult.cs`). `tests/live_edit_after_disk_change.py` reproduces
+it in the sandbox.
+
 A tool that moves files (`IMcpFileMovingTool`, such as `move_type_to_namespace`) moves them on disk after that save
 (`Disk/FileMoves.cs`), as `git mv` would, and waits until Rider's project model has them where they went. Not through
 the project model: a file it moved into a folder new to an SDK-style project became a `<Link>` in the project file.
@@ -418,6 +425,8 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     DiskText.cs                        # Whether a file on disk holds a document's text (line endings, BOM aside)
     UnsavedDocuments.cs                # An edit's documents saved before the answer: through Rider's frontend, waited for
     DocumentNotSaved.cs                # One that Rider hadn't saved in time, and how its file differed, for the note
+    FileNotTheEditsResult.cs           # One that, saved, doesn't hold the edit's result: the edit landed at old offsets
+    SavedEdit.cs                       # What became of an edit's files once saved: the two above
     FileMoves.cs                       # Files an edit moves, moved on disk after the save; FileMove.cs is one of them
     Rescans.cs                         # Rider's frontend asked to rescan paths (FileSystemModel.RefreshPaths)
   Tools/

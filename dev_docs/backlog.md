@@ -306,6 +306,15 @@ Found while doing this, to fix:
   waited for it, and then started a new Rider. The agent took "still opening" as a reason to fall back to grep. Now:
   30 idle minutes (`idleSeconds`), and the answer says opening takes about a minute and to retry in half a minute.
   Left open: a call that comes during an idle close waits for the close and then a cold start.
+- *Done 2026-11-24 (`bb98d23`):* **a rename landed at old offsets and corrupted a file** (`unanswered-in-cloyd`):
+  `KindOfUnansweredItem WaitingForYourGo` became `KinSuggestionsm WaitingForYourGo`, after a script had rewritten the
+  file while the private Rider was opening the solution. Rider's frontend applies the backend's edit at the backend's
+  offsets to its own copy: the two copies disagreed. `tests/live_edit_after_disk_change.py` reproduced it in the
+  sandbox on its first round, with a rename sent as the file is written. On a desktop Rider a 0.5 s pause was enough to
+  avoid it. Now: before an edit, 100 ms for the watcher and a rescan of every suspect. After the save, a WARNING in the
+  answer when the file doesn't hold the edit's result. Left open: a file the edit touches that the call doesn't name
+  and the watcher didn't report, such as one changed while the private Rider was still opening, isn't rescanned. If
+  the warning recurs, rescan every file the edit will change, once the tool knows them.
 - *Done 2026-11-24 (`92805e0`):* **a project added to a worktree's `.slnx` left Royder with 2 of its 30 projects**
   (`surrogate-session-ids`). The private Rider reloaded the solution with the projects the edit touched only:
   `rename_symbol` refused, files were "in no project", and `reload_projects` found neither their projects nor the
