@@ -106,7 +106,7 @@ than verifying the desktop's build. It uses ports other than the running primary
 profile directory of its own, about 600 MB, deleted afterwards with the settings file. `catalogFile`,
 `assetsDirectory` and `toolsBuild` are the package's, and it names no `toolsFolder`, so the capture checks the
 package's own build. The update refuses while the primary has a managed project open; `-Install` retries it until
-they have closed, which they do after ten idle minutes, for an hour at most.
+they have closed, which they do after 30 idle minutes (`idleSeconds`), for an hour at most.
 
 ## Call and removal behavior
 
@@ -126,7 +126,7 @@ they have closed, which they do after ten idle minutes, for an hour at most.
 - A newly opened solution must report finished indexing and source generator synchronization or confirmed
   non-applicability. The primary checks that the staged tools are serving. Its health response also lists the
   worktrees currently opening.
-- `close_worktree` closes an agent project and waits for its workers. Unused agent projects close after ten minutes.
+- `close_worktree` closes an agent project and waits for its workers. Unused agent projects close after 30 minutes (`idleSeconds`), and the private Rider with the last of them: an agent calling every 10 to 20 minutes otherwise met a cold start nearly every time.
   Ordinary Rider stays running. To close and remove a worktree under the same lifecycle operation, run
   `Royder.Primary remove-worktree <settings.json> <absolute-worktree-root>`. The command uses a Windows named pipe restricted to the current user. Git uses its ordinary clean-worktree
   checks. This command refuses a main checkout, an untrusted repository, a changed registration and a worktree

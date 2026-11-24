@@ -12,7 +12,13 @@ sealed class PrimarySettings
    public required string CatalogFile { get; init; }
    public int Port { get; init; } = 23751;
    public int? DesktopPort { get; init; }
-   public int IdleSeconds { get; init; } = 600;
+   /// <summary>How long a managed project stays open with no call before it closes, and with the last one the private Rider.</summary>
+   /// <remarks>
+   ///   Ten minutes until 2026-11-24: an agent in a worktree called every 11 to 17 minutes, so its calls met a closed
+   ///   Rider nearly every time. Each paid a cold start of 28 to 56 seconds, and two were answered "still opening".
+   ///   The open Rider takes about 3.8 GB for one small solution.
+   /// </remarks>
+   public int IdleSeconds { get; init; } = 1800;
    /// <summary>How long the primary takes at most to answer a tool call: see <see cref="Transport.AnswerDeadline"/>.</summary>
    public int AnswerWithinSeconds { get; init; } = 55;
    public IReadOnlySet<string> GitDirectories { get; private set; } = new HashSet<string>();

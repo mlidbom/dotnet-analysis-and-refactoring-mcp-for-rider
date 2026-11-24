@@ -9,7 +9,7 @@
    primary's, with a temporary settings file and profile that are deleted afterwards. The settings name no desktop
    port and no tools folder, so the capture checks the package's own tools build.
    Update-InstalledRoyderPrimary.ps1 refuses while the primary has a managed project open; -Install retries it until
-   they have closed, which they do after ten idle minutes.
+   they have closed, which they do after 30 idle minutes.
 #>
 [CmdletBinding()]
 param([string]$PackagesFolder = (Join-Path $env:LOCALAPPDATA 'DotNetAnalysisAndRefactoringMcp/primary'),

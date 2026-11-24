@@ -295,6 +295,13 @@ Found while doing this, to fix:
   an edit now reconciles a copy that went back while its file holds the edit's text, and logs "went back to an older
   text" each time. Left open: a copy that goes back before the save step first looks counts as saved, and stays so
   until the next call's disk sync reconciles it.
+- *Done 2026-11-24:* **"Royder took most of an hour to open a worktree's solution"** (`unanswered-in-cloyd`, a
+  worktree of `~/.claude`). It opened in 28 to 56 s each time, six times between 09:34 and 11:05: the private Rider
+  closed after 10 idle minutes, and the agent called every 11 to 17 minutes, so nearly every call was a cold start.
+  Two answered "still opening": one open ended 1 s past the 55 s deadline, and one call came 4 s into an idle close,
+  waited for it, and then started a new Rider. The agent took "still opening" as a reason to fall back to grep. Now:
+  30 idle minutes (`idleSeconds`), and the answer says opening takes about a minute and to retry in half a minute.
+  Left open: a call that comes during an idle close waits for the close and then a cold start.
 - **`When_a_file_declaring_a_type_is_deleted_on_disk.find_usages_by_name_reports_the_symbol_was_not_found` found the
   deleted type 10 seconds later,** once, in the runs before the first fix. It recurred on 2026-11-24 at 03:34, in one
   run of three: `search_symbol_by_name_finds_no_declaration` got "DrawingStencil — 1 results" right after the deletion.

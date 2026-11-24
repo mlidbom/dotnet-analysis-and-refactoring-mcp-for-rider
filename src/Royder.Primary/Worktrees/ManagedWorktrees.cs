@@ -33,7 +33,7 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
       try { opened = await deadline.Awaited(ready, wait); }
       catch(TimeoutException) when(!ready.IsCompleted)
       {
-         throw new InvalidOperationException($"'{solution}' is still opening or indexing. Only the warm-up continues. Retry the tool call when it is ready.");
+         throw new InvalidOperationException($"'{solution}' is still opening or indexing, which takes about a minute from a cold start. Only the warm-up continues: retry the tool call in half a minute.");
       }
       if(!RegisteredWorktree.SamePath(opened.SolutionPath, solution)) throw new InvalidOperationException($"This worktree already serves '{opened.SolutionPath}'.");
       if(Registration(registration.Root) != registration) throw new InvalidOperationException("The worktree changed during startup.");
