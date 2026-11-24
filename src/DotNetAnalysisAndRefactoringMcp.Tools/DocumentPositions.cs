@@ -1,5 +1,6 @@
 #nullable enable
 using JetBrains.DocumentModel;
+using JetBrains.Util;
 using JetBrains.Util.dataStructures.TypedIntrinsics;
 
 namespace DotNetAnalysisAndRefactoringMcp;
@@ -20,9 +21,10 @@ public static class DocumentPositions
          return (0, $"Line {line} is outside the file, which has {lines} lines.");
 
       var docLine = (Int32<DocLine>)(line - 1);
-      var length = document.GetLineEndOffsetNoLineBreak(docLine) - document.GetLineStartOffset(docLine);
-      if(column < 1 || column > length + 1)
-         return (0, $"Column {column} is outside line {line}, which has {length} characters.");
+      var start = document.GetLineStartOffset(docLine);
+      var end = document.GetLineEndOffsetNoLineBreak(docLine);
+      if(column < 1 || column > end - start + 1)
+         return (0, $"Column {column} is outside line {line}, which has {end - start} characters: {document.GetText(new TextRange(start, end)).Trim()}");
 
       return (document.GetOffsetByCoords(new DocumentCoords(docLine, (Int32<DocColumn>)(column - 1))), null);
    }

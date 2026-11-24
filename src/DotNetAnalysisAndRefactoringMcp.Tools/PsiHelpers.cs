@@ -662,7 +662,11 @@ public static class PsiHelpers
       try
       {
          using var context = CompilationContexts.For(sourceFile);
-         var node = GetNodeAtPosition(sourceFile, line, column);
+         var (offset, positionError) = DocumentPositions.OffsetOf(sourceFile.Document, line, column);
+         if(positionError != null)
+            return (null, new { error = positionError });
+
+         var node = NodeAt(sourceFile, offset);
          if(node == null)
             return (null, new { error = $"No syntax node found at {line}:{column}" });
 
@@ -737,17 +741,13 @@ public static class PsiHelpers
    public static IFile GetPsiFile(IPsiSourceFile sourceFile) =>
       sourceFile.GetPsiFiles<KnownLanguage>(PsiLanguageCategories.Primary).FirstOrDefault();
 
-   public static ITreeNode GetNodeAtPosition(IPsiSourceFile sourceFile, int line, int column)
+   /// <summary>The token at a document offset, or the node there when there is no token.</summary>
+   static ITreeNode NodeAt(IPsiSourceFile sourceFile, int offset)
    {
       var psiFile = GetPsiFile(sourceFile);
       if(psiFile == null) return null;
 
-      var document = sourceFile.Document;
-      var docLine = (Int32<DocLine>)(line - 1);
-      var docColumn = (Int32<DocColumn>)(column - 1);
-      var coords = new DocumentCoords(docLine, docColumn);
-      var offset = document.GetOffsetByCoords(coords);
-      var treeOffset = psiFile.Translate(new DocumentOffset(document, offset));
+      var treeOffset = psiFile.Translate(new DocumentOffset(sourceFile.Document, offset));
 
       // A column names a character, so the answer is the token holding it. FindNodeAt takes an empty range,
       // which at a token's first character also borders the whitespace before it, and returned that
