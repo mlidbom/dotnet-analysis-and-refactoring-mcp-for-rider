@@ -15,13 +15,22 @@
     <Reference Include="@(RiderAssembly->'$(RiderBackend)\%(Identity).dll')" Private="false" />
   </ItemGroup>
 
+  <!-- The plugin subclasses Rider's internals, so it is pinned to the Rider it is built against: the descriptor's
+       {riderBuild} becomes that build. Until 2026-11-24 the build was written in the descriptor, and a Rider update
+       stopped every on-demand open until it was edited. -->
   <Target Name="BuildPrivatePluginFolder" AfterTargets="Build">
     <PropertyGroup>
       <PluginDirectory>$(TargetDir)plugin\RemoteRoslynPatcher</PluginDirectory>
+      <PinnedDescriptorDirectory>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)descriptor</PinnedDescriptorDirectory>
+      <RiderBuild>$([System.IO.File]::ReadAllText('$(RiderHome)\build.txt').Trim().Replace('RD-', ''))</RiderBuild>
+      <DescriptorText>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\descriptor\META-INF\plugin.xml'))</DescriptorText>
     </PropertyGroup>
-    <MakeDir Directories="$(PluginDirectory)\dotnet;$(PluginDirectory)\lib" />
+    <Error Condition="!$(DescriptorText.Contains('{riderBuild}'))" Text="The descriptor has no {riderBuild} to pin." />
+    <MakeDir Directories="$(PluginDirectory)\dotnet;$(PluginDirectory)\lib;$(PinnedDescriptorDirectory)\META-INF" />
+    <WriteLinesToFile File="$(PinnedDescriptorDirectory)\META-INF\plugin.xml" Overwrite="true"
+                      Lines="$([MSBuild]::Escape($(DescriptorText.Replace('{riderBuild}', $(RiderBuild)))))" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginDirectory)\dotnet" />
-    <ZipDirectory SourceDirectory="$(MSBuildProjectDirectory)\descriptor"
+    <ZipDirectory SourceDirectory="$(PinnedDescriptorDirectory)"
                   DestinationFile="$(PluginDirectory)\lib\RemoteRoslynPatcher.jar" Overwrite="true" />
   </Target>
 </Project>

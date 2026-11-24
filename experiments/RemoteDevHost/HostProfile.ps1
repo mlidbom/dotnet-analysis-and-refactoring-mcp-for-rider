@@ -46,7 +46,11 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
    $toolsSource = Join-Path $env:LOCALAPPDATA "$plugin/tools/$ToolsBuild"
    if ($ManagedAssets) {
       $package = Read-HostJson (Join-Path $ManagedAssets package.json)
-      if ($package.build -cne $ToolsBuild -or $package.riderBuild -cne $product.buildNumber) { throw 'Staged tools or Rider version does not match the configured pin.' }
+      if ($package.riderBuild -cne $product.buildNumber) {
+         throw "Rider was updated to $($product.buildNumber), and the primary's package was built for $($package.riderBuild): " +
+               'on-demand opens wait for a package built for the new Rider (tools/New-RoyderPrimaryPackage.ps1 -Install).'
+      }
+      if ($package.build -cne $ToolsBuild) { throw 'Staged tools do not match the configured pin.' }
       $installedPlugin = Join-Path $ManagedAssets "plugins/$plugin"
       $toolsSource = Join-Path $ManagedAssets "tools/$ToolsBuild"
       $ExtraPlugin = @('RemoteCloseWorktree','RemoteRoslynPatcher' | ForEach-Object { Join-Path $ManagedAssets "plugins/$_" })

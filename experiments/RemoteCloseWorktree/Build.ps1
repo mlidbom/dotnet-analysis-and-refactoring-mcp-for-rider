@@ -7,10 +7,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $RiderHome = (Resolve-Path -LiteralPath $RiderHome).Path
-$expectedBuild = 'RD-263.7307.355'
-if ((Get-Content -Raw -LiteralPath "$RiderHome/build.txt").Trim() -ne $expectedBuild) {
-   throw "This experiment targets $expectedBuild. Check -RiderHome."
-}
+# The plugin uses Rider's internals, so it is pinned to the Rider it is built against: its descriptor gets that build.
+# A primary package that carries it is verified on that Rider before it is installed. Until 2026-11-24 the build was
+# written in here and in the descriptor, and a Rider update stopped every on-demand open until both were edited.
+$riderBuild = (Get-Content -Raw -LiteralPath "$RiderHome/build.txt").Trim() -replace '^RD-', ''
 
 $objectDir = [IO.Directory]::CreateDirectory("$PSScriptRoot/obj").FullName
 $runId = [Guid]::NewGuid().ToString('N')
@@ -31,6 +31,10 @@ try {
    & "$RiderHome/jbr/bin/java.exe" -XX:-UsePerfData -cp "$classes;$testClasses;$RiderHome/lib/*" dev.magnus.royder.remotecloseworktree.AbandonedProjectSpec
    if ($LASTEXITCODE -ne 0) { throw "Abandoned project specification failed with $LASTEXITCODE" }
    Copy-Item -LiteralPath "$PSScriptRoot/src/main/resources/META-INF" -Destination $classes -Recurse
+   $descriptor = Join-Path $classes 'META-INF/plugin.xml'
+   $text = Get-Content -Raw -LiteralPath $descriptor
+   if (!$text.Contains('{riderBuild}')) { throw "$descriptor has no {riderBuild} to pin." }
+   Set-Content -NoNewline -LiteralPath $descriptor -Value $text.Replace('{riderBuild}', $riderBuild)
    $builtJar = Join-Path $stage 'RemoteCloseWorktree.jar'
    [IO.Compression.ZipFile]::CreateFromDirectory($classes, $builtJar)
    [IO.File]::Move($builtJar, $jar, $true)
