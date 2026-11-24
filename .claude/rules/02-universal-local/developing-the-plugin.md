@@ -48,11 +48,13 @@ the sandbox Rider first: a second Rider, with folders of its own, its own tools 
 ## Deploying to the everyday Riders: the tools at once, the host at a restart
 
 `everyday deploy` deploys a build that passed in the sandbox: every everyday Rider serves its tools from its next
-call. Only if the plugin changed, its host or its frontend jar, does it install the plugin too, which waits for Magnus
-to restart his Riders: then deploy in batches, and end the report with the heading `### RESTART RIDER ###` and a line
-saying what the restart brings. `everyday rollback` removes the newest tools build, so the Riders go back to the one
-before it at their next call; `everyday rollback-plugin` puts back the plugin build that the last plugin install
-replaced.
+call, and so does the standalone primary's private Rider, which opens the checkouts no desktop Rider has open. Only
+if the plugin changed, its host or its frontend jar, does it install the plugin too, which waits for Magnus to restart
+his Riders: then deploy in batches, and end the report with the heading `### RESTART RIDER ###` and a line saying what
+the restart brings. `everyday rollback` removes the newest tools build, so the Riders go back to the one before it at
+their next call; `everyday rollback-plugin` puts back the plugin build that the last plugin install replaced. A host
+change reaches the primary's private Rider through a new primary package
+(`dev_docs/headless-royder/standalone-primary.md`).
 
 The original plugin (`resharper-joshua`, port 23741) was removed from Magnus's Riders on 2026-11-14, once his symbol
 linker depended on this one. Every project's `.mcp.json` names this one, `dotnet-analysis-and-refactoring`, since then.

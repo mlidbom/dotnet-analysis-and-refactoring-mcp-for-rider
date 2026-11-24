@@ -33,11 +33,19 @@ ports. Use a dedicated profile directory.
     "riderHome": "C:/Users/magnu/AppData/Local/Programs/Rider",
     "assetsDirectory": "C:/Royder/packages/current-build/RiderHost",
     "toolsBuild": "<build from package.json>",
+    "toolsFolder": "C:/Users/magnu/AppData/Local/DotNetAnalysisAndRefactoringMcp/tools",
     "remoteDevPort": 24931,
     "backendMcpPort": 24941
   }
 }
 ~~~
+
+`toolsFolder` is optional. It names a folder of tools builds, here the one `everyday deploy` deploys to: the private
+Rider serves its newest build for the packaged host, and swaps to a newer one between calls, as the desktop Riders
+do. A tools change then reaches the checkouts the primary opens without a new package. The pinned build is served
+while that folder has none for the host, such as after a host change the package doesn't have yet. Without
+`toolsFolder`, the private Rider serves the pinned build only, which is what capturing a catalog and the verification
+below need.
 
 Choose a restored solution in a trusted main checkout or linked worktree. Preparing the catalog briefly
 opens that solution, captures its real MCP handshake and tool definitions and shuts the private JVM down. If ordinary
@@ -83,11 +91,15 @@ directory. `tools/Update-InstalledRoyderPrimary.ps1 -PackageDirectory <directory
 shut down, waits for requests to drain, updates the sign-in task and checks the new public listener. It keeps
 the old settings for rollback. Earlier packages that lack the `stop` command require a coordinated stop first.
 
+A new package is needed for a change to the primary, the host or the management plugins, not for a tools change.
+`-ToolsFolder <folder>` adds `toolsFolder` to the settings; an update keeps the one they name.
+
 The update of 24 November 2026, as run: build into `%LOCALAPPDATA%/DotNetAnalysisAndRefactoringMcp/primary/<commit>`,
 then capture its catalog with a temporary settings file beside it. That file has no `desktopPort`, so the capture
 opens its own private Rider rather than verifying the desktop's build. It uses ports other than the running primary's
 (24930, 24931 and 24941) and a profile directory of its own, about 600 MB, deleted afterwards with the settings file.
-`catalogFile`, `assetsDirectory` and `toolsBuild` are the package's.
+`catalogFile`, `assetsDirectory` and `toolsBuild` are the package's, and it names no `toolsFolder`, so the capture
+checks the package's own build.
 
 ~~~powershell
 & "$package/Royder.Primary.exe" prepare-catalog $temporarySettings C:/Dev/resharper-mcp/ReSharperMcp.sln

@@ -252,12 +252,12 @@ that costs them. `optimize-royder`, the Claude session in this checkout, owns th
 
 Found while doing this, to fix:
 
-- **A tools change reaches the checkouts the primary opened only through a new primary package,** and switching to it
-  waits until no managed project is open. The private Rider serves the tools build pinned in the package, and the
-  primary checks that pin when it opens a checkout. Most agents' calls now go there. The desktop Riders take a tools
-  build at their next call. Better: let the primary's Rider swap tools builds as the desktop Riders do, the primary
-  checking the host's hash rather than the exact build. On 2026-11-24 the main declaration fix (`1be07a6`) waited
-  for the primary's idle managed projects to close, in a background job of `optimize-royder`.
+- *Done 2026-11-24 (`6fc75c6`):* **a tools change reached the checkouts the primary opened only through a new primary
+  package,** and switching to it waited until no managed project was open. The main declaration fix (`1be07a6`)
+  waited so, in a background job of `optimize-royder`. The private Rider now serves the newest build in the everyday
+  tools folder for its host, swapping between calls as the desktop Riders do, and the primary checks the host's hash
+  rather than the exact build. Verified at 01:02 local time: `everyday deploy` swapped the private Rider's
+  `ReSharperMcp.sln` to the new build with the desktop Riders', at its next call.
 - **A cold open's first call answered "The operation timed out."** (2026-11-24, about 00:47 local time), for
   `go_to_definition` on `Deskmancer.slnx` and on `Compze.AllProjects.slnx`. The same calls a minute later answered.
   The primary's own message on a cold open's timeout says the solution is still opening and to retry; this one didn't
