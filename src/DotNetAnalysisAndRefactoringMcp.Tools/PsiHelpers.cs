@@ -861,6 +861,16 @@ public static class PsiHelpers
       return ((int)coords.Line + 1, (int)coords.Column + 1);
    }
 
+   /// <summary>The text of a 1-based line of <paramref name="document"/>, trimmed, as <c>find_usages</c> shows a usage's line.</summary>
+   public static string LineText(IDocument document, int line)
+   {
+      var docLine = (Int32<DocLine>)(line - 1);
+      var start = document.GetLineStartOffset(docLine);
+      var end = document.GetLineEndOffsetNoLineBreak(docLine);
+
+      return TruncateSnippet(document.GetText(new TextRange(start, end)), 300);
+   }
+
    public static string TruncateSnippet(string text, int maxLength = MaxSnippetLength)
    {
       if(text == null) return null;

@@ -160,7 +160,7 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
                                    File = filePath,
                                    Line = refLine,
                                    Column = refCol,
-                                   Code = LineText(refRange.Document, refLine),
+                                   Code = PsiHelpers.LineText(refRange.Document, refLine),
                                    Text = mode == "grouped"
                                              ? PsiHelpers.TruncateSnippet(refNode.Parent?.GetText() ?? refNode.GetText())
                                              : null
@@ -335,15 +335,6 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
                                                      x.Equals("Test", StringComparison.OrdinalIgnoreCase)
                                                   || x.Equals("Tests", StringComparison.OrdinalIgnoreCase)
                                                   || x.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase));
-   }
-
-   static string LineText(IDocument document, int line)
-   {
-      var docLine = (Int32<DocLine>)(line - 1);
-      var start = document.GetLineStartOffset(docLine);
-      var end = document.GetLineEndOffsetNoLineBreak(docLine);
-
-      return PsiHelpers.TruncateSnippet(document.GetText(new TextRange(start, end)), 300);
    }
 
    class RawUsage
