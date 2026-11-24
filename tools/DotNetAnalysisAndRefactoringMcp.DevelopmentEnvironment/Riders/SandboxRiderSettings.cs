@@ -16,12 +16,29 @@ sealed class SandboxRiderSettings
 
    public SandboxRiderSettings(string configurationFolder) => _optionsFolder = Path.Combine(configurationFolder, "options");
 
-   public void Write(string trustedSolutionsFolder)
+   public void Write(IReadOnlyList<string> trustedFolders)
    {
       Directory.CreateDirectory(_optionsFolder);
       Update("ide.general.xml", "GeneralSettings", component => SetOption(component, "confirmExit", "false"));
-      Update("trusted-paths.xml", "Trusted.Paths.Settings", component => TrustEverythingUnder(component, trustedSolutionsFolder));
+      Update(TrustedPathsFile, "Trusted.Paths.Settings", component => TrustEverythingUnder(component, trustedFolders));
    }
+
+   /// <summary>Whether the settings written last trust <paramref name="path"/>: one of the folders they trust holds it.</summary>
+   public bool Trust(string path)
+   {
+      var file = Path.Combine(_optionsFolder, TrustedPathsFile);
+      if(!File.Exists(file)) return false;
+      var fullPath = Path.GetFullPath(path);
+      return XDocument.Load(file).Descendants("option")
+                      .Where(it => (string?)it.Attribute("name") == TrustedPathsOption)
+                      .Descendants("option")
+                      .Select(it => (string?)it.Attribute("value"))
+                      .OfType<string>()
+                      .Any(folder => fullPath.StartsWith(Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+   }
+
+   const string TrustedPathsFile = "trusted-paths.xml";
+   const string TrustedPathsOption = "TRUSTED_PATHS";
 
    void Update(string fileName, string componentName, Action<XElement> change)
    {
@@ -40,11 +57,11 @@ sealed class SandboxRiderSettings
       component.Add(new XElement("option", new XAttribute("name", name), new XAttribute("value", value)));
    }
 
-   static void TrustEverythingUnder(XElement component, string folder)
+   static void TrustEverythingUnder(XElement component, IReadOnlyList<string> folders)
    {
-      component.Elements("option").Where(it => (string?)it.Attribute("name") == "TRUSTED_PATHS").Remove();
+      component.Elements("option").Where(it => (string?)it.Attribute("name") == TrustedPathsOption).Remove();
       component.Add(new XElement("option",
-                                 new XAttribute("name", "TRUSTED_PATHS"),
-                                 new XElement("list", new XElement("option", new XAttribute("value", folder)))));
+                                 new XAttribute("name", TrustedPathsOption),
+                                 new XElement("list", folders.Select(folder => new XElement("option", new XAttribute("value", folder))))));
    }
 }

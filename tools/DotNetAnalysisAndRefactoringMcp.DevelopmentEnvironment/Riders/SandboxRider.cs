@@ -135,12 +135,21 @@ public sealed class SandboxRider
    ///   and returns once the plugin's MCP server on <see cref="McpPort"/> answers with the solution loaded and indexed:
    ///   for <see cref="ThePeer"/>, the first sandbox's, which the peer's registers its solutions with.
    /// </summary>
-   /// <remarks>The plugin's MCP server listens only while a solution is open, so without one there is nothing to wait for.</remarks>
+   /// <remarks>
+   ///   The plugin's MCP server listens only while a solution is open, so without one there is nothing to wait for.
+   ///   <br/>It trusts <see cref="SolutionsFolder"/> and the given solution's folder. Until 2026-11-25 it trusted only the
+   ///   first, and any other solution, such as this repository's own, waited the whole <see cref="HowLongStartingMayTake"/>
+   ///   on Rider's "Trust and open?" dialog.
+   /// </remarks>
    public void Start(string? solution = null)
    {
+      var settings = new SandboxRiderSettings(Path.Combine(_root, "config"));
+      if(solution is not null && RunningProcess() is not null && !settings.Trust(solution))
+         Stop(); // Its settings are written only while it doesn't run; without trust, Rider waits on its "Trust and open?" dialog.
+
       if(RunningProcess() is null)
       {
-         new SandboxRiderSettings(Path.Combine(_root, "config")).Write(SolutionsFolder);
+         settings.Write(solution is null ? [SolutionsFolder] : [SolutionsFolder, Path.GetDirectoryName(Path.GetFullPath(solution))!]);
          WriteTheFoldersFile();
          File.WriteAllLines(JvmOptionsFile, [$"-Xmx{HeapLimitInMegabytes}m"]);
          var process = Launch(solution);
