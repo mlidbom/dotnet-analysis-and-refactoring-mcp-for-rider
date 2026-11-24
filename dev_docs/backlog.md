@@ -90,6 +90,11 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   `When_a_file_declaring_a_type_is_deleted_on_disk` failed: `search_symbol` still found the type, and
   `get_file_errors` on the referencing file answered 0 diagnostics. Run alone, and in the next full run, they passed.
   So the first call after a deletion can still miss it, depending on what ran before.
+- **`sandbox start` gave up on this repository's own solution** (optimize-royder, 2026-11-24). `sandbox start
+  C:\Dev\resharper-mcp.worktrees\optimize-royder\ReSharperMcp.sln` waited its 5 minutes and threw; `/health` then
+  answered no solutions and no indexing, so the solution never registered. The fixture opens in seconds. Not looked
+  into: a dialog in the sandbox's window, such as trusting the project, or a load failure in its log, would be the
+  first things to check. It blocks checking a tool by hand on a real solution's large files.
 - **`get_diagnostics` takes one `filePath`, and drops a `filePaths` without a word** (optimize-royder, 2026-11-24).
   Its siblings `get_file_errors` and `inspect_code` take `filePaths`, so an agent passes it; the call then names no
   file, and the router answers "Multiple solutions are open", which points at routing, not at the argument. Wanted:
