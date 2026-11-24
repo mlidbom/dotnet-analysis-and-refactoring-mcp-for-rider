@@ -363,7 +363,9 @@ Found while doing this, to fix:
   ended, it was ready in 2 minutes. Now Rider gets 4 minutes to open the solution, counted once nothing is in its
   way, then 15 minutes to load, index and generate it, and "still opening" says how long the warm-up has run and what
   it waits for (`WarmUp`). Left open: serving a call before the source generators have run, with a note, which would
-  have answered sooner; unsafe while Rider reloads its projects, as it did here, with indexing reported done.
+  have answered sooner; unsafe while Rider reloads its projects, as it did here, with indexing reported done. And
+  the primary's own log lines carry no time, so the timeline had to come from the backends' logs: give its console
+  logger a timestamp with the next primary change.
 - *Done 2026-11-24 (`7a916f5`):* **`inspect_code` with `changedSince` failed on "git rev-parse timed out after 15s"**
   under heavy load (tessaging-and-taggregates); a retry ran into the 55 s answer deadline, and folders in `filePaths`
   worked. The rev-parse only found the work tree's root, which `SolutionRoot` knows: gone. A git timeout now says to
