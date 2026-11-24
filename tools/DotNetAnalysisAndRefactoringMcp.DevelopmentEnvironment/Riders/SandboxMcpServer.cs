@@ -1,8 +1,7 @@
-using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace DotNetAnalysisAndRefactoringMcp.Specifications;
+namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Riders;
 
 /// <summary>The plugin's MCP server in the sandbox Rider, called as an MCP client calls it: JSON-RPC over HTTP.</summary>
 public sealed class SandboxMcpServer
@@ -45,12 +44,12 @@ public sealed class SandboxMcpServer
    }
 
    /// <summary>Register a solution with the primary as a peer does when it opens the solution.</summary>
-   internal void RegisterPeer(string solutionPath, int port) =>
+   public void RegisterPeer(string solutionPath, int port) =>
       Send("internal/register", new JsonObject { ["solutionName"] = Path.GetFileNameWithoutExtension(solutionPath),
                                                 ["solutionPath"] = solutionPath, ["port"] = port, ["tools"] = new JsonArray() });
 
    /// <summary>Withdraw a peer's solution from the primary when the specification ends.</summary>
-   internal void DeregisterPeer(string solutionPath) => Send("internal/deregister", new JsonObject { ["solutionPath"] = solutionPath });
+   public void DeregisterPeer(string solutionPath) => Send("internal/deregister", new JsonObject { ["solutionPath"] = solutionPath });
 
    /// <summary>The path segment <c>list_solutions</c> gives the solution at <paramref name="solutionPath"/>, to name it by.</summary>
    public string UniquePathSegmentOf(string solutionPath) =>
@@ -134,44 +133,4 @@ public sealed class SandboxMcpServer
       using var answer = JsonDocument.Parse(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
       return answer.RootElement.Clone();
    }
-}
-
-/// <summary>The lines of an open event stream, read as they come.</summary>
-public sealed class ServerEvents : IDisposable
-{
-   static readonly HttpClient Client = new() { Timeout = Timeout.InfiniteTimeSpan };
-
-   readonly CancellationTokenSource _closing = new();
-   readonly BlockingCollection<string> _lines = new();
-
-   public ServerEvents(Uri address)
-   {
-      var response = Client.GetAsync(address, HttpCompletionOption.ResponseHeadersRead, _closing.Token).GetAwaiter().GetResult();
-      response.EnsureSuccessStatusCode();
-      var reader = new StreamReader(response.Content.ReadAsStream());
-      Task.Run(() =>
-      {
-         try
-         {
-            while(reader.ReadLine() is {} line) _lines.Add(line);
-         }
-         catch(Exception) when(_closing.IsCancellationRequested) {}
-         finally
-         {
-            response.Dispose();
-         }
-      });
-   }
-
-   /// <summary>Whether a line containing <paramref name="text"/> comes within <paramref name="timeout"/>.</summary>
-   public bool Sends(string text, TimeSpan timeout)
-   {
-      var deadline = DateTime.UtcNow + timeout;
-      while(DateTime.UtcNow < deadline)
-         if(_lines.TryTake(out var line, deadline - DateTime.UtcNow) && line.Contains(text, StringComparison.Ordinal))
-            return true;
-      return false;
-   }
-
-   public void Dispose() => _closing.Cancel();
 }

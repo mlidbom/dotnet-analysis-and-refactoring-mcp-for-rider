@@ -1,5 +1,6 @@
 using Compze.Must;
 using Compze.xUnitBDD;
+using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Riders;
 
 // ReSharper disable InconsistentNaming
 

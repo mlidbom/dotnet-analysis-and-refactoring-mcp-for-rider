@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment;
 using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
 using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Riders;
@@ -21,6 +22,9 @@ static class Program
                           sandbox install             Builds the working tree and puts it in the sandbox: only the tools,
                                                       served from the next call, unless the plugin changed (its host or its
                                                       frontend jar); then the plugin, restarting the sandbox if it runs
+                          sandbox call <tool> [<json>]
+                                                      Calls a tool on the sandbox's MCP server, with its arguments as a JSON
+                                                      object, and prints the answer as an agent reads it, and its size
                           peer start [<solution>]     Starts the second sandbox Rider, the first one's peer, opens the
                                                       solution, waits until the first's MCP server lists it indexed
                           peer stop                   Closes the peer
@@ -67,6 +71,12 @@ static class Program
                                                         ? "Installed the plugin in the sandbox: its host or its frontend jar changed."
                                                         : "Deployed the tools to the sandbox: it serves them from its next call."));
             break;
+         case ["sandbox", "call", var tool]:
+            CallTheSandbox(tool, "{}");
+            break;
+         case ["sandbox", "call", var tool, var toolArguments]:
+            CallTheSandbox(tool, toolArguments);
+            break;
          case ["peer", "start"]:
             InTheSandboxTurn("peer start", () => peer.Start());
             break;
@@ -105,6 +115,18 @@ static class Program
    {
       using var turn = SandboxTurn.Take($"the development tools' {command} in {RepositoryRoot.Folder}");
       change();
+   }
+
+   /// <summary>
+   ///   Calls <paramref name="tool"/> on the sandbox's MCP server, as an agent's client does, and prints its answer, and
+   ///   on the error stream the answer's size: to see and measure what an agent reads, without a script of one's own.
+   /// </summary>
+   static void CallTheSandbox(string tool, string toolArguments)
+   {
+      Console.OutputEncoding = System.Text.Encoding.UTF8;
+      var answer = new SandboxMcpServer(SandboxRider.McpPort).CallTool(tool, JsonNode.Parse(toolArguments)!);
+      Console.WriteLine(answer);
+      Console.Error.WriteLine($"--- {answer.Split('\n').Length} lines, {answer.Length} characters");
    }
 
    /// <remarks>
