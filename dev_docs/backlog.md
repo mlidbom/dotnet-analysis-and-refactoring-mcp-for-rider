@@ -337,7 +337,7 @@ Found while doing this, to fix:
   Learned restarting it: `Stop-ScheduledTask RoyderPrimary` ends the console wrapper and leaves `Royder.Primary.exe`
   running; end the process itself. `verify_on_demand.py` left its private Rider running after a failed run, holding
   its ports; end it before the next run. Its calls now retry "still opening", as an agent does.
-- **Waiting for the next primary install, package `f9318d9`, verified:** `baa5512`, a `solutionName` that isn't the
+- *Installed 2026-11-24 18:09, primary `f9318d9`:* `baa5512`, a `solutionName` that isn't the
   worktree's says whether the file is missing or unlisted; and `f9318d9`, the private Rider's worktree identity query
   (fsutil) gets 20 s and a second try, and its failure is logged. Two opens failed with "HTTP 409: Cannot establish
   the worktree's filesystem identity" under load, one a reopen after a `.slnx` edit. A background loop installs it
