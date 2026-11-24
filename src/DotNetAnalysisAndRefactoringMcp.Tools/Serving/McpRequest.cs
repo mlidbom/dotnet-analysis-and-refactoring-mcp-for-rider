@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DotNetAnalysisAndRefactoringMcp.Protocol;
 using DotNetAnalysisAndRefactoringMcp.Tools;
 using JetBrains.Util;
@@ -114,20 +115,38 @@ sealed class McpRequest(IMcpServer server, JsonRpcRequest request)
    ///   How this server is, which a primary asks its peers for <c>/health</c>, and the watchdog asks to check that the
    ///   listener answers: its port, its role, its solutions' health.
    /// </summary>
+   /// <summary>
+   ///   This server as the other servers and the standalone primary see it: its port, its role, the process it runs in,
+   ///   and its solutions: its local ones with their health, and its peers' by name and path, each row saying which.
+   /// </summary>
+   /// <remarks>
+   ///   The process ID is how the standalone primary tells which of its private Rider's backends serves which solution.
+   ///   Until 2026-11-25 it read that from each backend's log, which lost the line naming the port of one backend, and
+   ///   which Rider rotates away after a few hours of verbose logging: every close in the private Rider then waited four
+   ///   minutes for a backend it could not identify, and failed.
+   /// </remarks>
    JsonRpcResponse Status()
    {
       var solutions = new JArray();
       foreach(var solution in _solutions.Local)
-         solutions.Add(solution.Health());
+         solutions.Add(Row(solution.Health(), local: true));
       foreach(var solution in _solutions.Peers)
-         solutions.Add(solution.NameAndPath());
+         solutions.Add(Row(solution.NameAndPath(), local: false));
 
+      using var thisProcess = Process.GetCurrentProcess();
       return _request.Answer(new JObject
                             {
                                ["port"] = _server.Port,
                                ["role"] = _server.IsPrimary ? "primary" : "peer",
+                               ["pid"] = thisProcess.Id,
                                ["solutions"] = solutions
                             });
+
+      static JObject Row(JObject solution, bool local)
+      {
+         solution["local"] = local;
+         return solution;
+      }
    }
 
    JsonRpcResponse Restart()

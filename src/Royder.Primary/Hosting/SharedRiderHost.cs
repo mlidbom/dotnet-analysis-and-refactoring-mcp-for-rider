@@ -67,8 +67,9 @@ internal sealed class SharedRiderHost
          await supervisor.Command("stop",null,generation.Launch.Run,CancellationToken.None).ConfigureAwait(false);
          throw;
       }
-      await new RiderBackendCluster(http,generation).WaitForRouting(solution,cancellation).ConfigureAwait(false);
-      var backend = generation.Backends().Single(it => RiderGeneration.Same(it.Solution,solution));
+      var cluster = new RiderBackendCluster(http,generation);
+      await cluster.WaitForRouting(solution,cancellation).ConfigureAwait(false);
+      var backend = (await cluster.Backends(cancellation).ConfigureAwait(false)).Single(it => RiderGeneration.Same(it.Solution,solution));
       RiderSupervisor.Write(generation.OpenIdentity(solution),backend);
       File.Delete(receipt);
    }
@@ -86,7 +87,8 @@ internal sealed class SharedRiderHost
       if(generation == null) return; // No live JVM or job members remain in the persisted generation.
       generation.Adopt(settings);
       var receipt = generation.Receipt(solution);
-      var before = generation.Backends();
+      var cluster = new RiderBackendCluster(http,generation);
+      var before = await cluster.Backends(cancellation).ConfigureAwait(false);
       // The JVM may report a project directory for a solution opened through the plugin.
       // Only backend solution filenames (or an explicit filename in discovery) identify a cluster registration.
       var siblings = before.Select(it => it.Solution).Concat((generation.Projects() ?? []).Where(IsSolutionFilename).Select(Path.GetFullPath))
@@ -107,11 +109,11 @@ internal sealed class SharedRiderHost
          throw new InvalidOperationException($"The private JVM still has a project at '{solution}' with no confirmed backend identity.");
       }
       if(!RiderGeneration.Same(target.Solution,solution))
-         throw new InvalidOperationException($"Cannot confirm a safe close of '{solution}': the private job has no backend PID/start time with a matching RiderSolutionWatcher solution-open record.");
+         throw new InvalidOperationException($"Cannot confirm a safe close of '{solution}': the backend recorded for it served '{target.Solution}'.");
       if(existing == null)
       {
-         var unassigned = generation.State.Members.Where(it => it.Name.Equals("Rider.BackendHost",StringComparison.OrdinalIgnoreCase) &&
-            it.IsAlive() && !it.SameProcess(target.Process) && !before.Any(backend => backend.Process.SameProcess(it))).ToArray();
+         var unassigned = generation.LiveBackendProcesses()
+            .Where(it => !it.SameProcess(target.Process) && !before.Any(backend => backend.Process.SameProcess(it))).ToArray();
          if(unassigned.Length != 0 || before.Any(backend => backend.Process.SameProcess(target.Process)))
             throw new InvalidOperationException($"Cannot identify the current backend for '{solution}' from its saved PID {target.Process.Pid}. " +
                $"Unassigned backend PIDs: {string.Join(", ",unassigned.Select(it => it.Pid))}. No close was dispatched.");
@@ -146,7 +148,7 @@ internal sealed class SharedRiderHost
          }
       }
       await generation.WaitForWorkers(target,cancellation).ConfigureAwait(false);
-      if(generation.State.Phase == "Running") await new RiderBackendCluster(http,generation).WaitForRouting(null,cancellation,closed:solution,siblings:siblings).ConfigureAwait(false);
+      if(generation.State.Phase == "Running") await cluster.WaitForRouting(null,cancellation,closed:solution,siblings:siblings).ConfigureAwait(false);
       else if(siblings.Length != 0) throw new InvalidOperationException("The private Rider JVM stopped while closing a project with open siblings.");
       File.Delete(generation.Tag(solution));
       File.Delete(generation.OpenIntent(solution));

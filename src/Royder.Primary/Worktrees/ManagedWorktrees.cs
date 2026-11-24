@@ -171,7 +171,12 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
       finally { _changes.Release(); }
    }
 
-   public async Task CloseRequested(RegisteredWorktree expected, string path, bool remove, CancellationToken cancel)
+   /// <summary>
+   ///   Closes the project open for the worktree <paramref name="expected"/>, as <c>close_worktree</c> asks, and removes the
+   ///   worktree when <paramref name="remove"/>. Whether a project was open. A close returns once Rider's backend for it and
+   ///   the processes that backend started have exited.
+   /// </summary>
+   public async Task<bool> CloseRequested(RegisteredWorktree expected, string path, bool remove, CancellationToken cancel)
    {
       if(remove) expected.RequireLinkedForRemoval();
       if(_starting.TryGetValue(expected, out var starting))
@@ -190,6 +195,7 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
             throw new InvalidOperationException($"The worktree serves '{selected.SolutionPath}'.");
          if(_open.TryGetValue(current.Root, out var opened)) await Close(opened, opened.Registration != current, cancel);
          if(remove) await current.Remove(settings.GitDirectories);
+         return opened != null;
       }
       finally { _changes.Release(); }
    }
@@ -208,12 +214,14 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
    async Task Close(ManagedWorktree worktree, bool discard, CancellationToken cancel)
    {
       if(!worktree.TryBeginClose()) throw new InvalidOperationException($"'{worktree.SolutionPath}' has active calls or is closing.");
+      var started = clock.GetTimestamp();
       try
       {
          await host.CloseAsync(worktree.SolutionPath, discard, cancel);
          if(_open.Count == 1) await host.StopAsync(cancel);
          journal.Closed(worktree.Registration);
          _open.TryRemove(worktree.Registration.Root, out _);
+         log.LogInformation("Closed {Solution} in {Seconds:0.0} seconds.", worktree.SolutionPath, clock.GetElapsedTime(started).TotalSeconds);
       }
       catch { worktree.RetryCloseLater(); throw; }
    }
@@ -226,16 +234,20 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
          if(!await _changes.WaitAsync(0, stoppingToken)) continue;
          try
          {
+            // Each worktree on its own: until 2026-11-25 one whose close kept failing ended the pass before the others.
             foreach(var item in _open.Values)
             {
-               var discard = Registration(item.Registration.Root) != item.Registration;
-               if(discard && _starting.TryGetValue(item.Registration, out var starting)) starting.Cancel();
-               if(item.Idle && (discard || !_starting.ContainsKey(item.Registration) &&
-                                (!item.Ready || item.SolutionFileChanged || item.IdleFor >= TimeSpan.FromSeconds(settings.IdleSeconds))))
-                  await Close(item, discard, stoppingToken);
+               try
+               {
+                  var discard = Registration(item.Registration.Root) != item.Registration;
+                  if(discard && _starting.TryGetValue(item.Registration, out var starting)) starting.Cancel();
+                  if(item.Idle && (discard || !_starting.ContainsKey(item.Registration) &&
+                                   (!item.Ready || item.SolutionFileChanged || item.IdleFor >= TimeSpan.FromSeconds(settings.IdleSeconds))))
+                     await Close(item, discard, stoppingToken);
+               }
+               catch(Exception ex) when(!stoppingToken.IsCancellationRequested) { log.LogWarning("Worktree maintenance: {Reason}", ex.Message); }
             }
          }
-         catch(Exception ex) when(!stoppingToken.IsCancellationRequested) { log.LogWarning("Worktree maintenance: {Reason}", ex.Message); }
          finally { _changes.Release(); }
       }
    }

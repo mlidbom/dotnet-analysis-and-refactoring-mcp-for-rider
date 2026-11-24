@@ -18,5 +18,8 @@ sealed class AnswerDeadline(TimeSpan within)
    /// <summary>The result of <paramref name="work"/>, or a <see cref="TimeoutException"/> once the deadline has passed.</summary>
    public Task<T> Awaited<T>(Task<T> work, CancellationToken cancel) => work.WaitAsync(Remaining, cancel);
 
+   /// <summary><paramref name="work"/> finished, or a <see cref="TimeoutException"/> once the deadline has passed.</summary>
+   public Task Awaited(Task work, CancellationToken cancel) => work.WaitAsync(Remaining, cancel);
+
    TimeSpan Remaining => TimeSpan.FromTicks(Math.Max(0, (within - Stopwatch.GetElapsedTime(_started)).Ticks));
 }

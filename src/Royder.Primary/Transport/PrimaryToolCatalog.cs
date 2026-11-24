@@ -30,7 +30,7 @@ sealed class PrimaryToolCatalog(ToolCatalog pinned, OrdinaryRiders ordinary, Man
       var tools = desktop.Concat(managed).Concat(pinned.Tools).OfType<JObject>().DistinctBy(it => (string?)it["name"]);
       var listed = new JArray(tools,
          ManagementTool(Warm, "Optionally open a trusted checkout ahead of the first analysis call. Pass its absolute solution filename and wait for readiness."),
-         ManagementTool(Close, "Close the managed Rider project and await its workers' exit. The worktree stays on disk."));
+         ManagementTool(Close, "Close the managed Rider project. Answers Closed once its backend and workers exited, or Still closing: call again to wait on. The worktree stays on disk."));
       listed.OfType<JObject>().Single(it => (string?)it["name"] == "list_solutions")["description"] =
          "List currently open solutions. " + OpenOnDemand;
       foreach(var tool in listed.OfType<JObject>())

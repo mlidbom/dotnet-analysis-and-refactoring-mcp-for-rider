@@ -110,6 +110,13 @@ package's own build. The update refuses while the primary has a managed project 
 they have closed, which they do after 30 idle minutes (`idleSeconds`), for an hour at most. Projects in a journal
 whose private Rider runs nothing any more, its run stopped or failed with no process left, count as closed.
 
+**When the running primary can't close its projects,** as on 2026-11-24 when every close failed, the update would
+wait out its hour. Stop it by hand first, then update: `Disable-ScheduledTask -TaskName RoyderPrimary`, end
+`Royder.Primary.exe`, write an empty `stop.request` into the run folder that the profile's `current.json` names, and
+wait for that run's `state.json` to say `Stopped` with no survivors (10 seconds then). A graceful `stop` would try the
+failing closes again. `Enable-ScheduledTask -TaskName RoyderPrimary`, since the update expects the task enabled, and
+run `Update-InstalledRoyderPrimary.ps1 -PackageDirectory <package>` straight after.
+
 **When Rider updates,** the private Rider no longer starts: its two management plugins use Rider's internals and are
 pinned to the Rider build their package was built against, and every on-demand open answers that Rider was updated.
 Build a package on the new Rider, verify it with `tests/headless/verify_on_demand.py`, and install it, as above:
@@ -139,7 +146,9 @@ Build a package on the new Rider, verify it with `tests/headless/verify_on_deman
   build in a Compze worktree, which made Rider reload all 117 of its projects mid-warm-up, had it fail twice and
   start over cold each time. Its health response also lists the
   worktrees currently opening.
-- `close_worktree` closes an agent project and waits for its workers. Unused agent projects close after 30 minutes (`idleSeconds`), and the private Rider with the last of them: an agent calling every 10 to 20 minutes otherwise met a cold start nearly every time.
+- `close_worktree` closes an agent project and waits for its workers: it answers `Closed` once the project's backend
+  and the processes that backend started have exited, so the folder is free. By `answerWithinSeconds` it answers
+  `Still closing` instead, and the close goes on; a second call answers once it is done. Unused agent projects close after 30 minutes (`idleSeconds`), and the private Rider with the last of them: an agent calling every 10 to 20 minutes otherwise met a cold start nearly every time.
 - When an agent project's solution file changes, such as by a project added to it, the primary closes the project
   once it is idle, or at the next call, and that call reopens it with the whole solution. The private Rider's own
   reload took in only the projects the edit touched and dropped the rest (2026-11-24).

@@ -387,6 +387,25 @@ Found while doing this, to fix:
   Learned restarting it: `Stop-ScheduledTask RoyderPrimary` ends the console wrapper and leaves `Royder.Primary.exe`
   running; end the process itself. `verify_on_demand.py` left its private Rider running after a failed run, holding
   its ports; end it before the next run. Its calls now retry "still opening", as an agent does.
+- **The supervisor's record of the private Rider's processes grows without bound** (found 2026-11-25). `Supervise.ps1`
+  keeps every process ever seen in the job in `observed` and writes all of it to `state.json` at each change of
+  membership; the primary parses that file every 150–250 ms while a close waits for workers. After 90 minutes: 23,628
+  processes, 2.9 MB, mostly `git` (14,275) and `conhost` (8,768) that the private JVM starts, about 2.6 a second.
+  Serializing it takes 100 ms in PowerShell now; a day would make it about 30 MB. Only live members and their
+  ancestors are needed (`RiderGeneration.Unreleased` walks up from live members): prune the rest at each enumeration.
+- *Done 2026-11-25:* **every close in the private Rider took four minutes and failed** (finding-holders-cheaply and
+  tooling-with-magnus, 23:47 to 23:52 on 2026-11-24: `close_worktree` answered "The operation timed out." though the
+  backends had exited). The primary told which backend served which solution from two lines of each backend's log.
+  The backend that opened `~/.claude` at 22:38 logged its solution but not its port, so the primary never identified
+  it: its own open waited out four minutes and failed, cleanup failed too, and from then on every close waited four
+  minutes for that sibling to route, failed, and was refused at each retry, "Unassigned backend PIDs: 196328". The
+  closed worktrees stayed in the primary's list for good. Rider also keeps a backend's log, verbose in the private
+  Rider, in seven files of 50 MB, and one backend wrote 150 MB in 90 minutes: its first lines would have gone in about
+  three and a half hours. Now each backend says who it is: `internal/status` gives its process ID and marks its local
+  solutions, and the primary asks the ten ports of the private cluster. `close_worktree` answers by the deadline,
+  `Closed` only once the backend and its workers have exited, else `Still closing`; the maintenance loop takes each
+  worktree on its own; each close is logged with its duration. The third fault of the log-reading identity, after
+  rotation (below) and the missing line.
 - *Done 2026-11-24 (`4400e24`, installed 19:41):* **a busy backend's rotated log hid what it served** (tessaging-and-
   taggregates, all evening). The primary read only `backend.….{pid}.log` for a backend's solution and port; after
   rotation they were in `.1.log` and on. The backend was the private cluster's primary, so every open waited out its
@@ -856,3 +875,11 @@ backend.
   67 s, and stopping and starting the sandbox, with the fresh copy's restore, about 20 s of it. It would add a second
   way to run, and weaken the check that ReSharper keeps nothing of the tools build that first ran each feature, which
   takes a fresh process.
+- **Hobbling the private Rider to cut its load:** solution-wide analysis off there, and at most about four managed
+  worktrees open (2026-11-24). Magnus, through tooling-with-magnus: "Royder is NOT our performance problem do not go
+  hobbling it when it is not our problem please :)". The measurement that settled it, at 23:26 with the 16 cores
+  saturated most of the evening and six ClaudeTooling solutions open, all idle: 52 processes, 11.6 GB, of which each
+  worktree's backend 0.3–1.5 GB, its Roslyn worker 0.4–1 GB and its MSBuild node about 0.1 GB, and the JVM 1.5 GB.
+  Solution-wide analysis makes a full pass over about 2,600 files at each open, roughly 3 processors for 1–2 minutes.
+  Over the evening the whole private Rider averaged about 1.3 processors. A shorter idle close is no answer either:
+  10 minutes gave agents a cold start nearly every call.

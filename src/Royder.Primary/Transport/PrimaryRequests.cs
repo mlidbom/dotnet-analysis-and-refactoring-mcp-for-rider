@@ -9,7 +9,7 @@ namespace Royder.Primary.Transport;
 
 /// <summary>Answers MCP discovery without an IDE and dispatches each accepted tool call once to its owning solution.</summary>
 sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, ManagedWorktrees worktrees,
-                             RiderEndpoint backend, PrimaryToolCatalog catalog, ToolCatalog pinned)
+                             RiderEndpoint backend, PrimaryToolCatalog catalog, ToolCatalog pinned, ILogger<PrimaryRequests> log)
 {
    public async Task<JObject?> Answer(JObject request, CancellationToken cancel)
    {
@@ -68,22 +68,18 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
             return Rpc.ToolResult(id, $"Already open in ordinary Rider: {path}");
          }
          if(managementTarget == null && tool == PrimaryToolCatalog.Close)
-            return Rpc.ToolResult(id, await worktrees.CloseUnregistered(path, cancel)
-                                         ? $"Closed: {path}"
-                                         : $"Nothing to close: Royder has no project open for {path}");
+            return await ClosedByTheDeadline(id, path, worktrees.CloseUnregistered(path, CancellationToken.None), deadline, cancel);
          var target = managementTarget ?? throw new InvalidOperationException("Expected a configured main checkout or one of its linked worktrees.");
          if(desktop.Any(it => RegisteredWorktree.SamePath(it.WorkTree, target.Root)))
          {
             await worktrees.YieldToOrdinaryRider(target.Root, cancel);
             throw new InvalidOperationException($"An ordinary Rider owns this worktree: {target.Root}");
          }
-         if(tool == PrimaryToolCatalog.Close) await worktrees.CloseRequested(target, path, false, cancel);
-         else
-         {
-            var solution = await target.SolutionFor([], path, cancel);
-            using var lease = await worktrees.Use(target, solution, deadline, cancel);
-         }
-         return Rpc.ToolResult(id, $"{(tool == PrimaryToolCatalog.Warm ? "Ready" : "Closed")}: {path}");
+         if(tool == PrimaryToolCatalog.Close)
+            return await ClosedByTheDeadline(id, path, worktrees.CloseRequested(target, path, false, CancellationToken.None), deadline, cancel);
+         var solution = await target.SolutionFor([], path, cancel);
+         using var lease = await worktrees.Use(target, solution, deadline, cancel);
+         return Rpc.ToolResult(id, $"Ready: {path}");
       }
       var paths = FileArguments.Of(arguments);
       var selector = (string?)arguments["solutionName"];
@@ -164,6 +160,35 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
          call["id"] = id;
          // After dispatch the lease stays held even if the MCP client disconnects. An edit is never replayed.
          return await endpoint.Send(call, CancellationToken.None);
+      }
+   }
+
+   /// <summary>
+   ///   The answer to <c>close_worktree</c> for <paramref name="path"/>: closed, once Rider's backend for it and the
+   ///   processes that backend started have exited, or nothing to close, or, by the deadline, still closing.
+   /// </summary>
+   /// <remarks>
+   ///   <paramref name="closing"/> was started without the request's cancellation: once asked for, a close goes on whether
+   ///   the client waits or not, since Rider may already be saving the project. Until 2026-11-25 the call waited for the
+   ///   close however long it took, and agents were told only "The operation timed out." by their MCP client after 60
+   ///   seconds, of closes that had in fact freed the folder: they could not tell whether to remove it.
+   /// </remarks>
+   async Task<JObject> ClosedByTheDeadline(JToken id, string path, Task<bool> closing, AnswerDeadline deadline, CancellationToken cancel)
+   {
+      try
+      {
+         return Rpc.ToolResult(id, await deadline.Awaited(closing, cancel)
+                                      ? $"Closed: {path}. Its Rider backend and the processes that backend started have exited."
+                                      : $"Nothing to close: Royder has no project open for {path}");
+      }
+      catch(TimeoutException) when(!closing.IsCompleted)
+      {
+         _ = closing.ContinueWith(it => log.LogWarning("Closing {Path}, which close_worktree had answered was still closing, failed: {Reason}",
+                                                       path, it.Exception!.GetBaseException().Message),
+                                  CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+         return Rpc.ToolResult(id, $"Still closing {path} after {deadline.Within.TotalSeconds:0} seconds, and MCP clients give up soon after. "
+                                   + "The close goes on: call close_worktree again, which answers Closed once Rider's backend for it "
+                                   + "and the processes that backend started have exited.");
       }
    }
 
