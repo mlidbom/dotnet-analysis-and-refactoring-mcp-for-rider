@@ -78,7 +78,8 @@ Royder.
 The task also starts the primary again within a minute whenever it has ended, while the user is signed in: a
 second trigger fires every minute, and does nothing while the primary runs. Task Scheduler's restart settings
 cover only a start that fails. To keep the primary stopped, `Disable-ScheduledTask -TaskName RoyderPrimary`
-first. Each run's log, under `logs/`, starts with the time the task started it and the time the machine started,
+first. `Stop-ScheduledTask` ends only the task's console host and leaves `Royder.Primary.exe` running: end
+that process to stop it (2026-11-24). Each run's log, under `logs/`, starts with the time the task started it and the time the machine started,
 and ends with the primary's exit code, which the headless console host doesn't pass on to the task.
 
 ~~~powershell
