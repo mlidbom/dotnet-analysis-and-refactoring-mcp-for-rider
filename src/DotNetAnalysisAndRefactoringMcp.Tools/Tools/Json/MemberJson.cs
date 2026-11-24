@@ -44,7 +44,7 @@ public sealed class MemberJson
                 Access = block == null && implemented == null ? MemberListing.AccessOf(member) : null,
                 Kind = JsonNaming.KindOf(member),
                 Name = block == null ? implemented?.MemberName ?? JsonNaming.NameOf(member) : null,
-                Signature = PsiHelpers.FormatSignature(member),
+                Signature = DotNetAnalysisAndRefactoringMcp.Signature.Of(member),
                 ExplicitInterface = implemented?.DeclaringType.GetPresentableName(member.PresentationLanguage),
                 Receiver = block == null ? null : ReceiverJson.Of(block),
                 Members = block == null ? null : [.. new MemberListing(block).Members.Select(Of)]

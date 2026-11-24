@@ -87,7 +87,7 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   reloading the owning project removed the remaining empty project item.
   [Headless observations](../experiments/HeadlessHost/README.md#freshness-in-the-standalone-fixture)
 - **A compiled member's signature loses its arrays, and no signature shows `ref`, `out`, `params` or defaults**
-  (optimize-royder, 2026-11-24, `StringBuilder.Insert` on the everyday Royder). `FormatSignature` prints a compiled
+  (optimize-royder, 2026-11-24, `StringBuilder.Insert` on the everyday Royder). `Signature.Of` prints a compiled
   member's types in its presentation language: `Insert(index:Int32, value:) : StringBuilder` for the `char[]`
   overload, where a source member reads `int`. And it prints every parameter as `name:type`, so an agent writing a
   call to an overload can't tell `out result:int` from `result:int`, which the tooling owner's C# rule sends agents to

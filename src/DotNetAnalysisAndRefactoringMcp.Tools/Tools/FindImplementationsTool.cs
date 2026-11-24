@@ -203,7 +203,7 @@ public class FindImplementationsTool : IMcpTool
 
       // Format compact output
       var sb = new StringBuilder();
-      sb.Append(PsiHelpers.FormatSignature(declaredElement));
+      sb.Append(Signature.Of(declaredElement));
       if(hitLimit)
       {
          sb.Append(" — showing ").Append(sorted.Count).Append(" of ").Append(sorted.Count)

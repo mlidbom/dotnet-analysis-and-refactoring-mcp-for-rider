@@ -153,7 +153,7 @@ public class ListSymbolsInFileTool : IMcpAlwaysLoadedTool
          {
             // Type declaration — top-level (no indent)
             sb.AppendLine();
-            sb.Append(PsiHelpers.FormatSignature(sym.Element));
+            sb.Append(Signature.Of(sym.Element));
             sb.Append(" :").AppendLine(sym.Line.ToString());
             lastContainingType = sym.Element.ShortName;
          } else if(sym.ContainingType != null)
@@ -167,12 +167,12 @@ public class ListSymbolsInFileTool : IMcpAlwaysLoadedTool
                lastContainingType = sym.ContainingType;
             }
 
-            sb.Append("  ").Append(PsiHelpers.FormatSignature(sym.Element));
+            sb.Append("  ").Append(Signature.Of(sym.Element));
             sb.Append(" :").AppendLine(sym.Line.ToString());
          } else
          {
             // Top-level non-type (rare: delegates, etc.)
-            sb.Append(PsiHelpers.FormatSignature(sym.Element));
+            sb.Append(Signature.Of(sym.Element));
             sb.Append(" :").AppendLine(sym.Line.ToString());
             lastContainingType = null;
          }

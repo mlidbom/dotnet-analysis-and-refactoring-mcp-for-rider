@@ -132,7 +132,7 @@ public class GetCallHierarchyTool : IMcpTool
                    {
                       ["symbol"] = function.ShortName,
                       ["qualifiedName"] = PsiHelpers.GetQualifiedName(function),
-                      ["signature"] = PsiHelpers.FormatSignature(function),
+                      ["signature"] = Signature.Of(function),
                       ["direction"] = direction,
                       ["maxDepth"] = maxDepth,
                       ["truncated"] = budget.Truncated,
@@ -336,7 +336,7 @@ public class GetCallHierarchyTool : IMcpTool
 
       // Overloads share their qualified name: the signature tells which one.
       if(Overloads.Of(element).Count > 1)
-         node["signature"] = PsiHelpers.FormatSignature(element);
+         node["signature"] = Signature.Of(element);
 
       if(through != null)
          node["through"] = through;

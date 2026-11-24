@@ -126,7 +126,7 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
    /// </summary>
    static string DefinitionOf(IDeclaredElement member, int maxTextLength)
    {
-      var signature = PsiHelpers.FormatSignature(member);
+      var signature = Signature.Of(member);
       if(MainDeclaration.Of(member) is not {} declaration)
          return $"{signature} — {PsiHelpers.AssemblyLabel(member) ?? "no source declarations (may be source-generated)"}";
 

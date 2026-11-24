@@ -41,7 +41,7 @@ public sealed class DeclarationJson
                 Kind = JsonNaming.KindOf(element),
                 Name = JsonNaming.NameOf(element),
                 QualifiedName = JsonNaming.QualifiedNameOf(element),
-                Signature = PsiHelpers.FormatSignature(element),
+                Signature = DotNetAnalysisAndRefactoringMcp.Signature.Of(element),
                 File = site?.File,
                 Line = site?.Line,
                 Column = site?.Column,
