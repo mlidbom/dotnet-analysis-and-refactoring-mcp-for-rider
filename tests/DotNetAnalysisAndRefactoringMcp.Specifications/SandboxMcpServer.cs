@@ -30,6 +30,9 @@ public sealed class SandboxMcpServer
       return health.RootElement.Clone();
    }
 
+   /// <summary>What <c>internal/status</c> answers, the request the Riders' servers and the standalone primary send each other.</summary>
+   public JsonElement Status() => Send("internal/status", new JsonObject());
+
    /// <summary>The result of the <c>initialize</c> request a client sends when it connects, in <paramref name="protocolVersion"/>.</summary>
    public JsonElement Initialize(string protocolVersion = "2025-03-26") =>
       Send("initialize", new JsonObject { ["protocolVersion"] = protocolVersion, ["capabilities"] = new JsonObject() });
