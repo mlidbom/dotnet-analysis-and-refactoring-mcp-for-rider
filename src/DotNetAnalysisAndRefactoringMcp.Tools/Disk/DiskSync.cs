@@ -32,18 +32,12 @@ namespace DotNetAnalysisAndRefactoringMcp.Disk;
 ///   </para>
 ///   <para>
 ///     The frontend's rescan alone lands anywhere from 0.1 s to 9 s later (measured). So stale documents are
-///     also reconciled on the backend, through Rider's own <c>SynchronizeDocumentContentsWithStorage</c>: for a
-///     document no editor owns, it applies disk text as an external change and marks the file reconciled; for one
-///     an editor owns, Rider leaves the text to the frontend. Never edit a document's text directly instead: that
-///     is an in-memory edit, the document counts as unsaved, and autosave later writes it over whatever is on disk
-///     by then (observed with <c>DocumentBindingUtil.SyncDocumentsWithFiles</c>). A document with unsaved edits is
-///     never reconciled. A file that still differs is reported as such, and edit tools refuse it.
+///     also reconciled on the backend (<see cref="Reconciliation"/>). A file that still differs is reported as such,
+///     and edit tools refuse it.
 ///   </para>
 /// </remarks>
 public sealed class DiskSync
 {
-   static readonly ILogger Log = Logger.GetLogger<DiskSync>();
-
    // A tab open in an editor reloads at the frontend's pace: 0.2 s to 9 s measured. Waiting beats a stale answer.
    static readonly TimeSpan ReloadTimeout = TimeSpan.FromSeconds(10);
    static readonly TimeSpan ReloadPoll = TimeSpan.FromMilliseconds(100);
@@ -76,7 +70,7 @@ public sealed class DiskSync
 
       var stale = before.Stale.Where(x => IsUnsettled(it => it.Stale, x)).ToList();
       if(stale.Count > 0)
-         await Reconcile(lifetime, stale);
+         await new Reconciliation(_solution, _locks).Reconcile(lifetime, () => stale.Select(Document).OfType<IDocument>());
 
       var deleted = before.Deleted.Where(x => IsUnsettled(it => it.Absent, x)).ToList();
       var absent = before.Absent.Where(x => IsUnsettled(it => it.Absent, x)).ToList();
@@ -154,40 +148,6 @@ public sealed class DiskSync
 
       foreach(var directory in directories)
          _changes.Watch(directory!);
-   }
-
-   /// <summary>
-   ///   Reconciles stale documents with disk on the main thread under the write lock. Whether a document has unsaved
-   ///   edits is asked there, so an edit made since the check is never overwritten.
-   /// </summary>
-   async Task Reconcile(Lifetime lifetime, IReadOnlyCollection<string> files)
-   {
-      try
-      {
-         await _locks.ExecuteOrQueueReadLockAsync(lifetime,
-                                                  "DotNetAnalysisAndRefactoringMcp.DiskSync.Reconcile",
-                                                  () =>
-                                                  {
-                                                     _locks.ExecuteWithWriteLock(() =>
-                                                     {
-                                                        if(_solution.TryGetComponent<IDocumentStorageHelpers>() is not DocumentOperationsImpl operations)
-                                                           return;
-
-                                                        foreach(var file in files)
-                                                        {
-                                                           var document = Document(file);
-                                                           if(document != null && File.Exists(file) && !operations.IsDocumentUnsaved(document))
-                                                              operations.SynchronizeDocumentContentsWithStorage(document, Parse(file));
-                                                        }
-
-                                                        _solution.GetPsiServices().Files.CommitAllDocuments();
-                                                     });
-                                                  });
-      }
-      catch(Exception exception) when(exception is not OperationCanceledException)
-      {
-         Log.Warn(exception, ExceptionOrigin.Algorithmic, "DotNetAnalysisAndRefactoringMcp could not reconcile changed files with disk");
-      }
    }
 
    async Task<DiskState> WaitForReload(McpToolExecution execution, IReadOnlyCollection<string> files)
