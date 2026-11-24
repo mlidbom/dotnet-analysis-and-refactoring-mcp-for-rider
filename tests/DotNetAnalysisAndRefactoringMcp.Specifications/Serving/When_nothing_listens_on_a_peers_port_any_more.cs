@@ -7,12 +7,16 @@ using Compze.xUnitBDD;
 
 namespace DotNetAnalysisAndRefactoringMcp.Specifications.Serving;
 
-public class When_a_forwarded_call_finds_nothing_listening_on_the_peers_port
+/// <summary>
+///   A peer's Rider that crashed or was killed never deregistered its solutions. Until 2026-11-24 they stayed listed
+///   until a call to one of them was refused, and a call that named no solution found several open.
+/// </summary>
+public class When_nothing_listens_on_a_peers_port_any_more
 {
    readonly string _refusal;
    readonly string[] _stillListedOnThePort;
 
-   public When_a_forwarded_call_finds_nothing_listening_on_the_peers_port(TheSandboxWithTheFixtureSolution sandbox)
+   public When_nothing_listens_on_a_peers_port_any_more(TheSandboxWithTheFixtureSolution sandbox)
    {
       var calledSolution = sandbox.PathOf("CalledPeer.sln");
       var otherSolution = sandbox.PathOf("OtherPeer.sln");
@@ -36,8 +40,8 @@ public class When_a_forwarded_call_finds_nothing_listening_on_the_peers_port
       }
    }
 
-   [XF] public void the_primary_reports_that_the_peers_solution_is_no_longer_available() =>
-      _refusal.Must().Contain("Solution is no longer available");
+   [XF] public void a_call_naming_the_peers_solution_is_refused_as_not_open() =>
+      _refusal.Must().Contain("not found");
 
    [XF] public void no_solution_registered_on_the_refused_port_remains_listed() =>
       _stillListedOnThePort.Must().HaveCount(0);

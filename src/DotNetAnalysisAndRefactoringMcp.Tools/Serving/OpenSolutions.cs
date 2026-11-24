@@ -19,9 +19,12 @@ sealed class OpenSolutions
       All = [..local, ..peers];
    }
 
-   public static OpenSolutions Of(IMcpServer server) =>
-      new(server.Solutions.Select(solution => new LocalSolution(server, solution)).ToList(),
-          server.Peers.Select(peer => new PeerSolution(server, peer)).ToList());
+   public static OpenSolutions Of(IMcpServer server)
+   {
+      PeersThatStoppedListening.Forget(server);
+      return new(server.Solutions.Select(solution => new LocalSolution(server, solution)).ToList(),
+                 server.Peers.Select(peer => new PeerSolution(server, peer)).ToList());
+   }
 
    /// <summary>The solutions of this Rider.</summary>
    public IReadOnlyList<LocalSolution> Local { get; }
