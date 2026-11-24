@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $RiderHome = (Resolve-Path -LiteralPath $RiderHome).Path
-$expectedBuild = 'RD-263.7307.325'
+$expectedBuild = 'RD-263.7307.355'
 if ((Get-Content -Raw -LiteralPath "$RiderHome/build.txt").Trim() -ne $expectedBuild) {
    throw "This experiment targets $expectedBuild. Check -RiderHome."
 }
