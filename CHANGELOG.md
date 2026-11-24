@@ -13,7 +13,17 @@ plugin is a fork of.
 
 - `tools/list` now tells MCP clients which tools only read the solution, including code completion, and which can edit files or reload projects. The same annotations reach clients when a peer supplies the tool list.
 
+### Changed
+
+- `get_symbol_source` answers in text: the declaration's whole lines, numbered as a file read shows them, under a `Name — path:first-last` heading. It answered a JSON object holding the source in an escaped string, without line numbers, its first line cut at the declaration's first column. A declaration over 20,000 characters is cut at a line, and the answer says where to read on
+
 ### Fixed
+
+- A member's name stands for every overload of it in `find_usages`, `go_to_definition`, `get_symbol_info`, `find_implementations` and `get_call_hierarchy`, and in `get_symbol_source` with `allDeclarations`; without it, `get_symbol_source` says how many overloads there are. Each worked on whichever overload ReSharper listed first. A position still stands for the one there. `go_to_definition`'s JSON form gives a declaration for each overload, each with a `signature`
+- `get_call_hierarchy` tells overloads apart, and follows calls from one overload into another; its outgoing tree follows the calls an expression-bodied member makes, which it missed
+- A type declared in parts is shown by the part in the file named after it, `IThreadGate.cs` rather than `IThreadGate.Implementation.cs`, wherever a tool shows one declaration
+- A position past the end of its line answers that the column is outside the line, quoting the line as Rider has it, where it answered that ReSharper failed with an `ArgumentOutOfRangeException`
+- `list_symbols_in_file` keeps a type's members under it after a generic method, where they came under a heading named after the type parameter
 
 - A call naming a file in a Git worktree no open solution is in now receives an immediate routing error unless it explicitly selects a solution. Previously the caller could wait 10 seconds for a reply that the file was in no project, with `isError` set to `false`.
 - A peer Rider that ended without deregistering, such as in a crash, is now forgotten at the first call to it: the call answers that the solution is no longer available, and `list_solutions` drops every solution registered on its port. Until now each call to it failed, and `list_solutions` went on listing it.

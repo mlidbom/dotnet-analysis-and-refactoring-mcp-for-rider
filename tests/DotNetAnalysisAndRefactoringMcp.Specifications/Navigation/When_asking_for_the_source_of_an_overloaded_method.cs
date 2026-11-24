@@ -21,5 +21,5 @@ public class When_asking_for_the_source_of_an_overloaded_method(TheSandboxWithTh
       _allDeclarations.Must().Satisfy(it => it.Contains(TheTwoParameterOverload) && it.Contains(TheThreeParameterOverload));
 
    [XF] public void its_source_is_one_overload_and_says_how_many_there_are() =>
-      _source.Must().Satisfy(it => it.Contains(TheTwoParameterOverload) != it.Contains(TheThreeParameterOverload) && it.Contains("one of 2"));
+      _source.Must().Satisfy(it => it.Contains(TheTwoParameterOverload) != it.Contains(TheThreeParameterOverload) && it.Contains("One of 2 overloads of Shapes.Palette.Mix"));
 }
