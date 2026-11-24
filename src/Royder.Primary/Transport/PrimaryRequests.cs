@@ -42,6 +42,7 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
 
    async Task<JObject> Call(JToken id, JObject parameters, CancellationToken cancel)
    {
+      var deadline = new AnswerDeadline(TimeSpan.FromSeconds(settings.AnswerWithinSeconds));
       var tool = (string?)parameters["name"] ?? throw new ArgumentException("A tool name is required.");
       var arguments = parameters["arguments"] as JObject ?? new();
       var managementPath = tool is PrimaryToolCatalog.Close or PrimaryToolCatalog.Warm ? AbsoluteSolution((string?)arguments["solutionPath"]) : null;
@@ -76,7 +77,7 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
          else
          {
             var solution = await target.SolutionFor([], path, cancel);
-            using var lease = await worktrees.Use(target, solution, cancel);
+            using var lease = await worktrees.Use(target, solution, deadline, cancel);
          }
          return Rpc.ToolResult(id, $"{(tool == PrimaryToolCatalog.Warm ? "Ready" : "Closed")}: {path}");
       }
@@ -86,7 +87,7 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
       if(chosen != null && !chosen.Managed)
       {
          await worktrees.YieldToOrdinaryRider(chosen.WorkTree, cancel);
-         return await Forward(chosen.Endpoint, chosen.FilePath);
+         return await AnsweredByTheDeadline(Forward(chosen.Endpoint, chosen.FilePath));
       }
       if(!await catalog.Provides(tool, cancel))
          return Rpc.ToolResult(id, $"No tools build Royder serves provides '{tool}'.", true);
@@ -111,25 +112,44 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
          if(paths.Any(path => !candidate.Holds(new RequestedPath(candidate.Absolute(path)))))
             return Rpc.ToolResult(id, "The named files do not all belong to the selected worktree.", true);
       }
-      using var use = await worktrees.Use(registration, solutionPath, cancel);
-      if(worktrees.Registration(solutionPath) != registration) throw new InvalidOperationException("The worktree was replaced before dispatch.");
-      try
+      var use = await worktrees.Use(registration, solutionPath, deadline, cancel);
+      return await AnsweredByTheDeadline(ForwardToThePrivateRider());
+
+      async Task<JObject> ForwardToThePrivateRider()
       {
-         var reply = await Forward(backend, solutionPath);
-         if((bool?)reply.SelectToken("result.isError") == true)
+         // Held until the private Rider answers, also when the deadline answered the agent before then.
+         using(use)
          {
-            var health = await backend.Health(cancel);
-            var row = (health?["solutions"] as JArray)?.FirstOrDefault(it => RegisteredWorktree.SamePath((string?)it["path"], solutionPath));
-            if(row == null || (bool?)row["reachable"] == false) use.Invalidate(false);
+            if(worktrees.Registration(solutionPath) != registration) throw new InvalidOperationException("The worktree was replaced before dispatch.");
+            try
+            {
+               var reply = await Forward(backend, solutionPath);
+               if((bool?)reply.SelectToken("result.isError") == true)
+               {
+                  var health = await backend.Health(CancellationToken.None);
+                  var row = (health?["solutions"] as JArray)?.FirstOrDefault(it => RegisteredWorktree.SamePath((string?)it["path"], solutionPath));
+                  if(row == null || (bool?)row["reachable"] == false) use.Invalidate(false);
+               }
+               return reply;
+            }
+            catch(HttpRequestException ex)
+            {
+               use.Invalidate(ex.GetBaseException() is not SocketException { SocketErrorCode: SocketError.ConnectionRefused });
+               throw;
+            }
+            catch(OperationCanceledException ex) when(ex.CancellationToken != cancel) { use.Invalidate(true); throw; }
          }
-         return reply;
       }
-      catch(HttpRequestException ex)
+
+      async Task<JObject> AnsweredByTheDeadline(Task<JObject> forwarded)
       {
-         use.Invalidate(ex.GetBaseException() is not SocketException { SocketErrorCode: SocketError.ConnectionRefused });
-         throw;
+         try { return await deadline.Awaited(forwarded, cancel); }
+         catch(TimeoutException) when(!forwarded.IsCompleted)
+         {
+            return Rpc.ToolResult(id, $"Rider has not answered within {deadline.Within.TotalSeconds:0} seconds, and MCP clients give up soon after. "
+                                      + "The call goes on in Rider: retry a lookup in a minute; an edit still lands, so check its files before repeating it.", true);
+         }
       }
-      catch(OperationCanceledException) when(!cancel.IsCancellationRequested) { use.Invalidate(true); throw; }
 
       async Task<JObject> Forward(RiderEndpoint endpoint, string solution)
       {

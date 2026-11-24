@@ -52,7 +52,7 @@ def verify(args):
     config = lab / "primary.json"
     config.write_text(json.dumps(dict(
         port=args.port, repositories=[str(repo)], catalogFile=str(lab / "catalog.json"),
-        firstCallWaitSeconds=1 if args.check_timeout else 90, idleSeconds=60 if args.check_idle else 600,
+        answerWithinSeconds=10 if args.check_timeout else 90, idleSeconds=60 if args.check_idle else 600,
         rider=dict(profileDirectory=str(lab / "profile"), riderHome=str(args.rider), assetsDirectory=str(package),
                    toolsBuild=manifest["build"], remoteDevPort=args.remote_port, backendMcpPort=args.backend_port)
     )), encoding="utf8")

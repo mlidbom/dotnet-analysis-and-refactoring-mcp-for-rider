@@ -13,7 +13,8 @@ sealed class PrimarySettings
    public int Port { get; init; } = 23751;
    public int? DesktopPort { get; init; }
    public int IdleSeconds { get; init; } = 600;
-   public int FirstCallWaitSeconds { get; init; } = 60;
+   /// <summary>How long the primary takes at most to answer a tool call: see <see cref="Transport.AnswerDeadline"/>.</summary>
+   public int AnswerWithinSeconds { get; init; } = 55;
    public IReadOnlySet<string> GitDirectories { get; private set; } = new HashSet<string>();
 
    public static PrimarySettings Read(string path)
@@ -26,8 +27,8 @@ sealed class PrimarySettings
       var all = ports.ToArray();
       if(all.Any(it => it is < 1 or > 65535) || all.Distinct().Count() != all.Length)
          throw new InvalidDataException("Choose separate primary, desktop, remote-development and backend ports, including each backend's ten-port range.");
-      if(settings.IdleSeconds < 1 || settings.FirstCallWaitSeconds < 1)
-         throw new InvalidDataException("Idle and first-call waits must be positive.");
+      if(settings.IdleSeconds < 1 || settings.AnswerWithinSeconds < 1)
+         throw new InvalidDataException("The idle time and the time to answer within must be positive.");
       foreach(var location in new[] { settings.Rider.ProfileDirectory, settings.Rider.RiderHome, settings.Rider.AssetsDirectory, settings.CatalogFile }
                  .Concat(settings.Rider.ToolsFolder is { } toolsFolder ? [toolsFolder] : []))
          if(!Path.IsPathFullyQualified(location)) throw new InvalidDataException($"Expected an absolute installation path: {location}");

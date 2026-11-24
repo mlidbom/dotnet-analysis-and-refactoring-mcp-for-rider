@@ -23,14 +23,14 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
       await base.StartAsync(cancel);
    }
 
-   public async Task<ManagedWorktree.Lease> Use(RegisteredWorktree registration, string solution, CancellationToken wait)
+   public async Task<ManagedWorktree.Lease> Use(RegisteredWorktree registration, string solution, AnswerDeadline deadline, CancellationToken wait)
    {
       if(_open.TryGetValue(registration.Root, out var existing) && existing.Registration == registration &&
          RegisteredWorktree.SamePath(existing.SolutionPath, solution) && existing.TryUse() is { } lease) return lease;
       var start = _starting.GetOrAdd(registration, _ => new PendingWorktree(solution, cancel => Start(registration, solution, cancel)));
       var ready = start.Ready;
       ManagedWorktree opened;
-      try { opened = await ready.WaitAsync(TimeSpan.FromSeconds(settings.FirstCallWaitSeconds), wait); }
+      try { opened = await deadline.Awaited(ready, wait); }
       catch(TimeoutException) when(!ready.IsCompleted)
       {
          throw new InvalidOperationException($"'{solution}' is still opening or indexing. Only the warm-up continues. Retry the tool call when it is ready.");
