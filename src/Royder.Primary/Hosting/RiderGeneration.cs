@@ -21,7 +21,8 @@ internal sealed class RiderGeneration
    internal sealed record JobState(string Phase, RiderProcessIdentity Supervisor, RiderProcessIdentity? HostProcess,
                                    RiderProcessIdentity[] Members, RiderProcessIdentity[]? Observed, string? ObservationRequest,
                                    string? Error);
-   internal sealed record Backend(string Solution, int InitialPort, RiderProcessIdentity Process);
+   /// <summary>A backend of the private Rider, the solution it serves and the port its MCP server answers on.</summary>
+   internal sealed record Backend(string Solution, int Port, RiderProcessIdentity Process);
 
    internal readonly Plan Launch;
    internal JobState State => RiderSupervisor.Read<JobState>(Path.Combine(Launch.Run, "state.json"));
@@ -106,50 +107,10 @@ internal sealed class RiderGeneration
          throw new InvalidOperationException($"Private Rider stopped during the operation ({state.Phase}). {state.Error}");
    }
 
-   public IReadOnlyList<Backend> Backends()
-   {
-      var found = new List<Backend>();
-      foreach(var member in State.Members.Where(it => it.Name.Equals("Rider.BackendHost", StringComparison.OrdinalIgnoreCase) && it.IsAlive()))
-      {
-         string? solution = null;
-         int port = 0;
-         foreach(var log in LogsOf(member))
-         {
-            using var input = new FileStream(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            using var reader = new StreamReader(input);
-            while(reader.ReadLine() is {} line)
-            {
-               if(port == 0 && line.Contains("McpShellComponent",StringComparison.Ordinal) && PortAnnouncement.Match(line) is { Success: true } announcement)
-                  port = int.Parse(announcement.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
-               if(!line.Contains("| RiderSolutionWatcher ",StringComparison.Ordinal)) continue;
-               if(SolutionOpened.Match(line) is { Success: true } opened) solution = opened.Groups[1].Value;
-               else if(line.EndsWith("| Set HasBackedSolution = false",StringComparison.Ordinal)) solution = null;
-            }
-         }
-         if(solution == null || port < Launch.RoyderPort || port >= Launch.RoyderPort + 10) continue;
-         found.Add(new Backend(solution,port,member));
-      }
-      return found;
-   }
+   /// <summary>The live Rider backend processes of this generation's job, whether or not they serve a solution yet.</summary>
+   public IReadOnlyList<RiderProcessIdentity> LiveBackendProcesses() =>
+      [.. State.Members.Where(it => it.Name.Equals("Rider.BackendHost", StringComparison.OrdinalIgnoreCase) && it.IsAlive())];
 
-   /// <summary>A backend's log files, oldest first, rotated ones included, as one log.</summary>
-   /// <remarks>
-   ///   A busy backend's log rotates into <c>backend.….{pid}.1.log</c> and on, which hold its port announcement and the
-   ///   solution it opened. Until 2026-11-24 only <c>backend.….{pid}.log</c> was read: a Compze worktree's backend whose log
-   ///   had rotated served no solution as far as the primary could tell, and it refused to close another worktree's
-   ///   project, "Cannot identify the current backend … Unassigned backend PIDs: 96428", all evening.
-   /// </remarks>
-   IEnumerable<string> LogsOf(RiderProcessIdentity member)
-   {
-      var folder = Path.Combine(Launch.Run,"log");
-      return Directory.EnumerateFiles(folder, $"backend.*.{member.Pid}.log")
-                      .Concat(Directory.EnumerateFiles(folder, $"backend.*.{member.Pid}.*.log"))
-                      .Where(it => File.GetCreationTimeUtc(it).Ticks >= member.Started)
-                      .OrderBy(File.GetLastWriteTimeUtc);
-   }
-
-   static readonly Regex PortAnnouncement = new(@"\|\s*McpShellComponent\s*\|[^|]*\|\s*MCP (?:primary|peer) server started on port (\d+)\b");
-   static readonly Regex SolutionOpened = new(@"\|\s*RiderSolutionWatcher\s*\|[^|]*\|\s*Open solution '(.+)'$");
    internal static bool Same(string? a,string? b) => string.Equals(a,b,StringComparison.OrdinalIgnoreCase);
 
    string Key(string solution) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(solution.ToUpperInvariant())));

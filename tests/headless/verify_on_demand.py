@@ -152,6 +152,23 @@ def verify(args):
         state = json.loads((current/"state.json").read_text(encoding="utf-8-sig"))
         return current, state["hostProcess"]["pid"]
 
+    def alive(pid):
+        listed = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"], capture_output=True, text=True).stdout
+        return f'"{pid}"' in listed
+
+    def closed(solution):
+        # close_worktree answers Still closing by its deadline, and Closed only once the solution's backend has exited:
+        # on 2026-11-24 it answered nothing within the client's 60 seconds, of closes that had freed the folder.
+        key = hashlib.sha256(str(solution).upper().encode()).hexdigest().upper()
+        identity = generation()[0] / ("opened-" + key + ".json")
+        backend = json.loads(identity.read_text(encoding="utf-8-sig"))["Process"]["Pid"] if identity.exists() else None
+        end = time.monotonic() + 240
+        while (text := tool("close_worktree", dict(solutionPath=str(solution)))).startswith("Still closing") and time.monotonic() < end:
+            time.sleep(2)
+        assert text.startswith("Closed") or text.startswith("Nothing to close"), text
+        assert backend is None or not alive(backend), f"close_worktree answered {text!r} while backend {backend} still ran"
+        return text
+
     log = (lab / "primary.log").open("w", encoding="utf8")
     proc = subprocess.Popen(primary + ["serve", str(config)], stdout=log, stderr=subprocess.STDOUT)
     listening = False
@@ -213,7 +230,7 @@ def verify(args):
             shutil.rmtree(repo / ".git" / "worktrees" / first.name)
             answer = request("tools/call", dict(name="close_worktree", arguments=dict(solutionPath=str(first / SOLUTION))))
             text = answer["content"][0]["text"]
-            assert not answer.get("isError") and (text.startswith("Closed") or text.startswith("Nothing to close")), answer
+            assert not answer.get("isError") and text.startswith(("Closed", "Nothing to close", "Still closing")), answer
             wait_until(lambda: not listing(), 100, "the unregistered worktree's project to close")
             shutil.rmtree(first)
             print(f"PASS: close_worktree let go of a worktree Git no longer lists: {text}", flush=True)
@@ -271,7 +288,7 @@ def verify(args):
             wait_until(lambda: json.loads((first_generation[0]/"state.json").read_text(encoding="utf-8-sig"))["phase"]=="Stopped",
                        90, "last idle project to release the JVM")
         else:
-            tool("close_worktree", dict(solutionPath=str(first/SOLUTION)))
+            assert closed(first/SOLUTION).startswith("Closed")
         assert not listing()
         if args.main_checkout:
             after_settings = idea_files()
@@ -282,7 +299,7 @@ def verify(args):
         try:
             if listening and proc.poll() is None:
                 for solution in listing():
-                    tool("close_worktree", dict(solutionPath=str(solution)))
+                    closed(solution)
         finally:
             proc.terminate()
             proc.wait(timeout=20)

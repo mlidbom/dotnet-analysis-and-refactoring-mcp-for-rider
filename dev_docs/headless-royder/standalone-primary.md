@@ -139,7 +139,9 @@ Build a package on the new Rider, verify it with `tests/headless/verify_on_deman
   build in a Compze worktree, which made Rider reload all 117 of its projects mid-warm-up, had it fail twice and
   start over cold each time. Its health response also lists the
   worktrees currently opening.
-- `close_worktree` closes an agent project and waits for its workers. Unused agent projects close after 30 minutes (`idleSeconds`), and the private Rider with the last of them: an agent calling every 10 to 20 minutes otherwise met a cold start nearly every time.
+- `close_worktree` closes an agent project and waits for its workers: it answers `Closed` once the project's backend
+  and the processes that backend started have exited, so the folder is free. By `answerWithinSeconds` it answers
+  `Still closing` instead, and the close goes on; a second call answers once it is done. Unused agent projects close after 30 minutes (`idleSeconds`), and the private Rider with the last of them: an agent calling every 10 to 20 minutes otherwise met a cold start nearly every time.
 - When an agent project's solution file changes, such as by a project added to it, the primary closes the project
   once it is idle, or at the next call, and that call reopens it with the whole solution. The private Rider's own
   reload took in only the projects the edit touched and dropped the rest (2026-11-24).
