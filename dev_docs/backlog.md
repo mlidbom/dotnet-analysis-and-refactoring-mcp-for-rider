@@ -733,3 +733,11 @@ backend.
   67 s, and stopping and starting the sandbox, with the fresh copy's restore, about 20 s of it. It would add a second
   way to run, and weaken the check that ReSharper keeps nothing of the tools build that first ran each feature, which
   takes a fresh process.
+- **`close_worktree` can't close a worktree git has already unregistered (from tooling-owner, 2026-11-24).** Removing
+  `C:\Users\magnu\.claude.worktrees\cloyd-remembers-tree-width` through the hub's directory cleanup: `git worktree
+  remove` unregistered it but left the folder, held by the headless Rider's backend for that worktree's solution
+  (Rider.BackendHost.exe under Royder's java host). `close_worktree` with the worktree's `ClaudeTooling.slnx` then
+  answered "Expected a configured main checkout or one of its linked worktrees.", so there was no way to let go of
+  it; the hub's retrying cleanup finished the folder about a minute later on its own (Royder's backend let go). Wanted:
+  `close_worktree` accepts a solution Royder has open whatever git says of its folder now, and ideally Royder lets go
+  of a managed solution whose worktree git no longer lists.
