@@ -292,11 +292,17 @@ Found while doing this, to fix:
 - *Done 2026-11-24:* **`get_symbol_source` with `allDeclarations: true` returned one overload** of
   `NoteSerializer.Serialize` in JAStudio, which has four. It returns every overload now (`Overloads`), and without
   `allDeclarations` it says how many there are.
-- **A member's name stands for one of its overloads, in the tools that take a name:** name lookup keeps one
-  candidate per qualified name, and overloads share theirs, so a tool works on whichever overload ReSharper lists
-  first, and says nothing of the others. A parameter list in the name doesn't pick one either: `SymbolName` strips it.
-  *`find_usages` covers every overload of a name since 2026-11-24 (`68e93b1`).* Next: the call hierarchy,
-  `find_implementations`, `get_symbol_info` and `go_to_definition` the same way.
+- *Done 2026-11-24:* **a member's name stood for one of its overloads, in the tools that take a name:** name lookup
+  keeps one candidate per qualified name, and overloads share theirs, so a tool worked on whichever overload ReSharper
+  listed first, and said nothing of the others. Now a name stands for every overload (`Overloads.NamedBy`), and a
+  position for the one there: `find_usages` (`68e93b1`), then `go_to_definition`, its JSON form included, with a
+  `signature` on each declaration for the symbol linker's picker, `get_symbol_info`, `find_implementations` and
+  `get_call_hierarchy`. The call hierarchy also told callers, callees and its cycles apart by qualified name, so it
+  merged overloads, and never followed one overload's call into another; it uses ReSharper's
+  `DeclaredElementEqualityComparer` now, and a node whose member has overloads carries its signature. Its outgoing
+  tree also missed every call an expression-bodied member makes: it read the member's block `Body`, which such a
+  member hasn't. Left open: a
+  parameter list in the name doesn't pick one overload, since `SymbolName` strips it.
 - *Done 2026-11-24:* **`list_symbols_in_file` lost a type's nesting after a generic method:** in Compze's
   `IThreadGate.cs`, the members after `ExecuteWithExclusiveLockWhen<TResult>` came under a "(IThreadGate)" heading.
   ReSharper models a type parameter as a type, and the outline took it for a nested type's heading. Type parameters
