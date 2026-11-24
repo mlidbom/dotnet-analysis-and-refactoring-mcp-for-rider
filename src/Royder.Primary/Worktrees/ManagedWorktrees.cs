@@ -26,7 +26,7 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
    public async Task<ManagedWorktree.Lease> Use(RegisteredWorktree registration, string solution, AnswerDeadline deadline, CancellationToken wait)
    {
       if(_open.TryGetValue(registration.Root, out var existing) && existing.Registration == registration &&
-         RegisteredWorktree.SamePath(existing.SolutionPath, solution) && existing.TryUse() is { } lease) return lease;
+         RegisteredWorktree.SamePath(existing.SolutionPath, solution) && !existing.SolutionFileChanged && existing.TryUse() is { } lease) return lease;
       var start = _starting.GetOrAdd(registration, _ => new PendingWorktree(solution, cancel => Start(registration, solution, cancel)));
       var ready = start.Ready;
       ManagedWorktree opened;
@@ -64,7 +64,7 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
             if(Registration(registration.Root) != registration) throw new InvalidOperationException("The requested Git registration changed.");
             if(_open.TryGetValue(registration.Root, out var existing))
             {
-               if(existing.Registration == registration && existing.Ready) return existing;
+               if(existing.Registration == registration && existing.Ready && !existing.SolutionFileChanged) return existing;
                await Close(existing, existing.Registration != registration, cancel);
             }
             await RequireNoOrdinaryRider(registration, cancel);
@@ -170,7 +170,8 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
             {
                var discard = Registration(item.Registration.Root) != item.Registration;
                if(discard && _starting.TryGetValue(item.Registration, out var starting)) starting.Cancel();
-               if(item.Idle && (discard || !_starting.ContainsKey(item.Registration) && (!item.Ready || item.IdleFor >= TimeSpan.FromSeconds(settings.IdleSeconds))))
+               if(item.Idle && (discard || !_starting.ContainsKey(item.Registration) &&
+                                (!item.Ready || item.SolutionFileChanged || item.IdleFor >= TimeSpan.FromSeconds(settings.IdleSeconds))))
                   await Close(item, discard, stoppingToken);
             }
          }

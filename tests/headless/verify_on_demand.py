@@ -170,6 +170,32 @@ def verify(args):
             assert source.read_bytes() == original and source.exists() and not (first/"RenameMustNeverRun.cs").exists()
             print("PASS: timed-out edit was never dispatched; its worktree still warmed up", flush=True)
             return lab
+        if args.check_solution_edit:
+            generated(first)
+            # On 2026-11-24 the private Rider reloaded a solution that had gained a project with the projects the
+            # edit touched only, and dropped the rest.
+            other = first / "OtherProbe"
+            other.mkdir()
+            (other / "OtherProbe.csproj").write_text(
+                '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>')
+            (other / "Other.cs").write_text("namespace Others;\npublic sealed class Other;\n")
+            command("dotnet", "restore", other / "OtherProbe.csproj", "--disable-build-servers", "-p:NuGetAudit=false")
+            solution = first / SOLUTION
+            solution.write_text(solution.read_text().replace("</Solution>", '<Project Path="OtherProbe/OtherProbe.csproj" /></Solution>'))
+            def projects():
+                answer = request("tools/call", dict(name="get_solution_structure", arguments=dict(solutionName=str(solution))))
+                text = answer["content"][0]["text"]
+                return {line[1:line.index("]")] for line in text.splitlines() if line.startswith("[")} if not answer.get("isError") else text
+            seen = {}
+            def both():
+                seen["last"] = projects()
+                return seen["last"] == {"ManagedProbe", "OtherProbe"}
+            try:
+                wait_until(both, 150, "both projects after the solution file gained one")
+            except AssertionError as timeout:
+                raise AssertionError(f"{timeout}. Royder listed last: {seen.get('last')}") from None
+            print("PASS: a project added to the solution file joins the others", flush=True)
+            return lab
         previous = set((profile/"runs").glob("*"))
         with concurrent.futures.ThreadPoolExecutor(2) as pool:
             assert len(list(pool.map(generated, [first, first]))) == 2
@@ -241,7 +267,7 @@ def verify(args):
             log.close()
             for path in [second, first]:
                 if (path / ".git").is_file():
-                    command("git", "worktree", "remove", path, cwd=repo)
+                    command("git", "worktree", "remove", "--force", path, cwd=repo)
     return lab
 
 
@@ -258,5 +284,6 @@ if __name__ == "__main__":
     parser.add_argument("--check-replacement", action="store_true", help="Immediately reuse an externally removed worktree path")
     parser.add_argument("--check-idle", action="store_true", help="Wait for the final idle solution and JVM to stop")
     parser.add_argument("--check-timeout", action="store_true", help="Verify a timed-out cold edit never executes")
+    parser.add_argument("--check-solution-edit", action="store_true", help="Verify a project added to an open solution's file joins the others")
     parser.add_argument("--main-checkout", action="store_true", help="Start with the trusted main checkout; verify it can serve tools but cannot be removed")
     verify(parser.parse_args())

@@ -8,10 +8,46 @@ sealed class ManagedWorktree(RegisteredWorktree registration, string solutionPat
    readonly IThreadShared<Activity> _activity = IThreadShared.New(new Activity(clock.GetTimestamp()));
    public RegisteredWorktree Registration { get; } = registration;
    public string SolutionPath { get; } = solutionPath;
+
+   /// <summary>
+   ///   Whether the solution file was written since Rider had it open and ready. Rider's model of the solution can't be
+   ///   trusted then, and the project is reopened.
+   /// </summary>
+   /// <remarks>
+   ///   On 2026-11-24 the private Rider took in a project added to a worktree's <c>.slnx</c> by reloading the solution
+   ///   with the projects the edit touched only, and dropped the other 28: their files were "in no project", and
+   ///   <c>reload_projects</c> couldn't find them. In <c>verify_on_demand.py --check-solution-edit</c> it never took in
+   ///   the new project. A desktop Rider took in the same kind of edit as it should.
+   /// </remarks>
+   /// <remarks>
+   ///   The time is taken once the open is ready rather than as it begins, in case Rider writes the file as it opens it:
+   ///   the project would be reopened again and again.
+   /// </remarks>
+   public bool SolutionFileChanged
+   {
+      get
+      {
+         var written = SolutionFileWritten();
+         return _activity.Locked(it => it.Ready && written != null && written != it.SolutionFileWrittenWhenReady);
+      }
+   }
+
    public bool Ready => _activity.Locked(it => it.Ready);
    public TimeSpan IdleFor => _activity.Locked(it => clock.GetElapsedTime(it.LastUse));
    public bool Idle => _activity.Locked(it => it.CanClose(clock.GetUtcNow()));
-   public void MarkReady() => _activity.Locked(it => { it.Ready = true; it.LastUse = clock.GetTimestamp(); });
+
+   public void MarkReady()
+   {
+      var written = SolutionFileWritten();
+      _activity.Locked(it =>
+      {
+         it.Ready = true;
+         it.LastUse = clock.GetTimestamp();
+         it.SolutionFileWrittenWhenReady = written;
+      });
+   }
+
+   DateTime? SolutionFileWritten() => File.Exists(SolutionPath) ? File.GetLastWriteTimeUtc(SolutionPath) : null;
 
    public bool TryBeginClose() => _activity.Locked(it =>
    {
@@ -37,6 +73,7 @@ sealed class ManagedWorktree(RegisteredWorktree registration, string solutionPat
       public int Calls;
       public bool Ready;
       public bool Closing;
+      public DateTime? SolutionFileWrittenWhenReady;
       public DateTimeOffset UncertainUntil;
       public bool CanClose(DateTimeOffset now) => Calls == 0 && !Closing && now >= UncertainUntil;
    }
