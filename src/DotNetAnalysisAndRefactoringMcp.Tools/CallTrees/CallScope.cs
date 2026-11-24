@@ -10,6 +10,7 @@ namespace DotNetAnalysisAndRefactoringMcp.CallTrees;
 /// <summary>
 ///   The code a call tree follows calls into: by default the solution's own source, which the arguments narrow to
 ///   namespaces, <c>namespaces: ["Shapes.Drawing"]</c>, or widen to compiled assemblies, <c>assemblies: ["System.Linq"]</c>.
+///   An incoming tree lists the callers in its namespaces; its callers are all in the solution's source.
 /// </summary>
 /// <remarks>
 ///   Every call into a compiled assembly, such as <c>List.Add</c> or <c>StringBuilder.Append</c>, was a node of the
@@ -35,7 +36,7 @@ public sealed class CallScope
                                               {
                                                  type = "array",
                                                  items = new { type = "string" },
-                                                 description = "Follow only calls into these namespaces and the ones inside them, such as 'MyApp.Core'. Default: every namespace."
+                                                 description = "Follow only calls into these namespaces and the ones inside them, such as 'MyApp.Core'; for 'incoming', list only the callers in them. Default: every namespace."
                                               };
 
    /// <summary>The <c>assemblies</c> argument, as a tool's input schema describes it.</summary>
@@ -48,7 +49,13 @@ public sealed class CallScope
 
    /// <summary>Whether a call into <paramref name="callee"/> is followed.</summary>
    public bool Contains(Callee callee) =>
-      (callee.IsInSource || IsInANamedAssembly(callee)) && IsInTheNamespaces(callee);
+      (callee.IsInSource || IsInANamedAssembly(callee)) && IsInTheNamespaces(callee.Member);
+
+   /// <summary>Whether <paramref name="caller"/> is listed, being in the namespaces: every caller is in the solution's code.</summary>
+   public bool Contains(Caller caller) => IsInTheNamespaces(caller.Member);
+
+   /// <summary>Whether the <c>namespaces</c> argument narrows it.</summary>
+   public bool IsNarrowed => _namespaces.Count > 0;
 
    /// <summary>What it is, for the heading of an answer: "the solution's code", "the solution's code and System.Linq, in Shapes.Drawing".</summary>
    public string Description =>
@@ -65,11 +72,11 @@ public sealed class CallScope
    bool IsInANamedAssembly(Callee callee) => callee.AssemblyName is { } assembly && Names(assembly);
 
    /// <summary>
-   ///   A callee whose namespace isn't known, such as a local function, is in them: it is in the code of a member
+   ///   A member whose namespace isn't known, such as a local function, is in them: it is in the code of a member
    ///   that was followed.
    /// </summary>
-   bool IsInTheNamespaces(Callee callee) =>
-      _namespaces.Count == 0 || NamespaceOf(callee.Member) is not { } name || _namespaces.Any(it => IsTheSameOrInside(name, it));
+   bool IsInTheNamespaces(IDeclaredElement member) =>
+      !IsNarrowed || NamespaceOf(member) is not { } name || _namespaces.Any(it => IsTheSameOrInside(name, it));
 
    static string? NamespaceOf(IDeclaredElement element) =>
       element switch

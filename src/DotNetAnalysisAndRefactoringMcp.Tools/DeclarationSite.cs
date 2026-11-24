@@ -31,6 +31,9 @@ public sealed class DeclarationSite
       Column = column;
    }
 
+   /// <summary>As the text answers write it: <c>Shapes\Palette.cs:9</c>, the path relative to <paramref name="root"/>.</summary>
+   public string Location(SolutionRoot root) => $"{root.Relative(File)}:{Line}";
+
    /// <summary>Nothing for a declaration without a source file or a range in it.</summary>
    public static DeclarationSite? Of(IDeclaration declaration)
    {

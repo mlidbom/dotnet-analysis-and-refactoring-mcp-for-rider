@@ -13,16 +13,24 @@ public sealed class NodeBudget
    /// <summary>Whether a node was refused: the tree is cut short.</summary>
    public bool Truncated { get; private set; }
 
-   public bool Exhausted => _left <= 0;
+   /// <summary>
+   ///   Whether a node is left, asked before a costly search for more, such as for a member's callers. When none is,
+   ///   the tree is cut short as surely as if the search's nodes had been refused.
+   /// </summary>
+   public bool HasNodesLeft()
+   {
+      if(_left > 0)
+         return true;
+
+      Truncated = true;
+      return false;
+   }
 
    /// <summary>Takes one node from the budget, or says there are none left.</summary>
    public bool TryTake()
    {
-      if(_left <= 0)
-      {
-         Truncated = true;
+      if(!HasNodesLeft())
          return false;
-      }
 
       _left--;
       return true;

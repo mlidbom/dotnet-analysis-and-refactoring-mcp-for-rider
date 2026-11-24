@@ -11,18 +11,16 @@ source in an escaped string, each file's full path repeated at every node, an em
 same; only these two were checked. Wanted: go through every tool's answer as an agent reads it, and for each that
 answers in JSON where text would serve better, a text form, with the JSON on `format: "json"` where a program reads it.
 The JSON the symbol linker reads stays as agreed (see "What the symbol linker relies on" in `CLAUDE.md`). The text
-forms in the next section are part of this pass.
+forms in the next section are part of this pass. Those two tools answer in text since 2026-11-25; the other tools are
+still to go through.
 
 ## Next: reading code without opening files
 
 Magnus's ideas, 2026-11-20, as Claude judged them against what the tools answered that day. After the pass over the
 tools' answers, and above the known bugs: nearly every task in which an agent reads code would use it, where each bug
-bites now and then. In the order to build them:
+bites now and then:
 
-1. **`get_call_hierarchy`'s incoming tree:** the same text outline, with each call site's line of code, as `find_usages`
-   shows it, so the agent sees what is passed without opening the file. First, since the tool answers outgoing in text
-   and incoming in JSON until then (Claude's call, 2026-11-25).
-2. **`get_reachable_source`, the reachable source of a method, in one call:** the source of a method and of every
+1. **`get_reachable_source`, the reachable source of a method, in one call:** the source of a method and of every
    method in the scope below that its calls can reach, to a depth, each once, after an outline of the call tree. A call
    through an interface or a virtual member reaches every implementation and override in the scope, up to a cap,
    beyond which they are named and counted. A budget in lines of source, and the answer says where it stopped: at the
@@ -34,10 +32,17 @@ bites now and then. In the order to build them:
    doesn't yet follow the calls C# makes without their being written: `Dispose` at the end of a `using`,
    `GetEnumerator` in a `foreach`, `Deconstruct`, an implicit conversion. A delegate's `Invoke` it leaves out: that is
    where this tool says it stopped.
+2. **The code a constructor runs outside its body, in both call trees:** an instance field's or property's initializer
+   runs in every constructor that doesn't call `this(...)`, and in a type with a primary constructor, in that one; a
+   primary constructor's base call, `class DetailedSketch() : Sketch(new Circle(1))`, runs in it too. The outgoing
+   tree of `new X` lists none of their calls, since `Callee.Code` holds only a constructor's own declaration. The
+   incoming tree names an initializer by its field, `Shapes.Drawing.SketchBook._first`, and says that its callers
+   aren't followed, where it could go on to `new Shapes.Drawing.SketchBook`. It does find a primary constructor's base
+   call as a call of `new DetailedSketch`.
 
-`get_symbol_source`'s answer, item 4 here until 2026-11-24, is text now; so is `get_call_hierarchy`'s outgoing tree,
-item 1 until 2026-11-25, which follows implementations, `new`, properties, indexers and operators, within the scope
-below: see `CHANGELOG.md`.
+`get_symbol_source`'s answer, item 4 here until 2026-11-24, is text now; so are `get_call_hierarchy`'s trees: the
+outgoing one, item 1 until 2026-11-25, which follows implementations, `new`, properties, indexers and operators, within
+the scope below, and the incoming one, the same day's item 1, with each caller's lines of code: see `CHANGELOG.md`.
 
 **The scope a call tree follows,** `CallTrees/CallScope`, built for the outgoing tree, and for `get_reachable_source`:
 by default the solution's own code, which no configuration needs and which removes the noise: for

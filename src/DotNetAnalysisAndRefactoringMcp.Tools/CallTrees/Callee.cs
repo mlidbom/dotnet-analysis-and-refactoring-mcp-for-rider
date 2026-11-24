@@ -38,8 +38,8 @@ public sealed class Callee : IEquatable<Callee>
    public static Callee OfProperty(IProperty property, Accessors accessors) => new(property, accessors);
 
    /// <summary>
-   ///   Where asking for the calls of <paramref name="element"/> starts: a function, or a property with every accessor it
-   ///   has; nothing for another kind of element, such as a type or a field.
+   ///   Where asking for a call tree of <paramref name="element"/>, its calls or its callers, starts: a function, or a
+   ///   property with every accessor it has; nothing for another kind of element, such as a type or a field.
    /// </summary>
    public static Callee? StartingAt(IDeclaredElement element) =>
       element switch
@@ -49,6 +49,39 @@ public sealed class Callee : IEquatable<Callee>
          IProperty property           => OfProperty(property, (property.Getter != null ? Accessors.Get : Accessors.None) | (property.Setter != null ? Accessors.Set : Accessors.None)),
          _                            => null
       };
+
+   /// <summary>
+   ///   The callee whose <see cref="Code"/> <paramref name="node"/> runs as, as <see cref="CallsInCode"/> walks it: the
+   ///   innermost local function, accessor, getter written as an arrow, or function around it, or the primary
+   ///   constructor whose base call it is in; a lambda's body is the code it is written in. Nothing for code that runs
+   ///   as part of something else, such as a field's or a property's initializer, which runs as its type is
+   ///   constructed, nor for an event's accessors.
+   /// </summary>
+   public static Callee? WhoseCodeHolds(ITreeNode node)
+   {
+      for(ITreeNode? child = node, parent = node.Parent; parent != null; child = parent, parent = parent.Parent)
+      {
+         switch(parent)
+         {
+            case ILocalFunctionDeclaration { DeclaredElement: ILocalFunction function }:
+               return OfLocalFunction(function);
+            case IAccessorDeclaration { DeclaredElement: { OwnerMember: IProperty property } accessor }:
+               return OfProperty(property, accessor.Kind == AccessorKind.GETTER ? Accessors.Get : Accessors.Set);
+            case IAccessorDeclaration:
+               return null;
+            case ICSharpFunctionDeclaration { DeclaredElement: { } function }:
+               return OfFunction(function);
+            case IAccessorOwnerDeclaration { DeclaredElement: IProperty property } when IsAGetterWrittenAsAnArrow(child):
+               return OfProperty(property, Accessors.Get);
+            case IClassLikeDeclaration { PrimaryConstructorDeclaration.DeclaredElement: { } constructor } when child is IExtendsList:
+               return OfFunction(constructor);
+            case ITypeMemberDeclaration:
+               return null;
+         }
+      }
+
+      return null;
+   }
 
    /// <summary>
    ///   Its name as a call tree writes it: <c>Shapes.Palette.Pick</c>; with the parameters when it has overloads,
@@ -66,7 +99,7 @@ public sealed class Callee : IEquatable<Callee>
    /// <summary>Where it is declared, <c>Shapes\Palette.cs:9</c>, the path relative to <paramref name="root"/>; the assembly of a compiled one.</summary>
    public string Location(SolutionRoot root) =>
       DeclarationSite.WhereWritten(Member) is { File.Length: > 0 } site
-         ? $"{root.Relative(site.File)}:{site.Line}"
+         ? site.Location(root)
          : PsiHelpers.AssemblyLabel(Member) ?? "[no source]";
 
    /// <summary>
@@ -117,6 +150,18 @@ public sealed class Callee : IEquatable<Callee>
    public bool CanBeOverridden =>
       Member is IOverridableMember member
    && (IsAnInterfacesMember || member.IsAbstract || member.IsVirtual || member is { IsOverride: true, IsSealed: false });
+
+   /// <summary>
+   ///   Whether calling it may run code: not reading or writing an auto-property, unless an override or an implementation
+   ///   of it may have some.
+   /// </summary>
+   public bool MayRunCode => Member is not IProperty { IsAuto: true } || CanBeOverridden;
+
+   /// <summary>
+   ///   Whether a call of <paramref name="called"/>, this member or one it overrides or implements, runs this one's code:
+   ///   for a property, whether the call goes through an accessor this one stands for.
+   /// </summary>
+   public bool RunsWhen(Callee called) => Accessors == Accessors.None || (Accessors & called.Accessors) != Accessors.None;
 
    /// <summary>Whether it is an interface's member, whose overriders are its implementations.</summary>
    public bool IsAnInterfacesMember => Member is IClrDeclaredElement member && member.GetContainingType() is IInterface;

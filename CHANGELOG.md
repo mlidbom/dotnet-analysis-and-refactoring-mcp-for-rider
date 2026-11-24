@@ -17,6 +17,8 @@ plugin is a fork of.
 
 - `get_symbol_source` answers in text: the declaration's whole lines, numbered as a file read shows them, under a `Name — path:first-last` heading. It answered a JSON object holding the source in an escaped string, without line numbers, its first line cut at the declaration's first column. A declaration over 20,000 characters is cut at a line, and the answer says where to read on
 - `get_call_hierarchy`'s outgoing tree answers in text, an indented outline of `Type.Member  path:line` with paths relative to the work tree, and in JSON with `format: "json"`. Besides calls through a name, it follows `new`, properties with code, indexers, user-defined operators and methods passed as delegates, and lists an interface, abstract or virtual member's implementations or overrides under a call to it. It shows the solution's own code, counting by assembly the calls into compiled code it leaves out: `namespaces` narrows it, `assemblies` adds compiled assemblies by name. A callee met again points to its calls listed above instead of repeating them. For `GetSymbolSourceTool.Execute` at depth 2 the answer is 36 lines in 4,615 characters, where it was 48 nodes, 32 of them calls into compiled code, in 16,912 characters of JSON
+- `get_call_hierarchy`'s incoming tree answers in the same outline, each caller with the lines on which it calls the member above, as `find_usages` shows them, and says when it calls through an interface or base member, or passes it as a delegate; in JSON with `format: "json"`. It finds the calls the outgoing tree follows: `new`, a constructor's base call, properties, through the accessor that runs, indexers and operators, as well as calls through a name; and a property's callers include the code that reads an auto-property. A caller met again points to its callers listed above, and `namespaces` narrows the callers. It answered JSON with each file's full path at every node and no line of code
+- `get_call_hierarchy`'s outgoing tree follows a property set in an object initializer
 
 ### Fixed
 
@@ -26,6 +28,7 @@ plugin is a fork of.
 - A type declared in parts is shown by the part in the file named after it, `IThreadGate.cs` rather than `IThreadGate.Implementation.cs`, wherever a tool shows one declaration
 - A position past the end of its line answers that the column is outside the line, quoting the line as Rider has it, where it answered that ReSharper failed with an `ArgumentOutOfRangeException`
 - `list_symbols_in_file` keeps a type's members under it after a generic method, where they came under a heading named after the type parameter
+- `get_call_hierarchy`'s incoming tree no longer takes a doc comment's `cref` or a `nameof` for a call, nor lists an override as calling itself through its own `base` call
 
 - A call naming a file in a Git worktree no open solution is in now receives an immediate routing error unless it explicitly selects a solution. Previously the caller could wait 10 seconds for a reply that the file was in no project, with `isError` set to `false`.
 - A peer Rider that ended without deregistering, such as in a crash, is now forgotten at the first call to it: the call answers that the solution is no longer available, and `list_solutions` drops every solution registered on its port. Until now each call to it failed, and `list_solutions` went on listing it.

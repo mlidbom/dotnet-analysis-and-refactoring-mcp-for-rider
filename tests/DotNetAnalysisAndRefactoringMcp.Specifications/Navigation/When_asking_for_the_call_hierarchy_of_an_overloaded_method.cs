@@ -13,18 +13,16 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Navigation;
 /// </summary>
 public class When_asking_for_the_call_hierarchy_of_an_overloaded_method(TheSandboxWithTheFixtureSolution sandbox)
 {
-   const string TheTwoColorOverload = "\"signature\": \"method Mix(first:string, second:string) : string\"";
-   const string TheThreeColorOverload = "\"signature\": \"method Mix(first:string, second:string, third:string) : string\"";
-
    readonly string _callersByName = sandbox.McpServer.CallTool("get_call_hierarchy", new { symbolName = "Shapes.Palette.Mix", direction = "incoming" });
    readonly string _callersOfTheTwoColorOverload = sandbox.McpServer.CallTool("get_call_hierarchy", new { filePath = sandbox.PathOf("Shapes/Palette.Mixing.cs"), line = 5, column = 17, direction = "incoming" });
    readonly string _calleesOfTheThreeColorOverload = sandbox.McpServer.CallTool("get_call_hierarchy", new { filePath = sandbox.PathOf("Shapes/Palette.Mixing.cs"), line = 7, column = 17, direction = "outgoing" });
 
-   [XF] public void by_name_it_gives_a_tree_for_every_overload() =>
-      _callersByName.Must().Satisfy(it => it.Contains(TheTwoColorOverload) && it.Contains(TheThreeColorOverload));
+   [XF] public void by_name_it_gives_a_tree_for_every_overload_named_by_its_parameters() =>
+      _callersByName.Must().Satisfy(it => it.Contains("\nShapes.Palette.Mix(first:string, second:string)  Shapes\\Palette.Mixing.cs:5\n")
+                                       && it.Contains("\nShapes.Palette.Mix(first:string, second:string, third:string)  Shapes\\Palette.Mixing.cs:7"));
 
    [XF] public void a_caller_that_is_an_overload_says_which_one() =>
-      _callersOfTheTwoColorOverload.Must().Contain(TheThreeColorOverload);
+      _callersOfTheTwoColorOverload.Must().Contain("\n  Shapes.Palette.Mix(first:string, second:string, third:string)  Shapes\\Palette.Mixing.cs:7\n    7: public string Mix(string first, string second, string third) => Mix(Mix(first, second), third);");
 
    [XF] public void the_calls_an_expression_bodied_method_makes_are_its_callees_named_by_their_parameters() =>
       _calleesOfTheThreeColorOverload.Must().Contain("\n  Shapes.Palette.Mix(first:string, second:string)  Shapes\\Palette.Mixing.cs:5\n");

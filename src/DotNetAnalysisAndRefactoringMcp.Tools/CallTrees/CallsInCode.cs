@@ -12,8 +12,8 @@ namespace DotNetAnalysisAndRefactoringMcp.CallTrees;
 
 /// <summary>
 ///   The calls written in a <see cref="Callee"/>'s code, in the order their names are written, each callee once: through a name,
-///   with <c>new</c>, a constructor's <c>: base(...)</c>, an indexer, a property with code, a user-defined operator,
-///   and a method passed as a delegate.
+///   with <c>new</c>, a constructor's <c>: base(...)</c>, an indexer, a property with code, read, written or set in an
+///   object initializer, a user-defined operator, and a method passed as a delegate.
 /// </summary>
 /// <remarks>
 ///   Until 2026-11-24 the outgoing tree followed only calls through a name, which missed constructors, properties,
@@ -52,30 +52,60 @@ public static class CallsInCode
    /// </summary>
    static void Walk(ITreeNode node, Callee callee, List<(int Offset, Call Call)> written)
    {
-      if(IsNoPartOfTheCodeThatRuns(node) || !callee.Runs(node))
+      if(IsNoCode(node) || IsTheCodeOfACalleeOfItsOwn(node) || !callee.Runs(node))
          return;
 
-      if(ReferenceAt(node) is { } reference && CallThrough(reference, node) is { } call)
+      if(ReferenceAt(node) is { } reference && CallThrough(reference, node) is { Callee.MayRunCode: true } call)
          written.Add((reference.GetTreeTextRange().StartOffset.Offset, call));
 
       for(var child = node.FirstChild; child != null; child = child.NextSibling)
          Walk(child, callee, written);
    }
 
-   static bool IsNoPartOfTheCodeThatRuns(ITreeNode node) =>
-      node is IDocCommentBlock or IAttributeSectionList or ILocalFunctionDeclaration
+   /// <summary>
+   ///   The call that <paramref name="reference"/>, which a search found, makes where it is written, as <see cref="Of"/>
+   ///   finds it in the code around it, whether or not the member it calls has code: an auto-property's readers are
+   ///   its callers too. Nothing for a reference that calls nothing, such as one in a doc comment or a <c>nameof</c>.
+   /// </summary>
+   public static Call? MadeThrough(IReference reference)
+   {
+      var node = reference.GetTreeNode();
+      return ReferenceAt(node) != null && !IsInNoCode(node) ? CallThrough(reference, node) : null;
+   }
+
+   /// <summary>What is written in a member's declaration but doesn't run as code: a doc comment, an attribute, a <c>nameof</c>.</summary>
+   static bool IsNoCode(ITreeNode node) =>
+      node is IDocCommentBlock or IAttributeSectionList
    || node is IInvocationExpression invocation && invocation.IsNameofOperator();
 
-   /// <summary>The reference through which <paramref name="node"/> may call: a name, a <c>new</c>, a constructor's <c>: base(...)</c>, an indexer, an operator.</summary>
+   /// <summary>Whether <paramref name="node"/> is, or is inside, what <see cref="IsNoCode"/> is.</summary>
+   static bool IsInNoCode(ITreeNode node)
+   {
+      for(var it = node; it != null; it = it.Parent)
+         if(IsNoCode(it))
+            return true;
+      return false;
+   }
+
+   /// <summary>A local function's body, which runs when it is called, as a callee of its own.</summary>
+   static bool IsTheCodeOfACalleeOfItsOwn(ITreeNode node) => node is ILocalFunctionDeclaration;
+
+   /// <summary>
+   ///   The reference through which <paramref name="node"/> may call: a name, a <c>new</c>, a constructor's
+   ///   <c>: base(...)</c>, an indexer, an operator, a property set in an object initializer, and a primary
+   ///   constructor's call of its base type's, <c>class DetailedSketch() : Sketch(new Circle(1))</c>.
+   /// </summary>
    static IReference? ReferenceAt(ITreeNode node) =>
       node switch
       {
-         IReferenceExpression reference      => reference.Reference,
-         IObjectCreationExpression creation  => creation.ConstructorReference,
-         IConstructorInitializer initializer => initializer.Reference,
-         IElementAccessExpression access     => access.ElementAccessReference,
-         IOperatorExpression operation       => operation.OperatorReference,
-         _                                   => null
+         IReferenceExpression reference                    => reference.Reference,
+         IObjectCreationExpression creation                => creation.ConstructorReference,
+         IConstructorInitializer initializer               => initializer.Reference,
+         IElementAccessExpression access                   => access.ElementAccessReference,
+         IOperatorExpression operation                     => operation.OperatorReference,
+         IMemberInitializer initializer                    => initializer.Reference,
+         IExtendedType { ArgumentList: not null } baseType => baseType.ConstructorReference,
+         _                                                 => null
       };
 
    static Call? CallThrough(IReference reference, ITreeNode node) =>
@@ -83,7 +113,7 @@ public static class CallsInCode
       {
          IFunction function when !IsADelegatesInvoke(function) => new Call(Callee.OfFunction(function), IsPassedAsADelegate(node), IsThroughBase(node)),
          ILocalFunction localFunction                          => new Call(Callee.OfLocalFunction(localFunction), IsPassedAsADelegate(node), isThroughBase: false),
-         IProperty property when MayRunCode(property)         => new Call(Callee.OfProperty(property, AccessorsRunBy((ICSharpExpression)node)), asDelegate: false, IsThroughBase(node)),
+         IProperty property                                    => new Call(Callee.OfProperty(property, AccessorsRunBy(node)), asDelegate: false, IsThroughBase(node)),
          _                                                     => null
       };
 
@@ -102,17 +132,20 @@ public static class CallsInCode
    static bool IsADelegatesInvoke(IFunction function) => function is IClrDeclaredElement member && member.GetContainingType() is IDelegate;
 
    /// <summary>
-   ///   Whether reading or writing <paramref name="property"/> may run code: not for an auto-property, unless its overrides
-   ///   or implementations may have some.
+   ///   The accessors that <paramref name="node"/>, a reference to a property, runs: as the expression is read or written,
+   ///   or for <c>Title = ...</c> in an object initializer, the setter; for <c>Bounds = { ... }</c>, which sets the
+   ///   members of the object the property holds, the getter.
    /// </summary>
-   static bool MayRunCode(IProperty property) =>
-      !property.IsAuto || property.IsAbstract || property.IsVirtual || property.IsOverride || property.GetContainingType() is IInterface;
+   static Accessors AccessorsRunBy(ITreeNode node) =>
+      node switch
+      {
+         ICSharpExpression expression                => AccessorsRunBy(expression.GetAccessType(new UniversalContext(expression))),
+         IMemberInitializer { Initializer: not null } => Accessors.Get,
+         _                                           => Accessors.Set
+      };
 
-   static Accessors AccessorsRunBy(ICSharpExpression expression)
-   {
-      var access = expression.GetAccessType(new UniversalContext(expression));
-      return (access & ExpressionAccessType.Write) == 0 ? Accessors.Get
-           : (access & ExpressionAccessType.Read) == 0  ? Accessors.Set
-                                                        : Accessors.GetAndSet;
-   }
+   static Accessors AccessorsRunBy(ExpressionAccessType access) =>
+      (access & ExpressionAccessType.Write) == 0 ? Accessors.Get
+    : (access & ExpressionAccessType.Read) == 0  ? Accessors.Set
+                                                 : Accessors.GetAndSet;
 }

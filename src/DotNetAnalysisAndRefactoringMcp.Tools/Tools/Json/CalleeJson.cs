@@ -39,9 +39,9 @@ public sealed class CalleeJson(
 
    public static CalleeJson Of(OutgoingCallTreeNode node) =>
       new(DeclarationJson.Of(node.Callee.Member),
-          node.Callee.Accessors switch { CallTrees.Accessors.Get => "get", CallTrees.Accessors.Set => "set", CallTrees.Accessors.GetAndSet => "get and set", _ => null },
+          CallTreeJsonNaming.NameOf(node.Callee.Accessors),
           node.Reached switch { HowReached.AsDelegate => "delegate", HowReached.Implementation => "implementation", HowReached.Override => "override", _ => null },
-          node.Repetition switch { CallTrees.Repetition.ListedAbove => "listed above", CallTrees.Repetition.Recursive => "recursive", _ => null },
+          CallTreeJsonNaming.NameOf(node.Repetition),
           node.Calls.Count > 0 ? [.. node.Calls.Select(Of)] : null,
           node.Overriders.Count > 0 ? [.. node.Overriders.Select(Of)] : null,
           node.OverridersNotListed > 0 ? node.OverridersNotListed : null);

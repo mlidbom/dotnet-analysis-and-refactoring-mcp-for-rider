@@ -19,7 +19,7 @@ namespace DotNetAnalysisAndRefactoringMcp.CallTrees;
 ///   interface or a virtual member, listed every call into compiled code, and repeated a callee's whole subtree at every
 ///   node of it, in JSON: for <c>GetSymbolSourceTool.Execute</c> at depth 2, 48 nodes in 16,912 characters.
 /// </remarks>
-public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget budget)
+public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget budget) : ICallTree
 {
    const int MostOverridersListed = 10;
 
@@ -74,6 +74,8 @@ public sealed class OutgoingCallTree(CallScope scope, int maxDepth, NodeBudget b
           _notShown.IntoAssemblies,
           _notShown.OutsideTheNamespaces,
           _budget.Truncated);
+
+   object ICallTree.Json() => Json();
 
    /// <summary>
    ///   Lists under <paramref name="node"/>, <paramref name="depth"/> levels below the start, the calls its code makes
