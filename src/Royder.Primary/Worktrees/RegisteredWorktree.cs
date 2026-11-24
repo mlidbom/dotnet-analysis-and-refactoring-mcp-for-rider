@@ -62,7 +62,9 @@ sealed record RegisteredWorktree(string Root, string GitDirectory, string Genera
          .Select(it => Path.GetFullPath(it, Root)).Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
       if(explicitSolution != null)
          return candidates.FirstOrDefault(it => SamePath(it, explicitSolution)) ??
-                throw new InvalidOperationException($"'{explicitSolution}' is not a solution in worktree '{Root}'.");
+                throw new InvalidOperationException(
+                   $"{(File.Exists(explicitSolution) ? $"'{explicitSolution}' is a solution Git doesn't list, as ignored" : $"'{explicitSolution}' doesn't exist")}. "
+                 + $"Worktree '{Root}' contains: {(candidates.Length == 0 ? "no solution" : string.Join(", ", candidates))}");
       if(candidates.Length == 1) return candidates[0];
       var enclosing = candidates.Where(it => paths.All(path => IsWithin(path, Path.GetDirectoryName(it)!)))
                                 .GroupBy(it => Path.GetDirectoryName(it)!.Length).OrderByDescending(it => it.Key).FirstOrDefault();
