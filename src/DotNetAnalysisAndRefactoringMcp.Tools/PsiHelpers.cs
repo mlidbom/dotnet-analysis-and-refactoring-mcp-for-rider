@@ -366,8 +366,12 @@ public static class PsiHelpers
 
    /// <summary>The file name of the DLL a compiled element is in, such as <c>JetBrains.ReSharper.Psi.dll</c>; nothing for one in source.</summary>
    public static string AssemblyFileNameOf(IDeclaredElement element) =>
+      AssemblyNameOf(element) is { } name ? $"{name}.dll" : null;
+
+   /// <summary>The name of the assembly a compiled element is in, such as <c>JetBrains.ReSharper.Psi</c>; nothing for one in source.</summary>
+   public static string AssemblyNameOf(IDeclaredElement element) =>
       element is IClrDeclaredElement { Module: IAssemblyPsiModule module }
-         ? $"{module.Assembly.AssemblyName?.Name ?? module.DisplayName}.dll"
+         ? module.Assembly.AssemblyName?.Name ?? module.DisplayName
          : null;
 
    /// <summary>

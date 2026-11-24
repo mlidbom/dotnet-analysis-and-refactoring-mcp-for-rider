@@ -151,7 +151,7 @@ it reverted a file the agent had just restored. `tests/live_disk_sync.py` checks
 | `fix_usings` | Fix missing C# using directives by resolving unresolved type references against the symbol cache |
 | `flow` | Describe control flow of a method or type: execution steps, branches, loops, error paths, inlined call targets, why-hints |
 | `get_symbol_source` | Get the full declaration source code of a symbol (not just a truncated snippet) |
-| `get_call_hierarchy` | Build a call hierarchy tree for a method: `incoming` (callers via `IFinder.FindReferences`) or `outgoing` (callees) |
+| `get_call_hierarchy` | Call hierarchy of a method or property: `incoming` (callers via `IFinder.FindReferences`, JSON) or `outgoing` (callees as a text outline, implementations followed, the solution's code by default: `CallTrees/`) |
 | `get_type_hierarchy` | Get the inheritance hierarchy of a type: `supertypes` (base/interfaces) or `subtypes` (`FindInheritors`) |
 | `get_diagnostics` | Run the daemon (`DaemonHighlightingCollector`) on a file: severity, inspection id, message, location, quick-fix availability |
 | `inspect_code` | Inspect Code's engine (`CollectInspectionResults`) over files, folders, projects, the solution, or the files changed since a git ref; solution-wide inspections when SWEA is complete |
@@ -423,6 +423,12 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   DeclarationSource.cs                 # A declaration's whole lines, numbered, under its name, file and lines (get_symbol_source)
   DecompiledSource.cs                  # ReSharper decompiler / metadata view for compiled types
   Signature.cs                         # A declared element's one-line signature, as every tool writes it: method Mix(first:string) : string
+  CallTrees/                           # get_call_hierarchy's outgoing tree, which get_reachable_source is to build on
+    OutgoingCallTree.cs                # The tree: depth, node budget, repetitions, overriders; its text outline and JSON
+    Callee.cs                          # What a call runs: a function, or a property's accessors; its name, place, code
+    CallsInCode.cs                     # The calls written in a callee's code: names, new, indexers, operators, delegates
+    CallScope.cs                       # The code followed: the solution's, narrowed to namespaces, widened to assemblies
+    CallsNotShown.cs                   # The calls left out, by assembly, for the answer's last line
   Disk/
     GitChanges.cs                      # Files changed since a git ref (for get_file_errors changedSince)
     DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk, before every call

@@ -25,7 +25,7 @@ public static class Signature
       var language = LanguageOf(element);
       return element is ITypeExtension block
                 ? OfExtensionBlock(block, language)
-                : $"{ModifiersOf(element)}{element.GetElementType().PresentableName} {element.ShortName}{ParametersOf(element, language)}{TypeOf(element, language)}";
+                : $"{ModifiersOf(element)}{element.GetElementType().PresentableName} {element.ShortName}{ParameterListOf(element, language)}{TypeOf(element, language)}";
    }
 
    /// <summary>
@@ -56,18 +56,26 @@ public static class Signature
 
    static string ModifiersOfAMember(IModifiersOwner member) => (member.IsStatic ? "static " : "") + (member.IsAbstract ? "abstract " : "");
 
+   /// <summary>
+   ///   <paramref name="owner"/>'s parameters as a signature writes them, without the parentheses around them:
+   ///   <c>first:string, second:string</c>, as a call tree names one overload of several, <c>Shapes.Palette.Mix(first:string, second:string)</c>.
+   /// </summary>
+   public static string ParametersOf(IParametersOwner owner) => Parameters(owner, LanguageOf(owner));
+
    /// <summary>A method's and a local function's parameter list, empty or not; another element's, such as an indexer's, only when it has parameters.</summary>
-   static string ParametersOf(IDeclaredElement element, PsiLanguageType language) => element switch
+   static string ParameterListOf(IDeclaredElement element, PsiLanguageType language) => element switch
    {
       IMethod or ILocalFunction                                   => ParameterList((IParametersOwner)element, language),
       IParametersOwner { Parameters.Count: > 0 } parametersOwner  => ParameterList(parametersOwner, language),
       _                                                           => ""
    };
 
-   static string ParameterList(IParametersOwner owner, PsiLanguageType language)
+   static string ParameterList(IParametersOwner owner, PsiLanguageType language) => $"({Parameters(owner, language)})";
+
+   static string Parameters(IParametersOwner owner, PsiLanguageType language)
    {
       var isAnExtensionMethod = owner is IMethod { IsExtensionMethod: true };
-      return $"({string.Join(", ", owner.Parameters.Select((it, index) => ParameterOf(it, isTheReceiver: isAnExtensionMethod && index == 0, language)))})";
+      return string.Join(", ", owner.Parameters.Select((it, index) => ParameterOf(it, isTheReceiver: isAnExtensionMethod && index == 0, language)));
    }
 
    static string ParameterOf(IParameter parameter, bool isTheReceiver, PsiLanguageType language)

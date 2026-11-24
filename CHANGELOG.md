@@ -16,6 +16,7 @@ plugin is a fork of.
 ### Changed
 
 - `get_symbol_source` answers in text: the declaration's whole lines, numbered as a file read shows them, under a `Name — path:first-last` heading. It answered a JSON object holding the source in an escaped string, without line numbers, its first line cut at the declaration's first column. A declaration over 20,000 characters is cut at a line, and the answer says where to read on
+- `get_call_hierarchy`'s outgoing tree answers in text, an indented outline of `Type.Member  path:line` with paths relative to the work tree, and in JSON with `format: "json"`. Besides calls through a name, it follows `new`, properties with code, indexers, user-defined operators and methods passed as delegates, and lists an interface, abstract or virtual member's implementations or overrides under a call to it. It shows the solution's own code, counting by assembly the calls into compiled code it leaves out: `namespaces` narrows it, `assemblies` adds compiled assemblies by name. A callee met again points to its calls listed above instead of repeating them. For `GetSymbolSourceTool.Execute` at depth 2 the answer is 36 lines in 4,615 characters, where it was 48 nodes, 32 of them calls into compiled code, in 16,912 characters of JSON
 
 ### Fixed
 

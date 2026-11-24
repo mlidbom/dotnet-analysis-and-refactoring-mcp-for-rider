@@ -26,9 +26,9 @@ public class When_asking_for_the_call_hierarchy_of_an_overloaded_method(TheSandb
    [XF] public void a_caller_that_is_an_overload_says_which_one() =>
       _callersOfTheTwoColorOverload.Must().Contain(TheThreeColorOverload);
 
-   [XF] public void the_calls_an_expression_bodied_method_makes_are_its_callees() =>
-      _calleesOfTheThreeColorOverload.Must().Contain(TheTwoColorOverload);
+   [XF] public void the_calls_an_expression_bodied_method_makes_are_its_callees_named_by_their_parameters() =>
+      _calleesOfTheThreeColorOverload.Must().Contain("\n  Shapes.Palette.Mix(first:string, second:string)  Shapes\\Palette.Mixing.cs:5\n");
 
    [XF] public void a_call_into_another_overload_is_followed_into_it() =>
-      _calleesOfTheThreeColorOverload.Must().Contain("Shapes.Palette.Mixer.Of");
+      _calleesOfTheThreeColorOverload.Must().Contain("\n    Shapes.Palette.Mixer.Of  Shapes\\Palette.Mixing.cs:14");
 }
