@@ -355,6 +355,19 @@ Found while doing this, to fix:
   four minutes, and a close refused, "Cannot identify the current backend … Unassigned backend PIDs: 96428". Now
   all of a backend's logs are read, oldest first. To install it, the primary was restarted to clear a journal the bug
   had stuck.
+- *Done 2026-11-24 (`2f2fd8e`):* **a Compze worktree answered "still opening" for 20 minutes** (state-store-in-tables,
+  through optimize-royder). A build in the worktree made the private Rider reload all 117 of its projects in the
+  middle of the warm-up (19:59:30 to past 20:02), and its source generators, which the warm-up waits for, waited for
+  that. The four-minute deadline, counted from the first call and covering the time queued behind another worktree's
+  open, failed the warm-up twice and closed the project; each next call opened it cold again. Once the build had
+  ended, it was ready in 2 minutes. Now Rider gets 4 minutes to open the solution, counted once nothing is in its
+  way, then 15 minutes to load, index and generate it, and "still opening" says how long the warm-up has run and what
+  it waits for (`WarmUp`). Left open: serving a call before the source generators have run, with a note, which would
+  have answered sooner; unsafe while Rider reloads its projects, as it did here, with indexing reported done.
+- *Done 2026-11-24 (`7a916f5`):* **`inspect_code` with `changedSince` failed on "git rev-parse timed out after 15s"**
+  under heavy load (tessaging-and-taggregates); a retry ran into the 55 s answer deadline, and folders in `filePaths`
+  worked. The rev-parse only found the work tree's root, which `SolutionRoot` knows: gone. A git timeout now says to
+  retry or name the folders.
 - *Installed 2026-11-24 18:09, primary `f9318d9`:* `baa5512`, a `solutionName` that isn't the
   worktree's says whether the file is missing or unlisted; and `f9318d9`, the private Rider's worktree identity query
   (fsutil) gets 20 s and a second try, and its failure is logged. Two opens failed with "HTTP 409: Cannot establish
