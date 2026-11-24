@@ -430,6 +430,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     Caller.cs                          # The code a call is written in: a callee's, or an initializer's, which isn't followed
     CallSite.cs                        # Where a caller calls: the line, as find_usages shows it; through what; as a delegate
     CallsInCode.cs                     # The calls written in a callee's code, and the call a found reference makes
+    CodeThatCalls.cs                   # The callers of a callee, by ReSharper's reference search, with their call sites
     CallScope.cs                       # The code followed: the solution's, narrowed to namespaces, widened to assemblies
     CallsNotShown.cs                   # The calls left out, by assembly, for the answer's last line
   Disk/
