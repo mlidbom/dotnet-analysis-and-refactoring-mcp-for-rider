@@ -117,7 +117,9 @@ they have closed, which they do after ten idle minutes, for an hour at most.
 - Every tool call is answered within `answerWithinSeconds`, 55 by default, since Claude Code gives up on an MCP call
   after 60 seconds and then tells the agent only "The operation timed out.". A cold open still running by then answers
   that the solution is still opening, and only the warm-up continues. A call Rider is still working on answers that
-  it goes on in Rider: an edit in it still lands.
+  it goes on in Rider: an edit in it still lands. The 60 seconds is Claude Code's default per-request limit for an
+  HTTP server; `MCP_TOOL_TIMEOUT`, or a `timeout` on the server's entry in `.mcp.json`, raises it. The tooling owner
+  kept the default (2026-11-24): "still opening, retry" tells an agent more than a long wait.
 - `list_solutions` lists solutions open at the time of the call. Its `hint` explains how to open another trusted
   checkout, including when the list is empty. The primary checks the local TCP listener table before contacting
   ordinary Rider, so a closed desktop endpoint adds no connection-refusal wait.
