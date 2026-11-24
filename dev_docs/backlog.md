@@ -302,6 +302,15 @@ Found while doing this, to fix:
   waited for it, and then started a new Rider. The agent took "still opening" as a reason to fall back to grep. Now:
   30 idle minutes (`idleSeconds`), and the answer says opening takes about a minute and to retry in half a minute.
   Left open: a call that comes during an idle close waits for the close and then a cold start.
+- *Done 2026-11-24:* **a worktree's solution answered "still opening" for about 40 minutes** (`publish-reuses-a-passed-run`,
+  11:28 to past 11:50). The private Rider had it indexed, with its source generators ready, from 11:11. But the
+  primary's opens failed, in its log: "Supervisor did not confirm fresh job membership after close", then "Cannot
+  confirm removal is safe … 7 dotnet PIDs", each with a conhost. The job's record shows all seven as children of one
+  `dotnet` a backend had started: MSBuild's reusable worker nodes, by all signs, which outlive their build by up to 15
+  idle minutes. Now: the private Rider runs with `MSBUILDDISABLENODEREUSE=1` (`HostProfile.ps1`). Not understood yet:
+  why an open of a solution Rider already had ready went through a close at all. The primary logs only warnings, which
+  don't say. The maintenance loop failed with the same "fresh job membership" error meanwhile, under heavy load from
+  three specification suites at once.
 - **`When_a_file_declaring_a_type_is_deleted_on_disk.find_usages_by_name_reports_the_symbol_was_not_found` found the
   deleted type 10 seconds later,** once, in the runs before the first fix. It recurred on 2026-11-24 at 03:34, in one
   run of three: `search_symbol_by_name_finds_no_declaration` got "DrawingStencil — 1 results" right after the deletion.

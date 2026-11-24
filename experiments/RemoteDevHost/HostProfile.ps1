@@ -111,6 +111,11 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
       RestoreFallbackFolders=(Join-Path $env:USERPROFILE '.nuget/packages'); DOTNET_NOLOGO='1'; DOTNET_CLI_TELEMETRY_OPTOUT='1'
       DOTNET_GENERATE_ASPNET_CERTIFICATE='false'; DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE='1'
       JETBRAINS_NO_CHECK_FOR_UPDATES='1'; RIDER_PROPERTIES=$properties; RIDER_VM_OPTIONS=(Join-Path $Run host.vmoptions)
+      # MSBuild's reusable worker nodes outlive the build that started them by up to 15 idle minutes. Started by a
+      # backend's restore or build, they stay in the host's job, and closing that backend's project waits until they
+      # are gone: on 2026-11-24 seven dotnet processes, by all signs such nodes, held up a worktree's reopening, and its
+      # calls, for about 40 minutes.
+      MSBUILDDISABLENODEREUSE='1'
       DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT=[string]$RoyderPort; DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS=$folders.tools }
    if ($ManagedAssets) { $plan.environment.ROYDER_REMOTE_ROSLYN_WORKING_DIRECTORY = [IO.Directory]::CreateDirectory((Join-Path $Run roslyn)).FullName }
    if ($isolated) { $plan.environment.ROYDER_PRIVATE_PROJECT_STORES = $plan.projectStores }
