@@ -48,6 +48,13 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
+- **ReSharper's own: a false CS8714 on a C# 14 extension block's member from a package** (tessaging-and-taggregates,
+  2026-11-24). `ForTuery((SessionOf it, SessionRecords records) => ...)`, with `TResult` = `Session?`, from
+  Compze.Tessaging 0.10.0-alpha: `get_diagnostics` and `inspect_code` report CS8714, "must match 'notnull' constraint",
+  and the compiler, with warnings as errors, reports nothing. The block's declaration (`ITueryHandlerRegistrarCE+<G>$…`)
+  has no `notnull` on `TResult`; the static method the compiler emits for it has. The compiler binds through the
+  declaration, ReSharper through the emitted method. Royder passes ReSharper's analysis on and can't fix it; JetBrains
+  can. Where Royder and the build disagree on such a call, the build is right.
 - **A peer that registers on a dead peer's port, between a refused call and its removal, is removed too**
   (royder-codex-3, 2026-11-22). A refused connection removes every registration on the port (`PeerSolution.Call`),
   since nothing listens there. The window is under a millisecond, and a peer registers only once its solution has
