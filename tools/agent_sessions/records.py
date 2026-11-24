@@ -53,6 +53,12 @@ class Call:
     context_tokens: float = 0.0
     output_share: float = 1.0
     responses_after: int = 0
+    answered: datetime | None = None
+
+    @property
+    def seconds(self):
+        """How long the call took, from the response making it to its result, or None without a result."""
+        return (self.answered - self.time).total_seconds() if self.answered else None
 
     @property
     def output_tokens(self):
@@ -199,6 +205,7 @@ class ClaudeTranscript:
                 continue
             call.output = _text_of(block.get("content"))
             call.failed = bool(block.get("is_error"))
+            call.answered = parse_time(entry["timestamp"]) if entry.get("timestamp") else None
             responses.result(call)
 
 
@@ -277,6 +284,7 @@ class CodexRollout:
             for call in calls:
                 call.output = output
                 call.failed = '"status":"rejected"' in output
+                call.answered = parse_time(entry["timestamp"])
                 responses.result(call)
 
 

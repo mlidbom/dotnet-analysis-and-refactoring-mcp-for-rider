@@ -6,6 +6,7 @@ it cost. dev_docs/what-agents-lack.md says what the kinds of episode are for, an
     python tools/agent_sessions/mine.py daily
     python tools/agent_sessions/mine.py samples  <kind> [--top 10] [--skip 0]
     python tools/agent_sessions/mine.py royder
+    python tools/agent_sessions/mine.py failures [--top 10]
     python tools/agent_sessions/mine.py sessions [--top 30]
 
 `rank`: each kind of episode, with how many, in how many sessions, and the tokens of context they cost.
@@ -13,11 +14,14 @@ it cost. dev_docs/what-agents-lack.md says what the kinds of episode are for, an
 `daily`: per day, symbols looked up as text against through Royder's navigation: what a fix should move.
 `samples`: the costliest episodes of a kind, call by call, to read what the agent needed.
 `royder`: Royder's calls by tool: how many, how many answered nothing, and what they cost.
+`failures`: Royder's failed calls by message: how many, how long they ran, when last. Claude Code gives up on a
+call after 60 seconds with "The operation timed out.", which this showed.
 `sessions`: the sessions that did C# work, whether Royder was offered and used, and what their C# work cost.
 
 Times are UTC. Costs are tokens of context read: see records.py.
 """
 import argparse
+import re
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -136,6 +140,20 @@ def print_royder(works):
         print(f"{tool} | {len(of_tool)} | {nothing} | {agents['claude']} | {agents['codex']} | {millions(sum(it.cost for it in of_tool))}")
 
 
+def print_failures(works, top):
+    """Royder's failed calls, by the first line of what they answered: how many, how long they ran, when last."""
+    by_message = defaultdict(list)
+    for call in (call for work in works for call in work.royder_calls if call.failed):
+        first_line = next((line for line in call.output.splitlines() if line.strip()), "(no text)")
+        by_message[re.sub(r"\d+", "#", first_line.strip())[:110]].append(call)
+    print("calls | seconds: median, longest | last (UTC) | tools | message")
+    for message, calls in sorted(by_message.items(), key=lambda item: -len(item[1]))[:top]:
+        seconds = sorted(it.seconds for it in calls if it.seconds is not None)
+        timing = f"{seconds[len(seconds) // 2]:.0f}, {seconds[-1]:.0f}" if seconds else "?"
+        tools = ", ".join(f"{tool.removeprefix('royder.')} {count}" for tool, count in Counter(it.tool for it in calls).most_common(3))
+        print(f"{len(calls)} | {timing} | {max(it.time for it in calls):%m-%d %H:%M} | {tools} | {message}")
+
+
 def print_sessions(works, top):
     csharp = [it for it in works if it.csharp_calls]
     groups = Counter((it.session.agent, it.session.royder_offered, bool(it.royder_calls)) for it in csharp)
@@ -153,7 +171,7 @@ def print_sessions(works, top):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("what", choices=["rank", "breakdown", "daily", "samples", "royder", "sessions"])
+    parser.add_argument("what", choices=["rank", "breakdown", "daily", "samples", "royder", "failures", "sessions"])
     parser.add_argument("kind", nargs="?", choices=list(KINDS))
     parser.add_argument("--since", default="2026-11-16", help="UTC date or time")
     parser.add_argument("--until", help="UTC date or time, excluded")
@@ -174,6 +192,8 @@ def main():
         print_samples(works, arguments.kind, arguments.top, arguments.skip)
     elif arguments.what == "royder":
         print_royder(works)
+    elif arguments.what == "failures":
+        print_failures(works, arguments.top)
     else:
         print_sessions(works, arguments.top)
 
