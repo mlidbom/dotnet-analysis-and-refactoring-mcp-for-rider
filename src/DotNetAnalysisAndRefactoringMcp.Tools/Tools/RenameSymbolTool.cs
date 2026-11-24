@@ -48,7 +48,8 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
       "with it. Provide either a symbolName (e.g. 'MyClass' or 'Namespace.MyClass') or a file path with position " +
       "(line/column), plus the required 'newName'. Returns any conflicts the refactoring detected, and the files it " +
       "changed, saved before it answers. Set 'dryRun' to true to preview conflicts and affected files WITHOUT " +
-      "modifying any code or renaming any file.";
+      "modifying any code or renaming any file. A rename with an error conflict, such as a usage ReSharper can't " +
+      "update correctly, is not applied unless 'applyDespiteConflicts' is true.";
 
    public object InputSchema => new
                                 {
@@ -61,7 +62,8 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
                                                    line = new { type = "integer", description = "1-based line number of the symbol" },
                                                    column = new { type = "integer", description = "1-based column number of the symbol" },
                                                    newName = new { type = "string", description = "The new name for the symbol (required)." },
-                                                   dryRun = new { type = "boolean", description = "When true, detect conflicts and report affected files WITHOUT applying any changes. Default: false." }
+                                                   dryRun = new { type = "boolean", description = "When true, detect conflicts and report affected files WITHOUT applying any changes. Default: false." },
+                                                   applyDespiteConflicts = new { type = "boolean", description = "Apply the rename even when ReSharper reports error conflicts, which leave usages it couldn't update correctly to fix by hand. Default: false." }
                                                 },
                                    required = new[] { "newName" }
                                 };
@@ -73,6 +75,7 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
          return new { error = "'newName' is required and must be a non-empty string." };
 
       var dryRun = arguments["dryRun"]?.Value<bool>() ?? false;
+      var applyDespiteConflicts = arguments["applyDespiteConflicts"]?.Value<bool>() ?? false;
 
       var (named, error) = PsiHelpers.ResolveFromArgs(
          _solution,
@@ -211,6 +214,22 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
             // What ReSharper fails to read costs only that conflict's value, and the answer says so.
             conflicts = ExtractConflicts(driver, unreadable);
             affected = transaction.ChangedFiles;
+            if(!dryRun && !applyDespiteConflicts && HasAnErrorConflict(driver, unreadable))
+            {
+               transaction.Rollback();
+               return new
+                      {
+                         applied = false,
+                         refused = "ReSharper reports an error conflict, such as a usage it can't update correctly: the rename would leave it "
+                                 + "broken, so nothing was changed. Fix what the conflicts name first, or pass applyDespiteConflicts: true "
+                                 + "and fix them by hand after.",
+                         oldName,
+                         newName,
+                         conflicts,
+                         wouldChange = ChangedFiles(affected),
+                         skipped = unreadable.Line
+                      };
+            }
          }
 
          var changedFiles = ChangedFiles(affected);
@@ -279,6 +298,18 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
       workflow.PostExecute(NullProgressIndicator.Create());
       return renamed;
    }
+
+   /// <summary>
+   ///   Whether ReSharper reports a valid conflict of <see cref="ConflictSeverity.Error"/>, such as "Usage of
+   ///   IMemoryImageStateStore.ChangesCommittedElsewhere cannot be updated correctly".
+   /// </summary>
+   /// <remarks>
+   ///   Rider shows such conflicts before it applies a rename, and its user chooses. Until 2026-11-24 the tool applied the
+   ///   rename anyway: a <c>cref</c> lost its type qualifier, and the build warned CS1574 where the conflict had said.
+   /// </remarks>
+   static bool HasAnErrorConflict(RefactoringDriverWithConflicts driver, SkippedElements unreadable) =>
+      driver.Conflicts.Any(conflict => conflict != null && conflict.Severity == ConflictSeverity.Error &&
+                                       unreadable.Read(() => "whether a conflict is valid", () => (bool?)conflict.IsValid) != false);
 
    static List<object> ExtractConflicts(RefactoringDriverWithConflicts driver, SkippedElements unreadable)
    {
