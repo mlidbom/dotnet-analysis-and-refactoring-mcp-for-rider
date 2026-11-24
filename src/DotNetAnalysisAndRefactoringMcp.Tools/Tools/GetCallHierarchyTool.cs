@@ -4,6 +4,7 @@ using JetBrains.Application.Progress;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.CSharp.Tree;
+using JetBrains.ReSharper.Psi.Impl;
 using JetBrains.ReSharper.Psi.Search;
 using JetBrains.ReSharper.Psi.Tree;
 using Newtonsoft.Json.Linq;
@@ -31,7 +32,8 @@ public class GetCallHierarchyTool : IMcpTool
       "'incoming' finds callers (who calls this method, recursively); " +
       "'outgoing' finds callees (which methods this method calls, recursively). " +
       "Provide either a symbolName (e.g. 'MyClass.MyMethod') or a file path with position (line/column), " +
-      "plus a 'direction'. Recursion is bounded by 'maxDepth' (default 2, capped at 4) and an internal node budget. " +
+      "plus a 'direction'. A method's name gives a tree for each of its overloads; a position, for the one there. " +
+      "Recursion is bounded by 'maxDepth' (default 2, capped at 4) and an internal node budget. " +
       "Outgoing resolution is C#-specific; non-C# roots degrade gracefully. " +
       "On an implementation or override, it also finds the calls made through the interface or base member, when that " +
       "member is declared in the solution; a compiled one, such as IDisposable.Dispose, is named in the answer, to ask about by name.";
@@ -74,7 +76,7 @@ public class GetCallHierarchyTool : IMcpTool
       using var context = CompilationContexts.For(declaredElement);
 
       // Only method/function-like elements have a call hierarchy.
-      if(!(declaredElement is IFunction function))
+      if(declaredElement is not IFunction)
          return new
                 {
                    error = $"Symbol '{declaredElement.ShortName}' is a " +
@@ -82,8 +84,18 @@ public class GetCallHierarchyTool : IMcpTool
                            "Call hierarchy is only available for methods and functions."
                 };
 
+      // One node budget for every overload's tree: the call stays bounded however many overloads a name has.
       var budget = new NodeBudgetCounter();
-      var visited = new HashSet<string>();
+      var hierarchies = Overloads.NamedBy(arguments, declaredElement).Cast<IFunction>()
+                                 .Select(it => HierarchyOf(it, direction, maxDepth, budget))
+                                 .ToList();
+      return hierarchies.Count == 1 ? hierarchies[0] : hierarchies;
+   }
+
+   /// <summary>The callers or callees of <paramref name="function"/>, as a tree <paramref name="maxDepth"/> deep.</summary>
+   Dictionary<string, object> HierarchyOf(IFunction function, string direction, int maxDepth, NodeBudgetCounter budget)
+   {
+      var visited = new HashSet<IDeclaredElement>(DeclaredElementEqualityComparer.ElementComparer);
       object note = null;
 
       List<object> calls;
@@ -120,6 +132,7 @@ public class GetCallHierarchyTool : IMcpTool
                    {
                       ["symbol"] = function.ShortName,
                       ["qualifiedName"] = PsiHelpers.GetQualifiedName(function),
+                      ["signature"] = PsiHelpers.FormatSignature(function),
                       ["direction"] = direction,
                       ["maxDepth"] = maxDepth,
                       ["truncated"] = budget.Truncated,
@@ -142,7 +155,7 @@ public class GetCallHierarchyTool : IMcpTool
       IDeclaredElement element,
       int depth,
       int maxDepth,
-      HashSet<string> visited,
+      HashSet<IDeclaredElement> visited,
       NodeBudgetCounter budget)
    {
       var children = new List<object>();
@@ -150,16 +163,15 @@ public class GetCallHierarchyTool : IMcpTool
          return children;
 
       // Cycle detection: do not expand an element we are already expanding along the current path.
-      var fqn = PsiHelpers.GetQualifiedName(element);
-      if(!visited.Add(fqn))
+      if(!visited.Add(element))
          return children;
 
       var psiServices = _solution.GetPsiServices();
       var searchDomain = SearchDomainFactory.Instance.CreateSearchDomain(_solution, false);
 
-      // Dedup callers by their qualified name so the same calling member only appears once even if it calls
-      // the target several times, or both directly and through an interface.
-      var seenCallers = new HashSet<string>();
+      // The same calling member appears once even if it calls the target several times, or both directly and
+      // through an interface. Each of its overloads is a caller of its own.
+      var seenCallers = new HashSet<IDeclaredElement>(DeclaredElementEqualityComparer.ElementComparer);
       var callerEntries = new List<(IDeclaredElement caller, Dictionary<string, object> node)>();
 
       foreach(var target in new[] { element }.Concat(SuperMembers.Of(element).InSource))
@@ -189,7 +201,7 @@ public class GetCallHierarchyTool : IMcpTool
                if(caller == null)
                   return FindExecution.Continue;
 
-               if(!seenCallers.Add(PsiHelpers.GetQualifiedName(caller)))
+               if(!seenCallers.Add(caller))
                   return FindExecution.Continue;
 
                var node = BuildNode(caller, refNode, isCall, budget, through);
@@ -210,7 +222,7 @@ public class GetCallHierarchyTool : IMcpTool
       }
 
       // Allow this element to be re-expanded along a different branch of the tree.
-      visited.Remove(fqn);
+      visited.Remove(element);
 
       return children;
    }
@@ -221,7 +233,7 @@ public class GetCallHierarchyTool : IMcpTool
       ICSharpFunctionDeclaration declaration,
       int depth,
       int maxDepth,
-      HashSet<string> visited,
+      HashSet<IDeclaredElement> visited,
       NodeBudgetCounter budget)
    {
       var children = new List<object>();
@@ -229,22 +241,16 @@ public class GetCallHierarchyTool : IMcpTool
          return children;
 
       var declElement = declaration.DeclaredElement;
-      var fqn = declElement != null ? PsiHelpers.GetQualifiedName(declElement) : null;
-      if(fqn != null && !visited.Add(fqn))
+      if(declElement != null && !visited.Add(declElement))
          return children;
 
-      var body = declaration.Body;
-      if(body == null)
-      {
-         if(fqn != null) visited.Remove(fqn);
-         return children;
-      }
-
-      // Dedup callees by qualified name so the same callee appears once per parent.
-      var seenCallees = new HashSet<string>();
+      // The same callee appears once per parent; each of its overloads is a callee of its own.
+      var seenCallees = new HashSet<IDeclaredElement>(DeclaredElementEqualityComparer.ElementComparer);
       var calleeEntries = new List<(IFunction calleeFn, Dictionary<string, object> node)>();
 
-      foreach(var invocation in body.Descendants<IInvocationExpression>())
+      // The whole declaration, not its Body: an expression-bodied member has none, and until 2026-11-24 its calls
+      // were missed.
+      foreach(var invocation in declaration.Descendants<IInvocationExpression>())
       {
          if(budget.Exhausted) break;
 
@@ -254,8 +260,7 @@ public class GetCallHierarchyTool : IMcpTool
          var callee = reference.Reference.Resolve().DeclaredElement as IFunction;
          if(callee == null) continue;
 
-         var calleeFqn = PsiHelpers.GetQualifiedName(callee);
-         if(!seenCallees.Add(calleeFqn))
+         if(!seenCallees.Add(callee))
             continue;
 
          var node = BuildNode(callee, invocation, true, budget);
@@ -286,7 +291,7 @@ public class GetCallHierarchyTool : IMcpTool
          children.Add(node);
       }
 
-      if(fqn != null) visited.Remove(fqn);
+      if(declElement != null) visited.Remove(declElement);
 
       return children;
    }
@@ -328,6 +333,10 @@ public class GetCallHierarchyTool : IMcpTool
             node["column"] = column;
          }
       }
+
+      // Overloads share their qualified name: the signature tells which one.
+      if(Overloads.Of(element).Count > 1)
+         node["signature"] = PsiHelpers.FormatSignature(element);
 
       if(through != null)
          node["through"] = through;
