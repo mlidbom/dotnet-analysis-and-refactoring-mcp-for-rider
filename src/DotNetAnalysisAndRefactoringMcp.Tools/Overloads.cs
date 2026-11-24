@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.ReSharper.Psi;
-using JetBrains.ReSharper.Psi.Tree;
+using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp;
 
@@ -17,6 +17,17 @@ namespace DotNetAnalysisAndRefactoringMcp;
 /// </remarks>
 static class Overloads
 {
+   /// <summary>
+   ///   The members a tool call's arguments stand for, given the one they resolved to: for a <c>symbolName</c>, every
+   ///   overload of it, as a text search for the name would find them; for a position, the one there.
+   /// </summary>
+   public static IReadOnlyList<IDeclaredElement> NamedBy(JObject arguments, IDeclaredElement resolved) =>
+      string.IsNullOrEmpty(arguments["symbolName"]?.ToString()) ? [resolved] : Of(resolved);
+
+   /// <summary>The line that heads an answer about several overloads: <c>2 overloads of Shapes.Palette.Mix</c>.</summary>
+   public static string Heading(IReadOnlyList<IDeclaredElement> overloads) =>
+      $"{overloads.Count} overloads of {PsiHelpers.GetQualifiedName(overloads[0])}";
+
    /// <summary><paramref name="member"/> and its overloads, in the order they are declared: only <paramref name="member"/> when it has none.</summary>
    public static IReadOnlyList<IDeclaredElement> Of(IDeclaredElement member)
    {

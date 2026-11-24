@@ -18,6 +18,14 @@ public sealed class DeclarationJson
    [JsonProperty("kind")] public string Kind { get; private set; } = "";
    [JsonProperty("name")] public string Name { get; private set; } = "";
    [JsonProperty("qualifiedName")] public string QualifiedName { get; private set; } = "";
+
+   /// <summary>
+   ///   Its kind, name, parameters and type as the text answers show them, such as
+   ///   <c>method Mix(first:string, second:string) : string</c>: what tells a member's overloads apart, which share
+   ///   the rest.
+   /// </summary>
+   [JsonProperty("signature")] public string Signature { get; private set; } = "";
+
    [JsonProperty("file")] public string? File { get; private set; }
    [JsonProperty("line")] public int? Line { get; private set; }
    [JsonProperty("column")] public int? Column { get; private set; }
@@ -33,6 +41,7 @@ public sealed class DeclarationJson
                 Kind = JsonNaming.KindOf(element),
                 Name = JsonNaming.NameOf(element),
                 QualifiedName = JsonNaming.QualifiedNameOf(element),
+                Signature = PsiHelpers.FormatSignature(element),
                 File = site?.File,
                 Line = site?.Line,
                 Column = site?.Column,

@@ -24,10 +24,11 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
       "Given a usage site (file+line+column) or a symbol name, returns the file path and position " +
       "where the symbol is declared, along with the declaration source text. " +
       "For a symbol compiled into a referenced DLL, returns its assembly and decompiled source instead. " +
+      "A member's name gives every overload of it; a position, the one there. " +
       "Pass multiple symbols via the 'symbols' array to navigate to several in one call. " +
-      "With format: 'json', for one symbol: {\"declarations\": [{kind, name, qualifiedName, file, line, column, assembly?}], " +
-      "\"truncated\"?: true}, one declaration for a symbol found, several for an ambiguous name, none for a name nothing " +
-      "matches; 'Type.Member' matches every member whose qualified name ends so. A compiled symbol has the assembly and no " +
+      "With format: 'json', for one symbol: {\"declarations\": [{kind, name, qualifiedName, signature, file, line, column, " +
+      "assembly?}], \"truncated\"?: true}, one declaration for a symbol found, one per overload, several for an ambiguous " +
+      "name, none for a name nothing matches; 'Type.Member' matches every member whose qualified name ends so. A compiled symbol has the assembly and no " +
       "file; a member with no source of its own, such as a positional record's property, is where its type is declared.";
 
    public object InputSchema => new
@@ -88,7 +89,7 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
 
       var found = PsiHelpers.ResolveSymbolByName(_solution, symbolName, arguments["kind"]?.ToString());
       IEnumerable<IDeclaredElement> elements = found.IsFound ? [found.Element] : found.Candidates?.Select(it => it.Element) ?? [];
-      return new DeclarationsJson([.. elements.Select(DeclarationJson.Of)], found.Truncated);
+      return new DeclarationsJson([.. elements.SelectMany(Overloads.Of).Select(DeclarationJson.Of)], found.Truncated);
    }
 
    object ExecuteSingle(JObject arguments)
@@ -108,37 +109,28 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
       if(maxTextLength <= 0) maxTextLength = DefaultSourceTextLength;
       if(maxTextLength > 50000) maxTextLength = 50000;
 
-      var declarations = declaredElement.GetDeclarations();
-      if(declarations.Count == 0)
-      {
-         var signature = PsiHelpers.FormatSignature(declaredElement);
-         var assembly = PsiHelpers.AssemblyLabel(declaredElement);
-         if(assembly == null)
-            return new { error = $"{signature}: no source declarations (may be source-generated)" };
+      var members = Overloads.NamedBy(arguments, declaredElement);
+      var definitions = members.Select(it => DefinitionOf(it, maxTextLength));
+      var answer = new StringBuilder(string.Join("\n\n", members.Count == 1 ? definitions : definitions.Prepend(Overloads.Heading(members))));
 
-         // Compiled: the decompiled type stands in for the declaration; get_symbol_source returns all of it.
-         var decompiled = DecompiledSource.Of(_solution, declaredElement);
-         var body = decompiled == null
-                       ? ""
-                       : $"\n{decompiled.Label}\n{PsiHelpers.TruncateSnippet(decompiled.Text, maxTextLength)}";
+      // A compiled member's source is its type's, decompiled, once for all its overloads; get_symbol_source returns all of it.
+      if(declaredElement.GetDeclarations().Count == 0 && DecompiledSource.Of(_solution, declaredElement) is {} decompiled)
+         answer.Append('\n').Append(decompiled.Label).Append('\n').Append(PsiHelpers.TruncateSnippet(decompiled.Text, maxTextLength));
 
-         return $"{signature} — {assembly}{body}";
-      }
+      return answer.ToString().TrimEnd();
+   }
 
-      var decl = MainDeclaration.Of(declaredElement)!;
-      var site = DeclarationSite.Of(decl);
-      if(site == null)
-         return new { error = "Could not resolve declaration location" };
+   /// <summary>
+   ///   <paramref name="member"/>'s signature, where it is declared, and its declaration's source cut at
+   ///   <paramref name="maxTextLength"/>; for a compiled member, its assembly in place of the last two.
+   /// </summary>
+   static string DefinitionOf(IDeclaredElement member, int maxTextLength)
+   {
+      var signature = PsiHelpers.FormatSignature(member);
+      if(MainDeclaration.Of(member) is not {} declaration)
+         return $"{signature} — {PsiHelpers.AssemblyLabel(member) ?? "no source declarations (may be source-generated)"}";
 
-      var declFilePath = site.File.Length > 0 ? site.File : "[no source]";
-      var (declLine, declCol) = (site.Line, site.Column);
-
-      var sb = new StringBuilder();
-      sb.Append(PsiHelpers.FormatSignature(declaredElement));
-      sb.Append(" — ").Append(declFilePath);
-      sb.Append(':').Append(declLine).Append(':').AppendLine(declCol.ToString());
-      sb.Append(PsiHelpers.TruncateSnippet(decl.GetText(), maxTextLength));
-
-      return sb.ToString().TrimEnd();
+      var where = DeclarationSite.Of(declaration) is { File.Length: > 0 } site ? $"{site.File}:{site.Line}:{site.Column}" : "[no source]";
+      return $"{signature} — {where}\n{PsiHelpers.TruncateSnippet(declaration.GetText(), maxTextLength)}";
    }
 }

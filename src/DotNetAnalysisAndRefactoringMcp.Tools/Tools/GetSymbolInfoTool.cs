@@ -24,7 +24,8 @@ public class GetSymbolInfoTool : IMcpTool
    public string Description =>
       "Get detailed information about a code symbol: " +
       "kind, full qualified name, type, documentation, containing type/namespace, and parameter info for methods. " +
-      "Provide either a symbolName or a file path with position. " +
+      "Provide either a symbolName or a file path with position: a member's name gives every overload of it; a " +
+      "position, the one there. " +
       "Pass multiple symbols via the 'symbols' array to query several in one call.";
 
    public object InputSchema => new
@@ -76,6 +77,18 @@ public class GetSymbolInfoTool : IMcpTool
       using var context = CompilationContexts.For(declaredElement);
 
       var includeMembers = arguments["includeMembers"]?.Value<bool>() ?? false;
+      var members = Overloads.NamedBy(arguments, declaredElement);
+      return members.Count == 1
+                ? InfoOf(declaredElement, includeMembers)
+                : string.Join("\n\n", members.Select(it => InfoOf(it, includeMembers)).Prepend(Overloads.Heading(members)));
+   }
+
+   /// <summary>
+   ///   <paramref name="declaredElement"/>'s signature, where it is, its base types, where it is declared and its
+   ///   documentation; with <paramref name="includeMembers"/>, a type's members as well.
+   /// </summary>
+   static string InfoOf(IDeclaredElement declaredElement, bool includeMembers)
+   {
       var lang = declaredElement.PresentationLanguage ?? CSharpLanguage.Instance;
       var sb = new StringBuilder();
 

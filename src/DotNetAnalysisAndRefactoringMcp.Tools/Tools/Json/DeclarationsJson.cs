@@ -6,7 +6,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools.Json;
 
 /// <summary>
 ///   <c>go_to_definition</c>'s answer in the <see cref="JsonFormat">JSON form</see>: one declaration for a symbol found,
-///   several for an ambiguous name, none for a name nothing matches.
+///   one per overload of a member's name, in the order they are declared, several for an ambiguous name, none for a
+///   name nothing matches.
 /// </summary>
 public sealed class DeclarationsJson(List<DeclarationJson> declarations, bool truncated)
 {

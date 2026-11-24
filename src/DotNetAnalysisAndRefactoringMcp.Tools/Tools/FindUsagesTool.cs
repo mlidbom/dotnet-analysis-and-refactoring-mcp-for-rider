@@ -94,8 +94,7 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
       if(error != null) return error;
       using var context = CompilationContexts.For(declaredElement);
 
-      // A member's name stands for all its overloads, as a text search for it would; a position, for the one there.
-      var searched = string.IsNullOrEmpty(arguments["symbolName"]?.ToString()) ? [declaredElement] : Overloads.Of(declaredElement);
+      var searched = Overloads.NamedBy(arguments, declaredElement);
 
       var excludeDeclFile = arguments["excludeDeclarationFile"]?.Value<bool>() ?? false;
       var excludeTests = arguments["excludeTests"]?.Value<bool>() ?? false;

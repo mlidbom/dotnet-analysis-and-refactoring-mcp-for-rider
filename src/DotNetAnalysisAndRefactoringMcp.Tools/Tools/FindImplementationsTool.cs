@@ -23,7 +23,8 @@ public class FindImplementationsTool : IMcpTool
       "Find all implementations of an interface, abstract class, or virtual/abstract member. " +
       "Returns the locations of all concrete implementations in the solution, " +
       "distinguishing direct implementations from indirect ones (via intermediate interfaces). " +
-      "Provide either a symbolName or a file path with position. " +
+      "Provide either a symbolName or a file path with position: a member's name covers every overload of it; a " +
+      "position, the one there. " +
       "Pass multiple symbols via the 'symbols' array to search for several in one call.";
 
    public object InputSchema => new
@@ -74,12 +75,22 @@ public class FindImplementationsTool : IMcpTool
       if(error != null) return error;
       using var context = CompilationContexts.For(declaredElement);
 
-      var skipped = new SkippedElements();
-
       var maxResults = arguments["maxResults"]?.Value<int>() ?? 50;
       if(maxResults <= 0) maxResults = 50;
       if(maxResults > 1000) maxResults = 1000;
 
+      var members = Overloads.NamedBy(arguments, declaredElement);
+      var implementations = members.Select(it => ImplementationsOf(it, maxResults));
+      return string.Join("\n\n", members.Count == 1 ? implementations : implementations.Prepend(Overloads.Heading(members)));
+   }
+
+   /// <summary>
+   ///   The types that inherit <paramref name="declaredElement"/>, or the members that implement or override it, up to
+   ///   <paramref name="maxResults"/>: those that name it directly first.
+   /// </summary>
+   string ImplementationsOf(IDeclaredElement declaredElement, int maxResults)
+   {
+      var skipped = new SkippedElements();
       var implementations = new List<ImplInfo>();
       var hitLimit = false;
 
@@ -192,8 +203,7 @@ public class FindImplementationsTool : IMcpTool
 
       // Format compact output
       var sb = new StringBuilder();
-      sb.Append(declaredElement.GetElementType().PresentableName).Append(' ');
-      sb.Append(declaredElement.ShortName);
+      sb.Append(PsiHelpers.FormatSignature(declaredElement));
       if(hitLimit)
       {
          sb.Append(" — showing ").Append(sorted.Count).Append(" of ").Append(sorted.Count)
