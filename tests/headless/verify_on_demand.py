@@ -172,6 +172,9 @@ def verify(args):
             answer = request("tools/call", dict(name="rename_symbol", arguments=dict(
                 filePath=str(source), line=2, column=14, newName="RenameMustNeverRun", dryRun=False)))
             assert answer.get("isError") and "still opening" in answer["content"][0]["text"], answer
+            # Since 2026-11-24 it says how long the warm-up has run and what it waits for.
+            assert "waits for" in answer["content"][0]["text"], answer
+            print("Still opening:", answer["content"][0]["text"], flush=True)
             wait_until(lambda: first/SOLUTION in listing(), 150, "warm-up after the edit timed out")
             generated(first)
             assert source.read_bytes() == original and source.exists() and not (first/"RenameMustNeverRun.cs").exists()
