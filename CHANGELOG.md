@@ -20,6 +20,7 @@ plugin is a fork of.
 ### Fixed
 
 - A member's name stands for every overload of it in `find_usages`, `go_to_definition`, `get_symbol_info`, `find_implementations` and `get_call_hierarchy`, and in `get_symbol_source` with `allDeclarations`; without it, `get_symbol_source` says how many overloads there are. Each worked on whichever overload ReSharper listed first. A position still stands for the one there. `go_to_definition`'s JSON form gives a declaration for each overload, each with a `signature`
+- A signature, in every tool's text and in the JSON forms' `signature`, writes a parameter's modifiers before its name, `this`, `params`, `ref`, `out`, `in` or `ref readonly`, and its default value after its type, `unit:string = "cm"`: what tells apart overloads such as `TryParse(s:string, out result:int)`. A compiled member's types are written as C# writes them, `int` and `char[]`, where they were `Int32`, and an array's type was left empty
 - `get_call_hierarchy` tells overloads apart, and follows calls from one overload into another; its outgoing tree follows the calls an expression-bodied member makes, which it missed
 - A type declared in parts is shown by the part in the file named after it, `IThreadGate.cs` rather than `IThreadGate.Implementation.cs`, wherever a tool shows one declaration
 - A position past the end of its line answers that the column is outside the line, quoting the line as Rider has it, where it answered that ReSharper failed with an `ArgumentOutOfRangeException`
