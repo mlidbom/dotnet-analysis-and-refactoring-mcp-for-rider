@@ -41,7 +41,8 @@ the sandbox Rider first: a second Rider, with folders of its own, its own tools 
 - `sandbox install` builds the working tree and puts it in the sandbox: only the tools, served from the next call,
   unless the plugin changed, its host or its frontend jar; then the whole plugin, restarting the sandbox if it runs.
 - `sandbox start <solution>` opens a solution in it and returns once the MCP server has it indexed. Call the tools on
-  `http://127.0.0.1:23841/`; `/health` says which tools build serves them.
+  `http://127.0.0.1:23841/`; `/health` says which tools build serves them. `sandbox call <tool> '<arguments as JSON>'`
+  prints a tool's answer as an agent reads it, and its size: what a change to an answer is measured with.
 - The sandbox's window goes, by itself, to the virtual desktop of the Rider that has this repository's solution open,
   on the other monitor, small. `sandbox status` says where it is.
 
