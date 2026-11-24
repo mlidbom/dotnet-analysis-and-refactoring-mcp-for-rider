@@ -48,6 +48,13 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
+- **Unreproduced: RedundantUsingDirective on a `using` only a `cref` needs** (commit-as-the-decision, 2026-11-24).
+  In a Compze worktree, served by the private Rider, `get_diagnostics` flagged `using Compze.Sql.Sqlite._private;`, whose
+  only use was `<see cref="SqliteWriteGate"/>` in a new file's type; removing it made the build warn CS1574. The
+  project generates documentation. In the sandbox, the same shape (a `cref` the only use, documentation on) gets no
+  such finding: ReSharper counts the `cref`. Suspects: a stale model of the new `SqliteWriteGate.cs` when the file was
+  analysed, or the private Rider evaluating Compze's conditional `GenerateDocumentationFile` differently. If it
+  recurs: `get_diagnostics` again after `reload_projects`, in place.
 - **ReSharper's own: a false CS8714 on a C# 14 extension block's member from a package** (tessaging-and-taggregates,
   2026-11-24). `ForTuery((SessionOf it, SessionRecords records) => ...)`, with `TResult` = `Session?`, from
   Compze.Tessaging 0.10.0-alpha: `get_diagnostics` and `inspect_code` report CS8714, "must match 'notnull' constraint",
