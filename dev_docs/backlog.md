@@ -285,21 +285,19 @@ Found while doing this, to fix:
   copy of the fixture solution still registered while other specifications ran. A peer Rider that ends without
   deregistering, crashed or killed, stayed listed until a call to its solution was refused. The server now forgets a
   peer whose port nothing listens on before it routes a request (`PeersThatStoppedListening`).
-- **Two edits of one file in a row can leave Rider's copy of it reverted to the first edit's text,** while disk holds
-  the second's: `When_moving_the_types_of_a_file_one_after_the_other` failed so in two runs of four on 2026-11-24,
-  and once on 2026-11-15. The second move answered "The file wasn't moved: Rider hadn't saved it", with Rider's
-  line 1 `using Shapes.Drawing.Loading;`, which the first move had added, against disk's
-  `namespace Shapes.Drawing.Loading;`. The sandbox backend's log (`backend.2026-11-24_0149.7504.log`): the second
-  move's transaction ended and Rider sent its save at 01:49:45.239; at 45.297 it took in a file system change of
-  `Loader.cs`, and at 45.300 applied it to the document as an external change (`ApplyEXTERNALDocumentChange`,
-  `FileSystemDocumentSynchronizer`), before the frontend had written the second move's text. What sends that late
-  change isn't known yet: the first move's own write, a rescan the second call's disk sync asked for, or Rider's
-  safe write. An agent's second edit would be lost from Rider's copy, and Rider's next autosave would write that copy
-  over disk. Next: find what sends it, then keep an edit from starting while Rider still has a change of its files
-  to take in. `UnsavedDocuments`' remarks hold a relative: a reload from disk during a save that left Rider an empty
-  copy (2026-11-15).
+- *Done 2026-11-24 (`b6adf03`):* **two edits of one file in a row could leave Rider's copy of it at the earlier
+  text,** while disk held the later one. `When_moving_the_types_of_a_file_one_after_the_other` failed so in two runs of
+  four on 2026-11-24, and once on 2026-11-15: the second move answered "The file wasn't moved: Rider hadn't saved it".
+  The cause, from the sandbox's logs and `tests/live_edit_race.py`, which reproduces it with renames: Rider takes in
+  its own save as a change on disk (102 of 104 saves; it skipped the other two as its own), and at times its copy then
+  goes back to the text before the edit (`ApplyEXTERNALDocumentChange` by `FileSystemDocumentSynchronizer`, some 30 ms
+  after the save), as if it had read the file before the frontend wrote the new text; that part is inferred. The save step after
+  an edit now reconciles a copy that went back while its file holds the edit's text, and logs "went back to an older
+  text" each time. Left open: a copy that goes back before the save step first looks counts as saved, and stays so
+  until the next call's disk sync reconciles it.
 - **`When_a_file_declaring_a_type_is_deleted_on_disk.find_usages_by_name_reports_the_symbol_was_not_found` found the
-  deleted type 10 seconds later,** once, in the runs before the first fix. It hasn't recurred in the runs since.
+  deleted type 10 seconds later,** once, in the runs before the first fix. It recurred on 2026-11-24 at 03:34, in one
+  run of three: `search_symbol_by_name_finds_no_declaration` got "DrawingStencil — 1 results" right after the deletion.
 
 The pilot's questions, answers and grading are in `~/.claude/dev_docs/usage/royder-code-understanding-trial.md`;
 `codex-tooling-owner` maintains the shared usage measurements.

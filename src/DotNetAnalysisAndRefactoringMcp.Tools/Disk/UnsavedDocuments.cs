@@ -100,10 +100,10 @@ sealed class UnsavedDocuments
    ///   back to an older one, is reconciled with its file meanwhile.
    /// </summary>
    /// <remarks>
-   ///   Rider takes in its own save of a document as a change on disk, and reads the file for it: mostly after the
-   ///   frontend has written it, at times before, and then its copy goes back to the text before the edit while the file
-   ///   gets the edit's. Its own save was taken in as an external change 102 times in 104 renames in a row, and in one the
-   ///   copy went back (<c>tests/live_edit_race.py</c>, 2026-11-24). Until the next call's <see cref="DiskSync"/>
+   ///   Rider takes in its own save of a document as a change on disk, and at times its copy then goes back to the text
+   ///   before the edit while the file gets the edit's, as if it had read the file before the frontend wrote it. Its own
+   ///   save was taken in as an external change 102 times in 104 renames in a row, and in one the copy went back
+   ///   (<c>tests/live_edit_race.py</c>, 2026-11-24). Until the next call's <see cref="DiskSync"/>
    ///   reconciled it, the PSI had the old text, and a move found the file unsaved and didn't move it.
    /// </remarks>
    /// <param name="edited">The documents the edit changed, with the text it gave them.</param>

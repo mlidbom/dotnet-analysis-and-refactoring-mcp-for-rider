@@ -114,7 +114,10 @@ After an edit tool's work, and before its answer, the documents it changed are s
 Rider saves what a refactoring changed by itself, right after its transaction, so the call first waits half a second for
 that, and then asks the frontend to save what is left (`SaveDocument`), waiting until disk holds their text. A second
 save right after Rider's own once left Rider with an empty copy of the file. Documents that differed from disk before
-the edit are left alone: someone's unsaved typing.
+the edit are left alone: someone's unsaved typing. Rider takes in its own save as a change on disk, and at times its copy
+then goes back to the text before the edit, as if it had read the file before the frontend wrote it: a document whose
+file holds the edit's text while its copy differs is reconciled with disk (`Disk/Reconciliation.cs`), as the disk sync does.
+`tests/live_edit_race.py` reproduces that race in the sandbox.
 
 A tool that moves files (`IMcpFileMovingTool`, such as `move_type_to_namespace`) moves them on disk after that save
 (`Disk/FileMoves.cs`), as `git mv` would, and waits until Rider's project model has them where they went. Not through
@@ -411,6 +414,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   Disk/
     GitChanges.cs                      # Files changed since a git ref (for get_file_errors changedSince)
     DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk, before every call
+    Reconciliation.cs                  # Rider's copy of documents brought back in line with disk, Rider's own way
     DiskText.cs                        # Whether a file on disk holds a document's text (line endings, BOM aside)
     UnsavedDocuments.cs                # An edit's documents saved before the answer: through Rider's frontend, waited for
     DocumentNotSaved.cs                # One that Rider hadn't saved in time, and how its file differed, for the note
