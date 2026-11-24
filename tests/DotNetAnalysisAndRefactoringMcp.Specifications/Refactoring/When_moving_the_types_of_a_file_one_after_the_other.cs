@@ -38,6 +38,9 @@ public class When_moving_the_types_of_a_file_one_after_the_other(TheSandboxWithT
    {
       var path = sandbox.PathOf("Shapes.Drawing/Loading/Loader.cs");
       List<string> answers = [Move("Shapes.Drawing.Moving.ILoader"), Move("Shapes.Drawing.Moving.Loaded")];
+      // Once on 2026-11-24 the file wasn't there, and only the missing path told of it.
+      if(!File.Exists(path))
+         throw new InvalidOperationException($"After the moves the file isn't at {path}. They answered:\n{string.Join("\n---\n", answers)}");
       return new Observed(answers, File.ReadAllText(path), sandbox.McpServer.CallTool("get_file_errors", new { filePath = path }));
 
       string Move(string type) => sandbox.McpServer.CallTool("move_type_to_namespace", new { symbolName = type, newNamespace = "Shapes.Drawing.Loading" });
