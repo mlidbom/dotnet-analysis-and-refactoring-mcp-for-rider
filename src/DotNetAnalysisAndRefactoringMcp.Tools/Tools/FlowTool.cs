@@ -195,7 +195,7 @@ public class FlowTool : IMcpTool
                          StringBuilder sb,
                          string indent)
    {
-      sb.Append(indent).AppendLine(PsiHelpers.FormatSignature(element) + ":");
+      sb.Append(indent).AppendLine(Signature.Of(element) + ":");
 
       // Find block body among declaration children
       var body = FindFirst<IBlock>(decl);
@@ -234,7 +234,7 @@ public class FlowTool : IMcpTool
                          StringBuilder sb,
                          string indent)
    {
-      sb.Append(indent).AppendLine(PsiHelpers.FormatSignature(property) + ":");
+      sb.Append(indent).AppendLine(Signature.Of(property) + ":");
 
       var described = false;
       foreach(var decl in property.GetDeclarations())

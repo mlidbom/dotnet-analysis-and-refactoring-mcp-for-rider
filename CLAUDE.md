@@ -420,7 +420,9 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   Severities.cs                        # "error"/"warning"/... to and from ReSharper's Severity, and their order
   SuperMembers.cs                      # The members a member overrides/implements: what find_usages and call hierarchy follow
   DeclarationSite.cs                   # Where a declaration is: the file, line and column of its name (not its doc comment)
+  DeclarationSource.cs                 # A declaration's whole lines, numbered, under its name, file and lines (get_symbol_source)
   DecompiledSource.cs                  # ReSharper decompiler / metadata view for compiled types
+  Signature.cs                         # A declared element's one-line signature, as every tool writes it: method Mix(first:string) : string
   Disk/
     GitChanges.cs                      # Files changed since a git ref (for get_file_errors changedSince)
     DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk, before every call

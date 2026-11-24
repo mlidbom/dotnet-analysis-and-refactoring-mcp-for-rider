@@ -1,9 +1,8 @@
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
-using JetBrains.ReSharper.Psi.Tree;
 using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
@@ -24,9 +23,10 @@ public class GetSymbolSourceTool : IMcpAlwaysLoadedTool
       "Get the FULL declaration source code of a symbol (class, method, property, etc.), " +
       "not just a short snippet. Provide either a symbolName (e.g. 'MyClass' or " +
       "'Namespace.MyClass') or a file path with position (line/column). " +
+      "Answers the declaration's whole lines, numbered as a file read shows them, under 'Name — path:first-last'. " +
       "By default returns only the primary declaration; set allDeclarations=true to return " +
-      "every partial declaration / overload. Large bodies are capped and flagged as truncated. " +
-      "Symbols compiled into referenced DLLs return their type's source decompiled by ReSharper, as plain text.";
+      "every partial declaration / overload. A declaration over 20,000 characters is cut at a line, saying where to read on. " +
+      "Symbols compiled into referenced DLLs return their type's source decompiled by ReSharper.";
 
    public object InputSchema => new
                                 {
@@ -58,48 +58,23 @@ public class GetSymbolSourceTool : IMcpAlwaysLoadedTool
 
       var allDeclarations = arguments["allDeclarations"]?.Value<bool>() ?? false;
       var overloads = Overloads.Of(declaredElement);
+      var members = allDeclarations ? overloads : [declaredElement];
+      var sources = members.SelectMany(member => MainDeclaration.InOrder(member).Select(it => DeclarationSource.Of(member, it)).OfType<DeclarationSource>())
+                           .Take(allDeclarations ? int.MaxValue : 1)
+                           .ToList();
 
-      var declarationResults = new List<object>();
+      if(sources.Count == 0)
+         return DecompiledSource.Of(_solution, declaredElement) is {} decompiled
+                   ? Decompiled(declaredElement, decompiled)
+                   : $"{PsiHelpers.GetQualifiedName(declaredElement)} — no source declarations (may be source-generated)";
 
-      foreach(var member in allDeclarations ? overloads : [declaredElement])
-         foreach(var decl in MainDeclaration.InOrder(member))
-         {
-            var info = BuildDeclarationInfo(decl);
-            if(info == null) continue;
+      var answer = new StringBuilder();
+      if(members.Count > 1)
+         answer.Append(Overloads.Heading(members)).Append("\n\n");
+      else if(overloads.Count > 1)
+         answer.Append($"One of {overloads.Count} overloads of {PsiHelpers.GetQualifiedName(declaredElement)}: allDeclarations: true gives them all; filePath, line and column pick one.\n\n");
 
-            declarationResults.Add(info);
-
-            if(!allDeclarations) break;
-         }
-
-      // A symbol compiled into a referenced assembly: its type, decompiled, as plain text.
-      if(declarationResults.Count == 0 && DecompiledSource.Of(_solution, declaredElement) is {} decompiled)
-         return Decompiled(declaredElement, decompiled);
-
-      // No source declaration and nothing to decompile (e.g. source-generated): return location-only.
-      if(declarationResults.Count == 0)
-      {
-         declarationResults.Add(new Dictionary<string, object>
-                                {
-                                   ["file"] = null,
-                                   ["startLine"] = 0,
-                                   ["startColumn"] = 0,
-                                   ["endLine"] = 0,
-                                   ["endColumn"] = 0,
-                                   ["source"] = null,
-                                   ["truncated"] = false
-                                });
-      }
-
-      var answer = new Dictionary<string, object>
-                   {
-                      ["symbol"] = declaredElement.ShortName,
-                      ["qualifiedName"] = PsiHelpers.GetQualifiedName(declaredElement),
-                      ["declarations"] = declarationResults
-                   };
-      if(!allDeclarations && overloads.Count > 1)
-         answer["overloads"] = $"This is one of {overloads.Count}. allDeclarations: true returns them all; filePath, line and column pick one.";
-      return answer;
+      return answer.Append(string.Join("\n\n", sources.Select(it => it.Text(MaxSourceLength)))).ToString();
    }
 
    static string Decompiled(IDeclaredElement element, DecompiledSource decompiled)
@@ -116,34 +91,5 @@ public class GetSymbolSourceTool : IMcpAlwaysLoadedTool
          source = source.Substring(0, MaxSourceLength) + "\n... (truncated)";
 
       return text.Append(source).ToString().TrimEnd();
-   }
-
-   static Dictionary<string, object> BuildDeclarationInfo(IDeclaration decl)
-   {
-      var range = TreeNodeExtensions.GetDocumentRange(decl);
-      if(!range.IsValid()) return null;
-
-      var sourceFile = decl.GetSourceFile();
-      var (startLine, startColumn) = PsiHelpers.GetLineColumn(range.StartOffset);
-      var (endLine, endColumn) = PsiHelpers.GetLineColumn(range.EndOffset);
-
-      var source = range.Document.GetText(range.TextRange);
-      var truncated = false;
-      if(source != null && source.Length > MaxSourceLength)
-      {
-         source = source.Substring(0, MaxSourceLength) + "...";
-         truncated = true;
-      }
-
-      return new Dictionary<string, object>
-             {
-                ["file"] = sourceFile?.GetLocation().FullPath,
-                ["startLine"] = startLine,
-                ["startColumn"] = startColumn,
-                ["endLine"] = endLine,
-                ["endColumn"] = endColumn,
-                ["source"] = source,
-                ["truncated"] = truncated
-             };
    }
 }

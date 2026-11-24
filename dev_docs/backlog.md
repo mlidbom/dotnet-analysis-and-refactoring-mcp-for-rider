@@ -36,8 +36,8 @@ bites now and then. In the order to build them:
    where it stopped, not one symbol's source.
 3. **`get_call_hierarchy`'s incoming tree:** the same text outline, with each call site's line of code, as `find_usages`
    shows it, so the agent sees what is passed without opening the file.
-4. **`get_symbol_source`'s answer:** the source is a JSON string, every newline and quote escaped, without line numbers.
-   Wanted: plain text with line numbers, as a file read shows it, under a `Type.Member — path:start-end` line.
+
+`get_symbol_source`'s answer, item 4 here until 2026-11-24, is text now: see the done items below.
 
 **The scope a call tree follows,** for the outgoing tree and `get_reachable_source`: by default the solution's own
 code, which no configuration needs and which removes the noise measured above. Arguments narrow it to namespaces, or
@@ -86,6 +86,15 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   The headless host has no frontend to service that rescan. In the spike a tracker commit removed the symbol and
   reloading the owning project removed the remaining empty project item.
   [Headless observations](../experiments/HeadlessHost/README.md#freshness-in-the-standalone-fixture)
+  In a full run of the specifications on 2026-11-24 (optimize-royder, `fe41343`), two of
+  `When_a_file_declaring_a_type_is_deleted_on_disk` failed: `search_symbol` still found the type, and
+  `get_file_errors` on the referencing file answered 0 diagnostics. Run alone, and in the next full run, they passed.
+  So the first call after a deletion can still miss it, depending on what ran before.
+- **`get_diagnostics` takes one `filePath`, and drops a `filePaths` without a word** (optimize-royder, 2026-11-24).
+  Its siblings `get_file_errors` and `inspect_code` take `filePaths`, so an agent passes it; the call then names no
+  file, and the router answers "Multiple solutions are open", which points at routing, not at the argument. Wanted:
+  `filePaths` through `ToolBatch`, as `get_file_errors` has it; and for every tool, an argument its schema doesn't
+  have refused by name, with what the tool does take.
 - `search_symbol` with `includeLibraries` finds a compiled member only as `Type.Member`, not by its name alone
   (`GetProjectMark` gives none): scanning every compiled type's members takes seconds. An index of member names
   would do it.
@@ -301,8 +310,17 @@ Found while doing this, to fix:
   merged overloads, and never followed one overload's call into another; it uses ReSharper's
   `DeclaredElementEqualityComparer` now, and a node whose member has overloads carries its signature. Its outgoing
   tree also missed every call an expression-bodied member makes: it read the member's block `Body`, which such a
-  member hasn't. Left open: a
+  member hasn't. Deployed and checked on the everyday Royder: `StringBuilder.Insert` by name gives all 18 overloads;
+  `tooling-owner` was told that its C# rule's "Ours shows one overload of a compiled method" is stale. Left open: a
   parameter list in the name doesn't pick one overload, since `SymbolName` strips it.
+- *Done 2026-11-24:* **a compiled member's signature lost its arrays, and no signature showed `ref`, `out`, `params`
+  or defaults** (seen on `StringBuilder.Insert` while checking the overloads above): `Insert(index:Int32, value:)`
+  for the `char[]` overload, so an agent writing a call to one overload went to Sherlock. `Signature.Of` writes
+  compiled members' types in C#, a parameter's modifiers before its name, `this` on an extension method's receiver,
+  and a default value after its type. `symbol-linker`, whose picker shows the JSON `signature`, was told first;
+  `tooling-owner` is to be told once it is deployed, since its C# rule still sends agents to Sherlock for them.
+- *Done 2026-11-24:* **`get_symbol_source` answers in text** ("Next" item 4 above): a declaration's whole lines,
+  numbered, under `Name — path:first-last` (`DeclarationSource`), cut at a line past 20,000 characters.
 - *Done 2026-11-24:* **`list_symbols_in_file` lost a type's nesting after a generic method:** in Compze's
   `IThreadGate.cs`, the members after `ExecuteWithExclusiveLockWhen<TResult>` came under a "(IThreadGate)" heading.
   ReSharper models a type parameter as a type, and the outline took it for a nested type's heading. Type parameters

@@ -93,7 +93,7 @@ public class GetSymbolInfoTool : IMcpTool
       var sb = new StringBuilder();
 
       // Header: compact signature
-      sb.AppendLine(PsiHelpers.FormatSignature(declaredElement));
+      sb.AppendLine(Signature.Of(declaredElement));
 
       // Containing type / namespace
       if(declaredElement is IClrDeclaredElement clrElement)
@@ -150,7 +150,7 @@ public class GetSymbolInfoTool : IMcpTool
    /// </summary>
    static string NameOf(ITypeElement containingType) =>
       containingType is ITypeExtension block && block.GetContainingType() is {} staticClass
-         ? $"{staticClass.GetClrName().FullName}, {PsiHelpers.FormatSignature(block)}"
+         ? $"{staticClass.GetClrName().FullName}, {Signature.Of(block)}"
          : containingType.GetClrName().FullName;
 
    static void AppendXmlDocumentation(StringBuilder sb, IDeclaredElement declaredElement)
