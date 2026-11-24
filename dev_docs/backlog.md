@@ -48,6 +48,12 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
+- **`rename_symbol`'s conflicts don't say where they are** (state-store-in-tables, 2026-11-24). "Usage of
+  IMemoryImageStateStore.ChangesCommittedElsewhere cannot be updated correctly" named no file or line. Since
+  `0cfccae` a rename with such an error conflict is refused unless `applyDespiteConflicts` is true, so nothing is
+  written broken; to fix the usage first, the agent still has to find it. ReSharper's `Conflict` keeps its parts as
+  navigation points (`IConflictPart`, `Conflicts.NavigationPoints`): reading them gives the location. Not reproduced
+  yet: the same shape in the fixture, a qualified `cref` in another type, renamed without a conflict.
 - **Unreproduced: RedundantUsingDirective on a `using` only a `cref` needs** (commit-as-the-decision, 2026-11-24).
   In a Compze worktree, served by the private Rider, `get_diagnostics` flagged `using Compze.Sql.Sqlite._private;`, whose
   only use was `<see cref="SqliteWriteGate"/>` in a new file's type; removing it made the build warn CS1574. The
