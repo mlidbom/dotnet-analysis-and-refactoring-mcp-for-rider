@@ -373,6 +373,15 @@ Found while doing this, to fix:
   Learned restarting it: `Stop-ScheduledTask RoyderPrimary` ends the console wrapper and leaves `Royder.Primary.exe`
   running; end the process itself. `verify_on_demand.py` left its private Rider running after a failed run, holding
   its ports; end it before the next run. Its calls now retry "still opening", as an agent does.
+- **A call in the window after the private cluster's primary backend closes gets "Solution … not found"** (from
+  optimize-royder, 2026-11-25 00:05: `get_symbol_info` with its absolute `ReSharperMcp.sln` answered "not found.
+  Available solutions: 'ClaudeTooling'", the next call "still opening" for over two minutes). When the backend on the
+  cluster's base port closes, a peer takes the port, and the other peers' registrations are restored only by
+  `RiderBackendCluster.WaitForRouting`'s repair at the end of that close. A call forwarded before then gets the new
+  cluster primary's refusal verbatim, and the primary, finding no health row, invalidates the worktree: the next call
+  closes a healthy backend and opens it cold. On 2026-11-24 the repair never ran at all, since its sibling check waited
+  for a backend the primary could not identify (fixed in `72f6d97`); the window remains. Better: on that refusal for
+  a live backend, repair the registration and forward once more, instead of invalidating.
 - **The supervisor's record of the private Rider's processes grows without bound** (found 2026-11-25). `Supervise.ps1`
   keeps every process ever seen in the job in `observed` and writes all of it to `state.json` at each change of
   membership; the primary parses that file every 150–250 ms while a close waits for workers. After 90 minutes: 23,628
