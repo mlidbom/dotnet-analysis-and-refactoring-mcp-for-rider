@@ -258,19 +258,48 @@ Found while doing this, to fix:
   tools folder for its host, swapping between calls as the desktop Riders do, and the primary checks the host's hash
   rather than the exact build. Verified at 01:02 local time: `everyday deploy` swapped the private Rider's
   `ReSharperMcp.sln` to the new build with the desktop Riders', at its next call.
-- **A cold open's first call answered "The operation timed out."** (2026-11-24, about 00:47 local time), for
-  `go_to_definition` on `Deskmancer.slnx` and on `Compze.AllProjects.slnx`. The same calls a minute later answered.
-  The primary's own message on a cold open's timeout says the solution is still opening and to retry; this one didn't
-  come from it, and the primary's log has no line for either call. An agent given this would likely fall back to text
-  search. The call log (step 1) would show where it came from: Claude Code's client or the desktop routing.
-- **`get_symbol_source` with `allDeclarations: true` returned one overload** of `NoteSerializer.Serialize` in JAStudio,
-  which has four. Its description promises every overload.
-- **`list_symbols_in_file` loses a type's nesting after a generic method:** in Compze's `IThreadGate.cs`, the members
-  after `ExecuteWithExclusiveLockWhen<TResult>` come under a "(IThreadGate)" heading, after its type parameter.
-- **Two specification runs out of three failed on what this change doesn't touch.** One:
-  `When_a_file_declaring_a_type_is_deleted_on_disk.find_usages_by_name_reports_the_symbol_was_not_found` found the
-  deleted type 10 seconds later. Two: 73 failures with "Multiple solutions are open", the peer sandbox's copy of the
-  fixture solution still registered while other specifications ran. The third run passed all 187.
+- *Done 2026-11-24 (`0204169`):* **calls that ran 60 seconds answered "The operation timed out."** That is Claude
+  Code's: it gives up on an MCP call after 60 seconds (`mine.py failures`: four calls, each after exactly 60 seconds;
+  no call through it ever answered after 49). The primary's cold-open wait was 60 seconds too, so its own "still
+  opening" answer lost the race; and a call that ran long once the solution was open, the first symbol-wide `find_usages`
+  on a worktree the primary had open, had no answer of its own at all. Two agents fell back to grep. The primary now
+  answers every call within 55 seconds (`AnswerDeadline`): "still opening", or that Rider is still at the call, which
+  goes on.
+- *Done 2026-11-24:* **`get_symbol_source` with `allDeclarations: true` returned one overload** of
+  `NoteSerializer.Serialize` in JAStudio, which has four. It returns every overload now (`Overloads`), and without
+  `allDeclarations` it says how many there are.
+- **A member's name stands for one of its overloads, in the tools that take a name:** name lookup keeps one
+  candidate per qualified name, and overloads share theirs, so a tool works on whichever overload ReSharper lists
+  first, and says nothing of the others. A parameter list in the name doesn't pick one either: `SymbolName` strips it.
+  *`find_usages` covers every overload of a name since 2026-11-24 (`68e93b1`).* Next: the call hierarchy,
+  `find_implementations`, `get_symbol_info` and `go_to_definition` the same way.
+- *Done 2026-11-24:* **`list_symbols_in_file` lost a type's nesting after a generic method:** in Compze's
+  `IThreadGate.cs`, the members after `ExecuteWithExclusiveLockWhen<TResult>` came under a "(IThreadGate)" heading.
+  ReSharper models a type parameter as a type, and the outline took it for a nested type's heading. Type parameters
+  are left out now, as parameters are, unless `includeLocals` asks for them.
+- *Done 2026-11-24:* **a position past the end of its line answered "ReSharper failed to resolve the reference at
+  56:19 (ArgumentOutOfRangeException)"** (`fix-half-deleted-worktrees`, `get_symbol_source` in `ProcessId.cs`, whose
+  method had moved four lines down). The position is checked against the file first now, and the answer quotes the
+  line as Rider has it.
+- *Done 2026-11-24 (`52d5780`):* **73 specifications failed with "Multiple solutions are open"**, the peer sandbox's
+  copy of the fixture solution still registered while other specifications ran. A peer Rider that ends without
+  deregistering, crashed or killed, stayed listed until a call to its solution was refused. The server now forgets a
+  peer whose port nothing listens on before it routes a request (`PeersThatStoppedListening`).
+- **Two edits of one file in a row can leave Rider's copy of it reverted to the first edit's text,** while disk holds
+  the second's: `When_moving_the_types_of_a_file_one_after_the_other` failed so in two runs of four on 2026-11-24,
+  and once on 2026-11-15. The second move answered "The file wasn't moved: Rider hadn't saved it", with Rider's
+  line 1 `using Shapes.Drawing.Loading;`, which the first move had added, against disk's
+  `namespace Shapes.Drawing.Loading;`. The sandbox backend's log (`backend.2026-11-24_0149.7504.log`): the second
+  move's transaction ended and Rider sent its save at 01:49:45.239; at 45.297 it took in a file system change of
+  `Loader.cs`, and at 45.300 applied it to the document as an external change (`ApplyEXTERNALDocumentChange`,
+  `FileSystemDocumentSynchronizer`), before the frontend had written the second move's text. What sends that late
+  change isn't known yet: the first move's own write, a rescan the second call's disk sync asked for, or Rider's
+  safe write. An agent's second edit would be lost from Rider's copy, and Rider's next autosave would write that copy
+  over disk. Next: find what sends it, then keep an edit from starting while Rider still has a change of its files
+  to take in. `UnsavedDocuments`' remarks hold a relative: a reload from disk during a save that left Rider an empty
+  copy (2026-11-15).
+- **`When_a_file_declaring_a_type_is_deleted_on_disk.find_usages_by_name_reports_the_symbol_was_not_found` found the
+  deleted type 10 seconds later,** once, in the runs before the first fix. It hasn't recurred in the runs since.
 
 The pilot's questions, answers and grading are in `~/.claude/dev_docs/usage/royder-code-understanding-trial.md`;
 `codex-tooling-owner` maintains the shared usage measurements.

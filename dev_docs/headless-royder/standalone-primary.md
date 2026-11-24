@@ -110,8 +110,12 @@ checks the package's own build.
 
 - A cold `tools/list` works immediately. File tools open a trusted main checkout or linked worktree on first use. Use an
   absolute `.sln` or `.slnx` in `solutionName` when solution discovery is ambiguous. Use `warm_worktree` with
-  `solutionPath` to start it explicitly. Concurrent callers share one open. The first call waits up to 60 seconds.
-  On timeout only the warm-up continues. Tool calls, including edits, are dispatched once.
+  `solutionPath` to start it explicitly. Concurrent callers share one open. Tool calls, including edits, are
+  dispatched once.
+- Every tool call is answered within `answerWithinSeconds`, 55 by default, since Claude Code gives up on an MCP call
+  after 60 seconds and then tells the agent only "The operation timed out.". A cold open still running by then answers
+  that the solution is still opening, and only the warm-up continues. A call Rider is still working on answers that
+  it goes on in Rider: an edit in it still lands.
 - `list_solutions` lists solutions open at the time of the call. Its `hint` explains how to open another trusted
   checkout, including when the list is empty. The primary checks the local TCP listener table before contacting
   ordinary Rider, so a closed desktop endpoint adds no connection-refusal wait.
