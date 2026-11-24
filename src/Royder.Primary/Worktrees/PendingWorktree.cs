@@ -7,10 +7,15 @@ sealed class PendingWorktree
    readonly Lazy<Task<ManagedWorktree>> _ready;
 
    public string Solution { get; }
-   public PendingWorktree(string solution, Func<CancellationToken, Task<ManagedWorktree>> start)
+
+   /// <summary>How far it has come, for a call that comes before it is done.</summary>
+   public WarmUp WarmUp { get; }
+
+   public PendingWorktree(string solution, TimeProvider clock, Func<WarmUp, CancellationToken, Task<ManagedWorktree>> start)
    {
       Solution = solution;
-      _ready = new(() => start(_closed.Token));
+      WarmUp = new WarmUp(clock);
+      _ready = new(() => start(WarmUp, _closed.Token));
    }
 
    public Task<ManagedWorktree> Ready => _ready.Value;

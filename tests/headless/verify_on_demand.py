@@ -124,7 +124,7 @@ def verify(args):
 
     def tool(name, args):
         # The primary answers a call to a solution still opening within its deadline, saying so: retry it, as an agent
-        # does. The opening itself gives up after 4 minutes.
+        # does. Four minutes covers a cold open on an idle machine many times over.
         end = time.monotonic() + 240
         while True:
             result = request("tools/call", dict(name=name, arguments=args))

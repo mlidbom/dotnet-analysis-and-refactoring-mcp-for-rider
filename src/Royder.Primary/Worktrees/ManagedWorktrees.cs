@@ -23,70 +23,91 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
       await base.StartAsync(cancel);
    }
 
+   /// <summary>How long Rider may take to open a solution, once no other worktree's open or close is in the way.</summary>
+   static readonly TimeSpan HowLongOpeningMayTake = TimeSpan.FromMinutes(4);
+
+   /// <summary>
+   ///   How long Rider may take, once it has a solution open, to load its projects, index it and run its source
+   ///   generators, before the warm-up fails and its project is closed.
+   /// </summary>
+   /// <remarks>
+   ///   Until 2026-11-24 the four minutes of <see cref="HowLongOpeningMayTake"/> covered this too, counted from the call
+   ///   that started the warm-up, the time queued behind other worktrees included. A build in a Compze worktree made the
+   ///   private Rider reload all 117 of its projects in the middle of the warm-up, and its source generators waited for
+   ///   that: the warm-up failed twice, each next call started over from a cold open, and an agent was told "still
+   ///   opening" for 20 minutes. The open that the build left alone was ready in 2 minutes.
+   /// </remarks>
+   static readonly TimeSpan HowLongWarmingUpMayTake = TimeSpan.FromMinutes(15);
+
    public async Task<ManagedWorktree.Lease> Use(RegisteredWorktree registration, string solution, AnswerDeadline deadline, CancellationToken wait)
    {
       if(_open.TryGetValue(registration.Root, out var existing) && existing.Registration == registration &&
          RegisteredWorktree.SamePath(existing.SolutionPath, solution) && !existing.SolutionFileChanged && existing.TryUse() is { } lease) return lease;
-      var start = _starting.GetOrAdd(registration, _ => new PendingWorktree(solution, cancel => Start(registration, solution, cancel)));
+      var start = _starting.GetOrAdd(registration, _ => new PendingWorktree(solution, clock, (warmUp, cancel) => Start(registration, solution, warmUp, cancel)));
       var ready = start.Ready;
       ManagedWorktree opened;
       try { opened = await deadline.Awaited(ready, wait); }
       catch(TimeoutException) when(!ready.IsCompleted)
       {
-         throw new InvalidOperationException($"'{solution}' is still opening or indexing, which takes about a minute from a cold start. Only the warm-up continues: retry the tool call in half a minute.");
+         throw new InvalidOperationException($"'{start.Solution}' is still opening, which takes about a minute from a cold start: {start.WarmUp}. Only the warm-up continues: retry the tool call in half a minute.");
       }
       if(!RegisteredWorktree.SamePath(opened.SolutionPath, solution)) throw new InvalidOperationException($"This worktree already serves '{opened.SolutionPath}'.");
       if(Registration(registration.Root) != registration) throw new InvalidOperationException("The worktree changed during startup.");
       return opened.TryUse() ?? throw new InvalidOperationException("This worktree is closing.");
    }
 
-   async Task<ManagedWorktree> Start(RegisteredWorktree registration, string solution, CancellationToken stop)
+   async Task<ManagedWorktree> Start(RegisteredWorktree registration, string solution, WarmUp warmUp, CancellationToken stop)
    {
-      using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop, lifetime.ApplicationStopping);
-      deadline.CancelAfter(TimeSpan.FromMinutes(4));
-      var cancel = deadline.Token;
+      using var stopping = CancellationTokenSource.CreateLinkedTokenSource(stop, lifetime.ApplicationStopping);
       try
       {
-         return await OpenProject(registration, solution, cancel);
+         return await OpenProject(registration, solution, warmUp, stopping.Token);
       }
-      catch(Exception ex) { log.LogWarning("Opening {Solution}: {Reason}", solution, ex.Message); throw; }
+      catch(Exception ex) { log.LogWarning("Opening {Solution}, {WarmUp}: {Reason}", solution, warmUp, ex.Message); throw; }
       finally { _starting.TryRemove(registration, out _); }
    }
 
-   async Task<ManagedWorktree> OpenProject(RegisteredWorktree registration, string solution, CancellationToken cancel)
+   async Task<ManagedWorktree> OpenProject(RegisteredWorktree registration, string solution, WarmUp warmUp, CancellationToken cancel)
    {
       ManagedWorktree? opened = null;
       try
       {
+         ManagedWorktree project;
          await _changes.WaitAsync(cancel);
          try
          {
             if(Registration(registration.Root) != registration) throw new InvalidOperationException("The requested Git registration changed.");
-            if(_open.TryGetValue(registration.Root, out var existing))
+            _open.TryGetValue(registration.Root, out var existing);
+            if(existing != null && existing.Registration == registration && existing.Ready && !existing.SolutionFileChanged) return existing;
+            warmUp.WaitsFor("Rider to open the solution");
+            project = await Within(HowLongOpeningMayTake, "Opening the solution in Rider", cancel, async opening =>
             {
-               if(existing.Registration == registration && existing.Ready && !existing.SolutionFileChanged) return existing;
-               await Close(existing, existing.Registration != registration, cancel);
-            }
-            await RequireNoOrdinaryRider(registration, cancel);
-            cancel.ThrowIfCancellationRequested();
-            opened = new ManagedWorktree(registration, solution, clock);
-            journal.Opening(registration, solution);
-            _open[registration.Root] = opened;
-            await host.OpenAsync(registration, solution, cancel);
+               if(existing != null) await Close(existing, existing.Registration != registration, opening);
+               await RequireNoOrdinaryRider(registration, opening);
+               opening.ThrowIfCancellationRequested();
+               opened = new ManagedWorktree(registration, solution, clock);
+               journal.Opening(registration, solution);
+               _open[registration.Root] = opened;
+               await host.OpenAsync(registration, solution, opening);
+               return opened;
+            });
          }
          finally { _changes.Release(); }
 
-         await readiness.Wait(opened, cancel);
-         await _changes.WaitAsync(cancel);
-         try
+         return await Within(HowLongWarmingUpMayTake, "Loading, indexing and generating the solution's sources in Rider", cancel, async warming =>
          {
-            if(!_open.TryGetValue(registration.Root, out var current) || current != opened || Registration(registration.Root) != registration)
-               throw new InvalidOperationException("The worktree changed during startup.");
-            await RequireNoOrdinaryRider(registration, cancel);
-            opened.MarkReady();
-            return opened;
-         }
-         finally { _changes.Release(); }
+            await readiness.Wait(project, warmUp, warming);
+            await _changes.WaitAsync(warming);
+            try
+            {
+               if(!_open.TryGetValue(registration.Root, out var current) || current != project || Registration(registration.Root) != registration)
+                  throw new InvalidOperationException("The worktree changed during startup.");
+               await RequireNoOrdinaryRider(registration, warming);
+               project.MarkReady();
+               return project;
+            }
+            finally { _changes.Release(); }
+         });
       }
       catch(Exception openingFailure)
       {
@@ -102,6 +123,21 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
             finally { _changes.Release(); }
          }
          throw;
+      }
+   }
+
+   /// <summary>
+   ///   The result of <paramref name="step"/>, a step of a warm-up, which is given up with a <see cref="TimeoutException"/>
+   ///   naming it, <paramref name="what"/>, once it has taken <paramref name="limit"/>.
+   /// </summary>
+   static async Task<T> Within<T>(TimeSpan limit, string what, CancellationToken cancel, Func<CancellationToken, Task<T>> step)
+   {
+      using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+      deadline.CancelAfter(limit);
+      try { return await step(deadline.Token); }
+      catch(OperationCanceledException) when(deadline.IsCancellationRequested && !cancel.IsCancellationRequested)
+      {
+         throw new TimeoutException($"{what} took longer than {limit.TotalMinutes} minutes.");
       }
    }
 
