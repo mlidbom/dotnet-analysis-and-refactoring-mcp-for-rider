@@ -2,6 +2,7 @@ package dev.magnus.royder.remotecloseworktree;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -26,6 +27,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 /** Opens or adopts one exact solution. Requests racing to open it share the same Rider operation. */
 public final class OpenWorktreeService extends ManagedWorktreeService {
+   private static final Logger LOG = Logger.getInstance(OpenWorktreeService.class);
    private final ConcurrentHashMap<Path, CompletableFuture<WorktreeReply>> opening = new ConcurrentHashMap<>();
 
    @Override protected String getServiceName() { return "royder-open-worktree"; }
@@ -76,7 +78,8 @@ public final class OpenWorktreeService extends ManagedWorktreeService {
          }).join();
          return existing != null ? existing : openInRider(solution, disk, openId);
       } catch (IOException error) {
-         return new WorktreeReply(CONFLICT, "Cannot establish the worktree's filesystem identity");
+         LOG.warn("Cannot establish the filesystem identity of " + solution, error);
+         return new WorktreeReply(CONFLICT, "Cannot establish the worktree's filesystem identity: " + error.getMessage());
       }
    }
 

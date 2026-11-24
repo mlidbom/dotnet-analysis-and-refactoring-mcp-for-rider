@@ -34,6 +34,14 @@ record WorktreeDiskIdentity(String directoryId, Path gitMarker, String markerId)
 
       // Windows NIO in this Rider runtime returns null for fileKey. fsutil reads NTFS's ID without elevation
       // or keeping a directory handle across requests; the volume serial qualifies the ID across mount points.
+      // On 2026-11-24 two opens failed with the identity unread, while the JVM processed a storm of VFS events; the
+      // cause wasn't logged, and fsutil outlasting the 3 s it had then is the likely one. So it gets 20 s, and a
+      // second try; OpenWorktreeService now logs why it failed.
+      try { return queriedFileId(path); }
+      catch (IOException first) { return queriedFileId(path); }
+   }
+
+   private static String queriedFileId(Path path) throws IOException {
       var systemRoot = System.getenv("SystemRoot");
       if (systemRoot == null) throw new IOException("No filesystem identity available for " + path);
       var volume = Files.getFileStore(path).getAttribute("volume:vsn");
@@ -41,7 +49,7 @@ record WorktreeDiskIdentity(String directoryId, Path gitMarker, String markerId)
       var query = new ProcessBuilder(fsutil.toString(), "file", "queryfileid", path.toString())
          .directory(fsutil.getParent().toFile()).redirectErrorStream(true).start();
       try (var output = query.getInputStream()) {
-         if (!query.waitFor(3, TimeUnit.SECONDS)) throw new IOException("Filesystem identity query timed out");
+         if (!query.waitFor(20, TimeUnit.SECONDS)) throw new IOException("Filesystem identity query timed out for " + path);
          var id = WINDOWS_FILE_ID.matcher(new String(output.readAllBytes(), US_ASCII));
          if (query.exitValue() != 0 || !id.find()) throw new IOException("Cannot identify " + path);
          return volume + "/" + id.group();
