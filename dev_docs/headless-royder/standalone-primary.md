@@ -127,6 +127,9 @@ they have closed, which they do after 30 idle minutes (`idleSeconds`), for an ho
   non-applicability. The primary checks that the staged tools are serving. Its health response also lists the
   worktrees currently opening.
 - `close_worktree` closes an agent project and waits for its workers. Unused agent projects close after 30 minutes (`idleSeconds`), and the private Rider with the last of them: an agent calling every 10 to 20 minutes otherwise met a cold start nearly every time.
+- When an agent project's solution file changes, such as by a project added to it, the primary closes the project
+  once it is idle, or at the next call, and that call reopens it with the whole solution. The private Rider's own
+  reload took in only the projects the edit touched and dropped the rest (2026-11-24).
   Ordinary Rider stays running. To close and remove a worktree under the same lifecycle operation, run
   `Royder.Primary remove-worktree <settings.json> <absolute-worktree-root>`. The command uses a Windows named pipe restricted to the current user. Git uses its ordinary clean-worktree
   checks. This command refuses a main checkout, an untrusted repository, a changed registration and a worktree
@@ -144,7 +147,8 @@ With a built package, the following test creates a disposable repository and exe
 It checks two racing first calls, generated source references in each worktree, independent removal and replacement,
 and release of the final idle host. Include `--main-checkout` to exercise a real rename in the main checkout, check
 its existing project settings byte-for-byte and timestamp-for-timestamp, and verify that a removal request leaves
-it open. Run with `--check-timeout` to verify a timed-out cold edit never executes.
+it open. Run with `--check-timeout` to verify a timed-out cold edit never executes. `--check-solution-edit` verifies that a project added to an open solution's file
+joins the others.
 
 ~~~powershell
 python -B tests/headless/verify_on_demand.py --primary C:/Royder/packages/current-build/Royder.Primary.dll --assets C:/Royder/packages/current-build/RiderHost --check-replacement --check-idle

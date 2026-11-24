@@ -306,6 +306,15 @@ Found while doing this, to fix:
   waited for it, and then started a new Rider. The agent took "still opening" as a reason to fall back to grep. Now:
   30 idle minutes (`idleSeconds`), and the answer says opening takes about a minute and to retry in half a minute.
   Left open: a call that comes during an idle close waits for the close and then a cold start.
+- *Done 2026-11-24 (`92805e0`):* **a project added to a worktree's `.slnx` left Royder with 2 of its 30 projects**
+  (`surrogate-session-ids`). The private Rider reloaded the solution with the projects the edit touched only:
+  `rename_symbol` refused, files were "in no project", and `reload_projects` found neither their projects nor the
+  `.slnx`. Now the primary reopens a managed project whose solution file changed since it was ready;
+  `verify_on_demand.py --check-solution-edit` checks it. Left open:
+  - **`reload_projects` refuses a `.sln`/`.slnx`** ("No project found"). It could reload the solution, or say how.
+  - **A desktop Rider takes in an edit of the solution file late:** the sandbox did nothing for over a minute, until a
+    call named the file and its rescan made Rider reload. `DiskChanges`, in the host, reports source files only; the
+    solution and project files could be rescanned as they change.
 - *Done 2026-11-24:* **a worktree's solution answered "still opening" for about 40 minutes** (`publish-reuses-a-passed-run`,
   11:28 to past 11:50). The private Rider had it indexed, with its source generators ready, from 11:11. But the
   primary's opens failed, in its log: "Supervisor did not confirm fresh job membership after close", then "Cannot
