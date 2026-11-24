@@ -57,18 +57,20 @@ public class GetSymbolSourceTool : IMcpAlwaysLoadedTool
       using var context = CompilationContexts.For(declaredElement);
 
       var allDeclarations = arguments["allDeclarations"]?.Value<bool>() ?? false;
+      var overloads = Overloads.Of(declaredElement);
 
       var declarationResults = new List<object>();
 
-      foreach(var decl in MainDeclaration.InOrder(declaredElement))
-      {
-         var info = BuildDeclarationInfo(decl);
-         if(info == null) continue;
+      foreach(var member in allDeclarations ? overloads : [declaredElement])
+         foreach(var decl in MainDeclaration.InOrder(member))
+         {
+            var info = BuildDeclarationInfo(decl);
+            if(info == null) continue;
 
-         declarationResults.Add(info);
+            declarationResults.Add(info);
 
-         if(!allDeclarations) break;
-      }
+            if(!allDeclarations) break;
+         }
 
       // A symbol compiled into a referenced assembly: its type, decompiled, as plain text.
       if(declarationResults.Count == 0 && DecompiledSource.Of(_solution, declaredElement) is {} decompiled)
@@ -89,12 +91,15 @@ public class GetSymbolSourceTool : IMcpAlwaysLoadedTool
                                 });
       }
 
-      return new Dictionary<string, object>
-             {
-                ["symbol"] = declaredElement.ShortName,
-                ["qualifiedName"] = PsiHelpers.GetQualifiedName(declaredElement),
-                ["declarations"] = declarationResults
-             };
+      var answer = new Dictionary<string, object>
+                   {
+                      ["symbol"] = declaredElement.ShortName,
+                      ["qualifiedName"] = PsiHelpers.GetQualifiedName(declaredElement),
+                      ["declarations"] = declarationResults
+                   };
+      if(!allDeclarations && overloads.Count > 1)
+         answer["overloads"] = $"This is one of {overloads.Count}. allDeclarations: true returns them all; filePath, line and column pick one.";
+      return answer;
    }
 
    static string Decompiled(IDeclaredElement element, DecompiledSource decompiled)
