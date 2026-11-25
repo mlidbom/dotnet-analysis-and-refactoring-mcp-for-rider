@@ -1,12 +1,9 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using JetBrains.Application.Settings;
-using JetBrains.DocumentModel;
+using System.Text;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Feature.Services.Daemon;
 using JetBrains.ReSharper.Psi;
-using JetBrains.Util.dataStructures.TypedIntrinsics;
 using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
@@ -29,7 +26,7 @@ public class GetDiagnosticsTool : IMcpTool
 
    public string Description =>
       "Run ReSharper's daemon inspections on a file and report diagnostics: severity, inspection id, " +
-      "message, location, and whether a quick-fix is available. Richer than get_file_errors " +
+      "message and position, one line each, marked when a quick-fix is available. Richer than get_file_errors " +
       "(which only finds syntax errors and unresolved references). " +
       "Filter with minSeverity ('error'|'warning'|'suggestion'|'hint', default 'warning'). " +
       "The default leaves out the suggestion and hint tiers, such as invert-if: pass 'hint' for every finding. " +
@@ -76,8 +73,7 @@ public class GetDiagnosticsTool : IMcpTool
       // Optional position (explain-error mode)
       int posLine = 0, posColumn = 0;
       var hasPosition = false;
-      var positionToken = arguments["position"] as JObject;
-      if(positionToken != null)
+      if(arguments["position"] is JObject positionToken)
       {
          posLine = positionToken["line"]?.Value<int>() ?? 0;
          posColumn = positionToken["column"]?.Value<int>() ?? 0;
@@ -106,15 +102,12 @@ public class GetDiagnosticsTool : IMcpTool
       // read lock with documents committed (see McpServerComponent), which is what the daemon requires.
       var collected = DaemonHighlightingCollector.Collect(_solution, sourceFile, settings);
 
-      // Shape the diagnostics. A highlighting ReSharper fails to read costs only itself, or only the value it failed
-      // on, and the answer lists it.
-      var diagnostics = new List<Dictionary<string, object>>();
+      // A highlighting ReSharper fails to read costs only itself, or only the value it failed on, and the answer lists it.
+      var issues = new List<InspectionIssue>();
       var unreadable = new SkippedElements();
       foreach(var info in collected)
       {
          var highlighting = info.Highlighting;
-         if(highlighting == null) continue;
-
          var name = highlighting.GetType().Name;
          unreadable.Guard(() => name,
                           () =>
@@ -129,52 +122,40 @@ public class GetDiagnosticsTool : IMcpTool
                              if(positionOffset.HasValue && (positionOffset.Value < range.StartOffset.Offset || positionOffset.Value > range.EndOffset.Offset))
                                 return;
 
-                             var (startLine, startCol) = PsiHelpers.GetLineColumn(range.StartOffset);
-                             var (endLine, endCol) = PsiHelpers.GetLineColumn(range.EndOffset);
+                             var (line, column) = PsiHelpers.GetLineColumn(range.StartOffset);
 
                              // CouldHavePopupQuickFix(IHighlighting) is an unreliable false-negative headless: it reported no fix for
                              // a NotAccessedField.Local warning that list_quick_fixes found 3 real fixes for. So the QuickFixTable
                              // enumerates the fixes, as list_quick_fixes does.
-                             diagnostics.Add(new Dictionary<string, object>
-                                             {
-                                                ["inspectionId"] = highlighting.GetConfigurableSeverityId() ?? name,
-                                                ["severity"] = Severities.Name(severity),
-                                                ["message"] = unreadable.Read(() => $"the message of {name}", () => highlighting.ToolTip ?? highlighting.ErrorStripeToolTip),
-                                                ["line"] = startLine,
-                                                ["column"] = startCol,
-                                                ["endLine"] = endLine,
-                                                ["endColumn"] = endCol,
-                                                ["hasQuickFix"] = unreadable.Read(() => $"the quick-fixes of {name}", () => DaemonHighlightingCollector.HasQuickFix(_solution, info))
-                                             });
+                             issues.Add(new InspectionIssue(sourceFile.GetLocation().FullPath,
+                                                            line,
+                                                            column,
+                                                            severity,
+                                                            highlighting.GetConfigurableSeverityId() ?? name,
+                                                            unreadable.Read(() => $"the message of {name}", () => highlighting.ToolTip ?? highlighting.ErrorStripeToolTip)
+                                                         ?? "(ReSharper failed to read its message)",
+                                                            unreadable.Read(() => $"the quick-fixes of {name}", () => DaemonHighlightingCollector.HasQuickFix(_solution, info))));
                           });
       }
 
-      // Stable, predictable ordering: by location.
-      var ordered = diagnostics
-                   .OrderBy(d => (int)d["line"])
-                   .ThenBy(d => (int)d["column"])
-                   .ToList();
+      var answer = new StringBuilder($"{SolutionRoot.Of(_solution).Relative(sourceFile.GetLocation().FullPath)} — ");
+      answer.Append(issues.Count switch
+      {
+         0 => "no issues",
+         1 => "1 issue",
+         _ => $"{issues.Count} issues"
+      });
+      answer.Append($" at {Severities.Name(minSeverity)} or above");
+      answer.Append(hasPosition ? $" at {posLine}:{posColumn}\n" : "\n");
 
-      var result = new Dictionary<string, object>
-                   {
-                      ["file"] = filePath,
-                      ["diagnosticsCount"] = ordered.Count,
-                      ["diagnostics"] = ordered
-                   };
+      foreach(var issue in issues.OrderBy(it => it.Line).ThenBy(it => it.Column))
+         answer.Append($"  {issue.Text}\n");
 
       if(collected.Incomplete != null)
-         result["incomplete"] = collected.Incomplete;
+         answer.Append($"{collected.Incomplete}\n");
       if(unreadable.Line != null)
-         result["skipped"] = unreadable.Line;
+         answer.Append($"{unreadable.Line}\n");
 
-      if(collected.Count == 0)
-         result["note"] = "The daemon's stages produced no highlightings for this file.";
-      else if(ordered.Count == 0)
-         result["note"] =
-            $"{collected.Count} highlighting(s) were produced but none met the minimum severity " +
-            $"'{Severities.Name(minSeverity)}'" +
-            (positionOffset.HasValue ? " (or covered the requested position)." : ".");
-
-      return result;
+      return answer.ToString().TrimEnd();
    }
 }
