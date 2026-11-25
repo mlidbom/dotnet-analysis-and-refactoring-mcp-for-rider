@@ -465,6 +465,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     Json/                              # The JSON form, format: "json": JsonFormat, JsonNaming (kinds, bare names), the shapes
     FindImplementationsTool.cs         # find_implementations — FindInheritors/FindImplementingMembers
     Implementation.cs                  # One implementation it lists: direct, via, indirect; its line and its own summary
+    ImplementationListing.cs           # What it found for one type or member: the implementations, maxResults, skipped; the text
     GetFileErrorsTool.cs               # get_file_errors — PSI tree walk for errors
     SearchSymbolTool.cs                # search_symbol — substring search across declarations
     GoToDefinitionTool.cs              # go_to_definition — navigate to symbol declaration
