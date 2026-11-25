@@ -507,6 +507,9 @@ Found while doing this, to fix:
   On 2026-11-24 evening `get_file_errors_reports_the_unresolved_type_in_the_referencing_project` failed in one of
   optimize-royder's runs, then twice in a row in royder-agent-rep's, with the machine's CPU at 100%: "0 diagnostics"
   and the note "deleted on disk, still in Rider's project model" after the 10 s wait. It passed the third time.
+  On 2026-11-25 at about 01:55 `search_symbol_by_name_finds_no_declaration` failed so twice in a row in
+  optimize-royder's runs, in the full run and then with the class alone, with the CPU at 60% (a VBCSCompiler busy),
+  and the class passed in the two runs after.
 
 The pilot's questions, answers and grading are in `~/.claude/dev_docs/usage/royder-code-understanding-trial.md`;
 `codex-tooling-owner` maintains the shared usage measurements.
