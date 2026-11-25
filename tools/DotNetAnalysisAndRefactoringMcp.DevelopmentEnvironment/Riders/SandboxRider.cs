@@ -267,7 +267,12 @@ public sealed class SandboxRider
 
    static bool TheMcpServerHasIndexed(string solution)
    {
-      if(TheMcpServersHealth() is not {} health) return false;
+      string? health;
+      // A backend busy loading the solution can take longer than the health client waits: on 2026-11-25 one such answer
+      // failed a whole specification run 54 seconds into the sandbox's start.
+      try { health = TheMcpServersHealth(); }
+      catch(TaskCanceledException exception) when(exception.InnerException is TimeoutException) { return false; }
+      if(health is null) return false;
       using var document = JsonDocument.Parse(health);
       // A peer that doesn't answer is listed without "indexing", as unreachable.
       return document.RootElement.GetProperty("solutions").EnumerateArray()

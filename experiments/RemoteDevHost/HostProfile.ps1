@@ -15,6 +15,81 @@ function Copy-PluginTree([string]$Source, [string]$Target) {
    }
 }
 
+$SettingsKey = 'http://schemas.microsoft.com/winfx/2006/xaml'
+$InjectedLayers = '/Default/Environment/InjectedLayers/'
+
+function Get-SettingsEntries([string]$File) {
+   $document = [xml]::new()
+   $document.Load($File)
+   foreach ($entry in $document.DocumentElement.ChildNodes) {
+      if ($entry.NodeType -eq 'Element') { [pscustomobject]@{ Key = $entry.GetAttribute('Key', $SettingsKey); Value = $entry.InnerText } }
+   }
+}
+
+function Get-EverydayGlobalSettingsLayers([string]$DataDirectoryName) {
+   # The everyday Rider's global settings file, then the files it injects, such as Magnus's personal settings, in the
+   # order they apply. The private Rider injects the same, so that a severity is the same whichever Rider answers: until
+   # 2026-11-25 it had none of them, and agents got warnings in its worktrees that Magnus's Rider doesn't show.
+   $global = [IO.Path]::GetFullPath((Join-Path $env:APPDATA "JetBrains/$DataDirectoryName/resharper-host/GlobalSettingsStorage.DotSettings"))
+   if (![IO.File]::Exists($global)) { return }
+   $injections = [ordered]@{}
+   foreach ($entry in Get-SettingsEntries $global) {
+      if ($entry.Key -match "^$InjectedLayers(FileInjectedLayer/=|InjectedLayerCustomization/=File)(\w+)/(\w+)/@EntryValue$") {
+         if (!$injections.Contains($Matches[2])) { $injections[$Matches[2]] = @{ AbsolutePath = ''; RelativePath = ''; RelativePriority = [double]::MaxValue; IsOn = 'True' } }
+         $injections[$Matches[2]][$Matches[3]] = $entry.Value
+      }
+   }
+   $global
+   $injections.Values | Where-Object { $_.IsOn -eq 'True' } | Sort-Object { [double]$_.RelativePriority } | ForEach-Object {
+      # As ReSharper's RegisterInjectedMounts resolves it: a relative path wins over the absolute one, and starts from the
+      # hosting file itself, as if it were a folder.
+      $path = if ($_.RelativePath -and ![IO.Path]::IsPathRooted($_.RelativePath)) { [IO.Path]::Combine($global, $_.RelativePath) } else { $_.AbsolutePath }
+      if ($path -and [IO.File]::Exists($path)) { [IO.Path]::GetFullPath($path) }
+   }
+}
+
+function Write-InjectedGlobalSettings([string]$ConfigFolder, [string[]]$Layers) {
+   # The private Rider's own global settings file: ReSharper writes it, and it keeps its settings. Its injections are
+   # replaced by the layers given, the first applying over the next, as an injected file is mounted below its host.
+   $file = Join-Path ([IO.Directory]::CreateDirectory((Join-Path $ConfigFolder resharper-host)).FullName) GlobalSettingsStorage.DotSettings
+   $system = 'clr-namespace:System;assembly=mscorlib'
+   $document = [xml]::new()
+   $document.PreserveWhitespace = $true
+   if ([IO.File]::Exists($file)) { $document.Load($file) }
+   else {
+      $document.LoadXml('<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" ' +
+                        'xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" ' +
+                        'xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation"></wpf:ResourceDictionary>')
+   }
+   $root = $document.DocumentElement
+   foreach ($entry in @($root.ChildNodes | Where-Object { $_.NodeType -eq 'Element' -and $_.GetAttribute('Key', $SettingsKey).StartsWith($InjectedLayers) })) {
+      $indent = $entry.PreviousSibling
+      if ($indent -and $indent.NodeType -in 'Whitespace','SignificantWhitespace') { $null = $root.RemoveChild($indent) }
+      $null = $root.RemoveChild($entry)
+   }
+   $priority = 0
+   foreach ($layer in $Layers) {
+      $id = [Convert]::ToHexString([Security.Cryptography.MD5]::HashData([Text.Encoding]::UTF8.GetBytes($layer.ToUpperInvariant())))
+      $priority++
+      $entries = [ordered]@{
+         "${InjectedLayers}FileInjectedLayer/=$id/AbsolutePath/@EntryValue" = 'String', $layer
+         "${InjectedLayers}FileInjectedLayer/=$id/@KeyIndexDefined" = 'Boolean', 'True'
+         "${InjectedLayers}InjectedLayerCustomization/=File$id/@KeyIndexDefined" = 'Boolean', 'True'
+         "${InjectedLayers}InjectedLayerCustomization/=File$id/RelativePriority/@EntryValue" = 'Double', [string]$priority
+      }
+      foreach ($key in $entries.Keys) {
+         $element = $document.CreateElement('s', $entries[$key][0], $system)
+         $attribute = $document.CreateAttribute('x', 'Key', $SettingsKey)
+         $attribute.Value = $key
+         $null = $element.Attributes.Append($attribute)
+         $element.InnerText = $entries[$key][1]
+         $null = $root.AppendChild($document.CreateWhitespace("`n`t"))
+         $null = $root.AppendChild($element)
+      }
+   }
+   $document.Save($file)
+}
+
 function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $RemoteDevPort, $RoyderPort, $HeapMiB, $ExtraPlugin, $ManagedAssets, [bool]$IsolateProjectStores = $false, [string]$ToolsFolder) {
    $solutionFile = Get-Item -LiteralPath $Solution
    if ($solutionFile.PSIsContainer -or $solutionFile.Extension -notin '.sln','.slnx') { throw "Expected a solution file: $Solution" }
@@ -72,6 +147,8 @@ function New-HostPlan($ProfilePath, $Run, $Solution, $RiderHome, $ToolsBuild, $R
        $package.patcherHash -ne (Get-FileHash -LiteralPath (Join-Path $folders.plugins 'RemoteRoslynPatcher/dotnet/Royder.RemoteRoslynPatcher.dll')).Hash)) {
       throw 'A packaged plugin or tools assembly no longer matches the staged pin.'
    }
+   $plan.globalSettingsLayers = @(Get-EverydayGlobalSettingsLayers $product.dataDirectoryName)
+   Write-InjectedGlobalSettings $folders.config $plan.globalSettingsLayers
    $optionsDir = [IO.Directory]::CreateDirectory((Join-Path $folders.config options)).FullName
    [IO.File]::WriteAllText((Join-Path $optionsDir updates.xml), '<application><component name="UpdatesConfigurable"><option name="CHECK_NEEDED" value="false"/><option name="PLUGINS_CHECK_NEEDED" value="false"/><option name="PLUGINS_AUTO_UPDATE" value="false"/></component></application>')
    $isolated = $IsolateProjectStores -or $ManagedAssets
