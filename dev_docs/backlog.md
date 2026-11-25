@@ -421,7 +421,9 @@ Found while doing this, to fix:
   `RiderBackendCluster.WaitForRouting`'s repair at the end of that close. A call forwarded before then gets the new
   cluster primary's refusal verbatim, and the primary, finding no health row, invalidates the worktree: the next call
   closes a healthy backend and opens it cold. On 2026-11-24 the repair never ran at all, since its sibling check waited
-  for a backend the primary could not identify (fixed in `72f6d97`); the window remains. Better: on that refusal for
+  for a backend the primary could not identify (fixed in `72f6d97`); the window remains. Again at 02:18 the same night:
+  `get_symbol_source` with the main checkout's absolute `ReSharperMcp.sln` answered "not found. Available solutions:
+  'ReSharperMcp'", and the next call "still opening". Better: on that refusal for
   a live backend, repair the registration and forward once more, instead of invalidating.
 - **The supervisor's record of the private Rider's processes grows without bound** (found 2026-11-25). `Supervise.ps1`
   keeps every process ever seen in the job in `observed` and writes all of it to `state.json` at each change of
