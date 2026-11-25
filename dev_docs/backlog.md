@@ -425,6 +425,13 @@ Found while doing this, to fix:
   `get_symbol_source` with the main checkout's absolute `ReSharperMcp.sln` answered "not found. Available solutions:
   'ReSharperMcp'", and the next call "still opening". Better: on that refusal for
   a live backend, repair the registration and forward once more, instead of invalidating.
+- **The private Rider's JVM ended while closing one worktree with two others open** (found 2026-11-25, 04:22). The
+  primary logged "Worktree maintenance: The private Rider JVM stopped while closing a project with open siblings"
+  (`SharedRiderHost`) while closing `surrogate-session-ids`. In run `5bdae639…`, `idea.log` shows the closing backend
+  "exited by request with exit code 0" at 04:22:10.057 and ends 100 ms later, with no shutdown of the JVM's own logged.
+  There was no Windows Error Reporting event and no `hs_err` file, so it was ended or exited quietly. A new run started
+  at 04:24, and every worktree that was open in it was reopened cold. Not known yet: what ended it. Look first at what
+  the supervisor recorded of the JVM's exit at 04:22.
 - **The supervisor's record of the private Rider's processes grows without bound** (found 2026-11-25). `Supervise.ps1`
   keeps every process ever seen in the job in `observed` and writes all of it to `state.json` at each change of
   membership; the primary parses that file every 150–250 ms while a close waits for workers. After 90 minutes: 23,628
