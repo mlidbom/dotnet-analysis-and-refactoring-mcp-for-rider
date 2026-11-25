@@ -388,6 +388,21 @@ Found while doing this, to fix:
   Learned restarting it: `Stop-ScheduledTask RoyderPrimary` ends the console wrapper and leaves `Royder.Primary.exe`
   running; end the process itself. `verify_on_demand.py` left its private Rider running after a failed run, holding
   its ports; end it before the next run. Its calls now retry "still opening", as an agent does.
+- **The private Rider ignores settings layers a solution injects** (from xunitbdd-scenario-once, 2026-11-25). Compze's
+  `*.slnx.DotSettings` inject `CompzeResharperSettings.DotSettings` as a `FileInjectedLayer`; in a managed worktree,
+  `get_diagnostics` reported `ReplaceWithPrimaryConstructorParameter`, which the layer sets to `DO_NOT_SHOW`, and
+  `InconsistentNaming` at warning, which it lowers to suggestion. Reproduced at 01:29 in a disposable worktree of this
+  repository on the fixture solution: its `.slnx.DotSettings` setting `RedundantUsingDirective` to `DO_NOT_SHOW` took
+  effect in `Shapes.Drawing/Drawing.cs`; a layer it injected (`ProbeLayer.DotSettings` beside it, absolute and relative
+  path both given, as Compze's) setting `ConvertToPrimaryConstructor` to `DO_NOT_SHOW` did not, in
+  `Shapes.Drawing/Sketch.cs`. The sandbox Rider, with a window, applied Compze's layer on the same worktree. So
+  `get_diagnostics` and `inspect_code` give wrong severities in every managed worktree of a repository that injects
+  layers. Found so far: ReSharper mounts injected layers only on a settings mount whose metadata says
+  `IsHostingUserInjections` and isn't hidden from the user-facing layers (`UserInjectedSettingsLayers.Init_WatchForHostingLayers`,
+  `RegisterInjectedMounts` in `JetBrains.Platform.Shell`), and the path resolves against the hosting file's folder,
+  falling back to the absolute one, so the path is not the cause. Next: what sets that metadata on the solution's
+  team-shared mount in an ordinary Rider and not in the private one, whose projects open through
+  `PrivateProjectStore` with no client connected. Build `verify_on_demand.py --check-injected-layer` with the fix.
 - **A call in the window after the private cluster's primary backend closes gets "Solution … not found"** (from
   optimize-royder, 2026-11-25 00:05: `get_symbol_info` with its absolute `ReSharperMcp.sln` answered "not found.
   Available solutions: 'ClaudeTooling'", the next call "still opening" for over two minutes). When the backend on the
