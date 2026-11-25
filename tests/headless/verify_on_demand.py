@@ -39,6 +39,35 @@ def wait_until(observation, seconds, description):
     raise AssertionError("Timed out waiting for " + description)
 
 
+SETTINGS = ('<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" '
+            'xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">'
+            '{}</wpf:ResourceDictionary>')
+SEVERITY = '<s:String x:Key="/Default/CodeInspection/Highlighting/InspectionSeverities/={}/@EntryIndexedValue">{}</s:String>'
+INJECTION = "/Default/Environment/InjectedLayers/"
+
+
+def everyday_settings(appdata, rider):
+    """An everyday Rider's global settings in an APPDATA of their own, as Rider writes them: they raise InconsistentNaming
+    to an error, and inject a personal file, by a path relative to the global file itself, which hides InconsistentNaming
+    and UnusedField.Compiler. The global file applies over the file it injects."""
+    product = json.loads((rider / "product-info.json").read_text(encoding="utf-8-sig"))["dataDirectoryName"]
+    host = appdata / "JetBrains" / product / "resharper-host"
+    personal = appdata / "JetBrains/Shared/vAny/Personal.DotSettings"
+    for folder in (host, personal.parent):
+        folder.mkdir(parents=True)
+    personal.write_text(SETTINGS.format(SEVERITY.format("InconsistentNaming", "DO_NOT_SHOW") +
+                                        SEVERITY.format("UnusedField_002ECompiler", "DO_NOT_SHOW")), encoding="utf-8")
+    layer = "49E95C81559A714E98A9FFF6E0254068"
+    (host / "GlobalSettingsStorage.DotSettings").write_text(SETTINGS.format(
+        SEVERITY.format("InconsistentNaming", "ERROR") +
+        f'<s:String x:Key="{INJECTION}FileInjectedLayer/={layer}/AbsolutePath/@EntryValue">{personal}</s:String>'
+        f'<s:String x:Key="{INJECTION}FileInjectedLayer/={layer}/RelativePath/@EntryValue">..\\..\\..\\Shared\\vAny\\Personal.DotSettings</s:String>'
+        f'<s:Boolean x:Key="{INJECTION}FileInjectedLayer/={layer}/@KeyIndexDefined">True</s:Boolean>'
+        f'<s:Boolean x:Key="{INJECTION}InjectedLayerCustomization/=File{layer}/@KeyIndexDefined">True</s:Boolean>'
+        f'<s:Double x:Key="{INJECTION}InjectedLayerCustomization/=File{layer}/RelativePriority/@EntryValue">1</s:Double>'), encoding="utf-8")
+    return appdata
+
+
 def verify(args):
     lab = Path(tempfile.mkdtemp(prefix="royder-on-demand-"))
     repo, first, second = [lab / name for name in ("repository", "first", "second")]
@@ -169,8 +198,13 @@ def verify(args):
         assert backend is None or not alive(backend), f"close_worktree answered {text!r} while backend {backend} still ran"
         return text
 
+    environment = None
+    if args.check_global_settings:
+        # The primary's private Rider takes the everyday Rider's global settings from the APPDATA it runs with.
+        environment = dict(os.environ, APPDATA=str(everyday_settings(lab / "appdata", args.rider)))
+        (first / "SettingsProbe.cs").write_text("namespace Consumers;\npublic class SettingsProbe\n{\n   int unused_field;\n}\n")
     log = (lab / "primary.log").open("w", encoding="utf8")
-    proc = subprocess.Popen(primary + ["serve", str(config)], stdout=log, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(primary + ["serve", str(config)], stdout=log, stderr=subprocess.STDOUT, env=environment)
     listening = False
     def healthy():
         if proc.poll() is not None:
@@ -234,6 +268,13 @@ def verify(args):
             wait_until(lambda: not listing(), 100, "the unregistered worktree's project to close")
             shutil.rmtree(first)
             print(f"PASS: close_worktree let go of a worktree Git no longer lists: {text}", flush=True)
+            return lab
+        if args.check_global_settings:
+            # Until 2026-11-25 the private Rider had none of the everyday Rider's global settings, nor the personal file
+            # they inject: agents got warnings in its worktrees that Magnus's Rider lowers or hides.
+            answer = tool("get_diagnostics", dict(filePath=str(first / "SettingsProbe.cs"), minSeverity="hint"))
+            assert "error InconsistentNaming" in answer and "UnusedField.Compiler" not in answer, answer
+            print("PASS: the private Rider applies the everyday global settings over the file they inject", flush=True)
             return lab
         previous = set((profile/"runs").glob("*"))
         with concurrent.futures.ThreadPoolExecutor(2) as pool:
@@ -325,5 +366,6 @@ if __name__ == "__main__":
     parser.add_argument("--check-timeout", action="store_true", help="Verify a timed-out cold edit never executes")
     parser.add_argument("--check-solution-edit", action="store_true", help="Verify a project added to an open solution's file joins the others")
     parser.add_argument("--check-unregistered-close", action="store_true", help="Verify close_worktree lets go of a worktree Git no longer lists")
+    parser.add_argument("--check-global-settings", action="store_true", help="Verify the private Rider applies the everyday Rider's global settings and the files they inject")
     parser.add_argument("--main-checkout", action="store_true", help="Start with the trusted main checkout; verify it can serve tools but cannot be removed")
     verify(parser.parse_args())
