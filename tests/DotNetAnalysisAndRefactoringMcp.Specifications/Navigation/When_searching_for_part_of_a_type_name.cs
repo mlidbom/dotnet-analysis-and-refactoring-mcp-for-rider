@@ -10,7 +10,7 @@ public class When_searching_for_part_of_a_type_name(TheSandboxWithTheFixtureSolu
    readonly string _answer = sandbox.McpServer.CallTool("search_symbol", new { query = "Circ" });
 
    [XF] public void it_lists_the_type() => _answer.Must().Contain("class Circle");
-   [XF] public void with_the_file_it_is_declared_in() => _answer.Must().Contain("Circle.cs");
+   [XF] public void with_the_file_it_is_declared_in_relative_to_the_work_tree_and_the_line() => _answer.Must().Contain("class Circle — Shapes\\Circle.cs:4");
 }
 
 /// <summary>A qualified name was taken for Type.Member until 2026-11-15, and found nothing.</summary>

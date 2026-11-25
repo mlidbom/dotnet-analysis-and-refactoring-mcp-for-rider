@@ -250,7 +250,7 @@ public class FindImplementationsTool : IMcpTool
       public List<string> Via;
    }
 
-   static ImplInfo BuildImplInfo(IDeclaredElement element)
+   ImplInfo BuildImplInfo(IDeclaredElement element)
    {
       if(element == null) return null;
       var declaration = MainDeclaration.Of(element);
@@ -259,7 +259,7 @@ public class FindImplementationsTool : IMcpTool
       var site = DeclarationSite.Of(declaration);
       if(site == null) return null;
 
-      var implFilePath = site.File.Length > 0 ? site.File : "[no source]";
+      var implFilePath = site.File.Length > 0 ? SolutionRoot.Of(_solution).Relative(site.File) : "[no source]";
       var implLine = site.Line;
 
       return new ImplInfo

@@ -102,7 +102,7 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
       if(string.IsNullOrEmpty(filePath))
          return new { error = "filePath is required" };
 
-      return Inspect(filePath).Render(filePath, MaxDiagnostics(arguments));
+      return Inspect(filePath).Render(Relative(filePath), MaxDiagnostics(arguments));
    }
 
    /// <summary>
@@ -341,10 +341,10 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
 
          var ordered = Ordered();
          var text = new StringBuilder();
-         text.Append(filePath).Append(" — ").Append(ordered.Count).Append(" diagnostics");
+         text.Append($"{filePath} — {ordered.Count} {(ordered.Count == 1 ? "diagnostic" : "diagnostics")}");
          if(ordered.Count > max)
             text.Append($" (showing {max}; raise maxDiagnostics to see more)");
-         text.AppendLine();
+         text.Append('\n');
 
          foreach(var entry in ordered.Take(max))
             entry.AppendTo(text);
@@ -366,7 +366,7 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
             entry.AppendTo(text);
 
          if(shown < errors.Count)
-            text.AppendLine().Append($"(+{errors.Count - shown} more; raise maxDiagnostics to see them)");
+            text.Append($"(+{errors.Count - shown} more; raise maxDiagnostics to see them)\n");
 
          budget -= shown;
          AppendPartial(text);
@@ -388,8 +388,7 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
 
          var count = _inspectionFailures.Values.Sum();
          var types = string.Join(", ", _inspectionFailures.Keys);
-         text.AppendLine().AppendLine()
-             .Append($"ReSharper could not inspect {count} nodes ({types}); results for this file are partial");
+         text.Append($"\nReSharper could not inspect {count} nodes ({types}); results for this file are partial");
       }
 
       static DiagnosticEntry Entry(ITreeNode node, string severity, string message)
@@ -419,13 +418,12 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
       public int Column;
       public string Text;
 
+      /// <summary>Its line, <c>  6:17 error: Cannot resolve symbol 'DrawingStencil'</c>, and the code it is about under it.</summary>
       public void AppendTo(StringBuilder text)
       {
-         text.AppendLine();
-         text.Append(Severity).Append(" :").Append(Line).Append(':').Append(Column);
-         text.Append(" — ").AppendLine(Message);
+         text.Append($"  {Line}:{Column} {Severity}: {Message}\n");
          if(Text != null)
-            text.Append("  ").AppendLine(Text);
+            text.Append($"    {Text}\n");
       }
    }
 }

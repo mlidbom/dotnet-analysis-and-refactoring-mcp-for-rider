@@ -83,7 +83,7 @@ public class SearchSymbolTool : IMcpTool
       if(maxResults <= 0) maxResults = 50;
       if(maxResults > 200) maxResults = 200;
 
-      var search = new Search(ParseKinds(kindsFilter), includeNamespaces, maxResults);
+      var search = new Search(ParseKinds(kindsFilter), includeNamespaces, maxResults, SolutionRoot.Of(_solution));
       var symbols = _solution.GetPsiServices().Symbols;
 
       search.Run(symbols.GetSymbolScope(LibrarySymbolScope.NONE, caseSensitive: true), query, scanMembers: true);
@@ -129,13 +129,15 @@ public class SearchSymbolTool : IMcpTool
       readonly HashSet<string> _kinds;
       readonly bool _includeNamespaces;
       readonly int _max;
+      readonly SolutionRoot _root;
       readonly HashSet<string> _seen = new HashSet<string>();
 
-      public Search(HashSet<string> kinds, bool includeNamespaces, int max)
+      public Search(HashSet<string> kinds, bool includeNamespaces, int max, SolutionRoot root)
       {
          _kinds = kinds;
          _includeNamespaces = includeNamespaces;
          _max = max;
+         _root = root;
       }
 
       public List<SymbolResult> Results { get; } = new List<SymbolResult>();
@@ -269,7 +271,7 @@ public class SearchSymbolTool : IMcpTool
                         Name = element.ShortName,
                         Kind = element.GetElementType().PresentableName,
                         ContainingType = containingType,
-                        Location = library ?? $"{file ?? "[generated]"}:{line}"
+                        Location = PsiHelpers.Location(element, _root)
                      });
       }
 

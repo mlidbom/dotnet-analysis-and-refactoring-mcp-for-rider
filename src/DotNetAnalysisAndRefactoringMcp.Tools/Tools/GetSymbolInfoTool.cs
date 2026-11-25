@@ -87,7 +87,7 @@ public class GetSymbolInfoTool : IMcpTool
    ///   <paramref name="declaredElement"/>'s signature, where it is, its base types, where it is declared and its
    ///   documentation; with <paramref name="includeMembers"/>, a type's members as well.
    /// </summary>
-   static string InfoOf(IDeclaredElement declaredElement, bool includeMembers)
+   string InfoOf(IDeclaredElement declaredElement, bool includeMembers)
    {
       var lang = declaredElement.PresentationLanguage ?? CSharpLanguage.Instance;
       var sb = new StringBuilder();
@@ -130,7 +130,7 @@ public class GetSymbolInfoTool : IMcpTool
       // Declaration location
       var site = DeclarationSite.OfMainDeclarationOf(declaredElement);
       if(site != null)
-         sb.Append("declared: ").Append(site.File).Append(':').Append(site.Line).Append(':').AppendLine(site.Column.ToString());
+         sb.Append("declared: ").Append(SolutionRoot.Of(_solution).Relative(site.File)).Append(':').Append(site.Line).Append(':').AppendLine(site.Column.ToString());
 
       AppendXmlDocumentation(sb, declaredElement);
 

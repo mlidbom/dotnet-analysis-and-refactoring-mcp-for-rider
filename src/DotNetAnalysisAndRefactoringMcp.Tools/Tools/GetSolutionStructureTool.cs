@@ -36,6 +36,7 @@ public class GetSolutionStructureTool : IMcpTool
       var includeFiles = arguments["includeFiles"]?.Value<bool>() ?? false;
 
       var solutionPath = _solution.SolutionFilePath.FullPath;
+      var root = SolutionRoot.Of(_solution);
       var sb = new StringBuilder();
 
       var projects = _solution.GetAllProjects()
@@ -47,7 +48,7 @@ public class GetSolutionStructureTool : IMcpTool
       foreach(var project in projects)
       {
          sb.AppendLine();
-         sb.Append("[").Append(project.Name).Append("] ").AppendLine(project.ProjectFileLocation.FullPath);
+         sb.Append("[").Append(project.Name).Append("] ").AppendLine(root.Relative(project.ProjectFileLocation.FullPath));
 
          // Target frameworks
          var tfms = project.TargetFrameworkIds;
@@ -78,7 +79,7 @@ public class GetSolutionStructureTool : IMcpTool
          {
             foreach(var file in project.GetAllProjectFiles().OrderBy(f => f.Location.FullPath))
             {
-               sb.Append("    ").AppendLine(file.Location.FullPath);
+               sb.Append("    ").AppendLine(root.Relative(file.Location.FullPath));
             }
          }
       }

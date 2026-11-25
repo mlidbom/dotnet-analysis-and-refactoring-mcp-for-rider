@@ -9,5 +9,5 @@ public class When_checking_a_file_without_errors(TheSandboxWithTheFixtureSolutio
 {
    readonly string _answer = sandbox.McpServer.CallTool("get_file_errors", new { filePath = sandbox.PathOf("Shapes/Circle.cs") });
 
-   [XF] public void it_reports_none() => _answer.Must().Contain("0 diagnostics");
+   [XF] public void it_reports_none_naming_the_file_relative_to_the_work_tree() => _answer.Must().StartWith("Shapes\\Circle.cs — 0 diagnostics");
 }

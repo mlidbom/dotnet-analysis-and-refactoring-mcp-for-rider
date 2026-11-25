@@ -22,6 +22,7 @@ plugin is a fork of.
 - `get_type_hierarchy` answers in text, the call trees' indented outline: `abstract class Shapes.Drawing.Renaming.Segment  Shapes.Drawing\Renaming\Segment.cs:4`, each type under the one it inherits from or that inherits from it, a supertype with the type arguments its subtype gives it, `System.IEquatable<Callee>`, and a compiled one with its assembly. A type met again points to the types beyond it listed above. It answered JSON with each type's name twice, its file's full path, and an empty `"children": []` at every leaf
 - `get_diagnostics` answers in text, as `inspect_code` does: a heading with the file and how many issues at which severity, then a line for each, `9:9 warning NotAccessedVariable.Compiler: Local variable 'neverRead' is only assigned but its value is never used  (quick-fix)`. It answered JSON with ten fields an issue
 - A name not found is answered with suggestions whose paths are relative to the work tree, where they were full paths
+- `search_symbol`, `go_to_definition`, `get_symbol_info`, `find_implementations`, `get_solution_structure` and `get_file_errors` write paths relative to the work tree, as `find_usages` does, where they wrote each file's full path. `go_to_definition`'s JSON form keeps the full path. `get_file_errors` writes an error as `  6:17 error: Cannot resolve symbol 'DrawingStencil'`, where it was `error :6:17 — ...` after a blank line, and `1 diagnostic`
 
 ### Fixed
 

@@ -124,13 +124,13 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
    ///   <paramref name="member"/>'s signature, where it is declared, and its declaration's source cut at
    ///   <paramref name="maxTextLength"/>; for a compiled member, its assembly in place of the last two.
    /// </summary>
-   static string DefinitionOf(IDeclaredElement member, int maxTextLength)
+   string DefinitionOf(IDeclaredElement member, int maxTextLength)
    {
       var signature = Signature.Of(member);
       if(MainDeclaration.Of(member) is not {} declaration)
          return $"{signature} — {PsiHelpers.AssemblyLabel(member) ?? "no source declarations (may be source-generated)"}";
 
-      var where = DeclarationSite.Of(declaration) is { File.Length: > 0 } site ? $"{site.File}:{site.Line}:{site.Column}" : "[no source]";
+      var where = DeclarationSite.Of(declaration) is { File.Length: > 0 } site ? $"{SolutionRoot.Of(_solution).Relative(site.File)}:{site.Line}:{site.Column}" : "[no source]";
       return $"{signature} — {where}\n{PsiHelpers.TruncateSnippet(declaration.GetText(), maxTextLength)}";
    }
 }
