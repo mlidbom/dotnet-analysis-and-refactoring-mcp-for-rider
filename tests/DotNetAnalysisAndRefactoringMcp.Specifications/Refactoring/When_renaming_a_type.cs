@@ -22,7 +22,7 @@ public class When_renaming_a_type(TheSandboxWithTheFixtureSolution sandbox)
    [XF] public void its_file_takes_the_new_name() => _the.FileNames.Must().Satisfy(it => it.Contains("Parcel.cs") && !it.Contains("Bundle.cs"));
    [XF] public void and_holds_the_renamed_type() => _the.Renamed.Must().Contain("public sealed class Parcel;");
    [XF] public void the_file_that_uses_it_is_changed() => _the.Using.Must().Contain("public static Parcel Empty()");
-   [XF] public void the_answer_names_the_renamed_file() => _the.Answer.Must().Contain("Parcel.cs");
+   [XF] public void the_answer_names_the_renamed_file_by_its_new_path_and_its_old_name() => _the.Answer.Must().Contain("\n  Shapes.Drawing\\Renaming\\Parcel.cs, renamed from Bundle.cs");
    [XF] public void and_doesnt_wait_to_save_the_file_of_the_old_name() => _the.Answer.Must().NotContain("hadn't saved");
    [XF] public void and_leaves_no_errors() => _the.Errors.Must().Satisfy(it => it.All(answer => answer.Contains("0 diagnostics")));
 

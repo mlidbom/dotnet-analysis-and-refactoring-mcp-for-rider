@@ -22,7 +22,7 @@ public class When_renaming_a_type_in_a_project_that_references_ASP_NET_Core(TheS
    readonly Observed _the = _observed ??= Observe(sandbox);
 
    [XF] public void the_preview_lists_the_files_it_would_change() => _the.Preview.Must().Satisfy(it => it.Contains("Exhibit.cs") && it.Contains("Gallery.cs"));
-   [XF] public void the_rename_is_applied() => _the.Answer.Must().Contain("\"applied\": true");
+   [XF] public void the_rename_is_applied() => _the.Answer.Must().StartWith("Renamed sealed class Shapes.Web.Exhibit to Showpiece.");
    [XF] public void its_file_takes_the_new_name() => _the.FileNames.Must().Satisfy(it => it.Contains("Showpiece.cs") && !it.Contains("Exhibit.cs"));
    [XF] public void the_file_that_uses_it_is_changed() => _the.Using.Must().Contain("public static Showpiece Of(IShape shape)");
 

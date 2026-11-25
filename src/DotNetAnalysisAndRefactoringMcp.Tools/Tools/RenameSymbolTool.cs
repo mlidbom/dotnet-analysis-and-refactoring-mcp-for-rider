@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using JetBrains.Application.Progress;
 using JetBrains.Lifetimes;
@@ -9,7 +8,6 @@ using JetBrains.ReSharper.Feature.Services.Refactorings;
 using JetBrains.ReSharper.Feature.Services.Refactorings.Conflicts;
 using JetBrains.ReSharper.Feature.Services.Refactorings.Specific.Rename;
 using JetBrains.ReSharper.Psi;
-using JetBrains.ReSharper.Psi.Transactions;
 using JetBrains.ReSharper.Refactorings.Rename;
 using Newtonsoft.Json.Linq;
 
@@ -90,34 +88,17 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
       var oldName = named.ShortName;
       var declaredElement = TheElementARenameStartsFrom(named);
       if(declaredElement == null)
-         return new { error = $"Symbol '{oldName}' cannot be renamed: ReSharper finds no element for its rename to start from.", oldName, newName };
+         return new { error = $"Symbol '{oldName}' cannot be renamed: ReSharper finds no element for its rename to start from." };
 
-      // Same name: nothing to do.
       if(string.Equals(oldName, newName, StringComparison.Ordinal))
-      {
-         return new
-                {
-                   applied = false,
-                   oldName,
-                   newName,
-                   conflicts = Array.Empty<object>(),
-                   note = "New name is identical to the current name; nothing to rename."
-                };
-      }
+         return $"{Signature.KindOf(named)} {PsiHelpers.GetQualifiedName(named)} is named {newName} already: nothing to rename.";
 
       // Verify the element can actually be renamed before we set anything up.
-      var factory = new AtomicRenamesFactory();
-      var availability = factory.CheckRenameAvailability(declaredElement);
+      var availability = new AtomicRenamesFactory().CheckRenameAvailability(declaredElement);
       if(availability != RenameAvailabilityCheckResult.CanBeRenamed)
-      {
-         return new
-                {
-                   error = $"Symbol '{oldName}' cannot be renamed: {availability}.",
-                   oldName,
-                   newName
-                };
-      }
+         return new { error = $"Symbol '{oldName}' cannot be renamed: {availability}." };
 
+      var rename = RenameOutcome.Describe(named, newName);
       var psiServices = _solution.GetPsiServices();
 
       // The plain RefactoringDriver swallows conflicts; the WithConflicts variant records them.
@@ -137,7 +118,7 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
          // back to the universal context and NREs deep inside GetRuntimeFeatures.
          var resolveContext = declaredElement.GetSourceFiles().FirstOrDefault()?.ResolveContext;
          if(resolveContext == null)
-            return new { error = $"Symbol '{oldName}' has no source file; only source-defined symbols can be renamed.", oldName, newName };
+            return new { error = $"Symbol '{oldName}' has no source file; only source-defined symbols can be renamed." };
 
          using var contextCookie = CompilationContextCookie.GetOrCreate(resolveContext);
 
@@ -190,9 +171,7 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
          // edits Execute() makes are ever persisted — while the conflict/affected-file analysis we capture from the
          // (now discarded) tree mutation remains valid for reporting.
          bool executed;
-         var unreadable = new SkippedElements();
-         List<object> conflicts;
-         IReadOnlyList<IPsiSourceFile> affected;
+         RenameOutcome outcome;
          using(var transaction = EditTransaction.Begin(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol", dryRun))
          {
             // Build atomic renames AND search the solution for usages (populates the
@@ -204,61 +183,24 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
             if(dataModel.AllRenames.Renames.Count == 0)
             {
                transaction.Rollback();
-               return new { error = $"No applicable renames were produced for '{oldName}'.", oldName, newName };
+               return new { error = $"No applicable renames were produced for '{oldName}'." };
             }
 
             // Execute the rename. RenameRefactoring.Execute performs cold conflict search
             // (recorded in the driver) and then the actual declaration/usage rewrites.
             executed = new RenameRefactoring(workflow, _solution, driver).Execute(NullProgressIndicator.Create());
 
-            // What ReSharper fails to read costs only that conflict's value, and the answer says so.
-            conflicts = ExtractConflicts(driver, unreadable);
-            affected = transaction.ChangedFiles;
-            if(!dryRun && !applyDespiteConflicts && HasAnErrorConflict(driver, unreadable))
+            outcome = new RenameOutcome(rename, driver, transaction.ChangedFiles, SolutionRoot.Of(_solution));
+            if(!dryRun && !applyDespiteConflicts && outcome.HasAnErrorConflict)
             {
                transaction.Rollback();
-               return new
-                      {
-                         applied = false,
-                         refused = "ReSharper reports an error conflict, such as a usage it can't update correctly: the rename would leave it "
-                                 + "broken, so nothing was changed. Fix what the conflicts name first, or pass applyDespiteConflicts: true "
-                                 + "and fix them by hand after.",
-                         oldName,
-                         newName,
-                         conflicts,
-                         wouldChange = ChangedFiles(affected),
-                         skipped = unreadable.Line
-                      };
+               return outcome.Refused();
             }
          }
 
-         var changedFiles = ChangedFiles(affected);
-         if(dryRun)
-         {
-            // The transaction rolled back as it ended, discarding all edits.
-            return new
-                   {
-                      applied = false,
-                      dryRun = true,
-                      oldName,
-                      newName,
-                      conflicts,
-                      changedFiles,
-                      skipped = unreadable.Line
-                   };
-         }
-
-         // The auto-commit cookie committed on Dispose, persisting the rename.
-         return new
-                {
-                   applied = executed,
-                   oldName,
-                   newName,
-                   conflicts,
-                   changedFiles,
-                   renamedFiles = executed ? RenameTheFiles(workflow) : [],
-                   skipped = unreadable.Line
-                };
+         // A dry run's transaction rolled back as it ended; a real rename's committed.
+         if(dryRun) return outcome.Previewed();
+         return executed ? outcome.Applied(RenameTheFiles(workflow)) : outcome.NotCompleted();
       }
       finally
       {
@@ -292,59 +234,12 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
    ///   Until 2026-11-15 the tool stopped after the transaction, and a renamed type's file kept the old name. A dry run
    ///   renames no file: the project model's changes aren't the PSI transaction's, and its rollback wouldn't undo them.
    /// </remarks>
-   static List<object> RenameTheFiles(RenameWorkflow workflow)
+   static List<RenamedFile> RenameTheFiles(RenameWorkflow workflow)
    {
-      List<object> renamed = [.. workflow.IterateRenameFiles().Select(it => new { from = it.Rename.SourceLocation.FullPath, to = it.Rename.SourceLocation.Directory.Combine(it.NewName).FullPath })];
+      List<RenamedFile> renamed = [.. workflow.IterateRenameFiles().Select(it => new RenamedFile(it.Rename.SourceLocation.FullPath, it.Rename.SourceLocation.Directory.Combine(it.NewName).FullPath))];
       workflow.PostExecute(NullProgressIndicator.Create());
       return renamed;
    }
-
-   /// <summary>
-   ///   Whether ReSharper reports a valid conflict of <see cref="ConflictSeverity.Error"/>, such as "Usage of
-   ///   IMemoryImageStateStore.ChangesCommittedElsewhere cannot be updated correctly".
-   /// </summary>
-   /// <remarks>
-   ///   Rider shows such conflicts before it applies a rename, and its user chooses. Until 2026-11-24 the tool applied the
-   ///   rename anyway: a <c>cref</c> lost its type qualifier, and the build warned CS1574 where the conflict had said.
-   /// </remarks>
-   static bool HasAnErrorConflict(RefactoringDriverWithConflicts driver, SkippedElements unreadable) =>
-      driver.Conflicts.Any(conflict => conflict != null && conflict.Severity == ConflictSeverity.Error &&
-                                       unreadable.Read(() => "whether a conflict is valid", () => (bool?)conflict.IsValid) != false);
-
-   static List<object> ExtractConflicts(RefactoringDriverWithConflicts driver, SkippedElements unreadable)
-   {
-      var result = new List<object>();
-      foreach(var conflict in driver.Conflicts)
-      {
-         if(conflict == null) continue;
-         result.Add(new
-                    {
-                       message = unreadable.Read(() => "a conflict's description", () => conflict.Description),
-                       severity = conflict.Severity.ToString(),
-                       isValid = unreadable.Read(() => "whether a conflict is valid", () => (bool?)conflict.IsValid)
-                    });
-      }
-
-      return result;
-   }
-
-   /// <summary>
-   ///   The files the rename changed: the ones its transaction changed, <paramref name="affected"/>, before a dry run's
-   ///   is rolled back. The files of the implementations and overrides it renamed with the symbol are among them.
-   /// </summary>
-   /// <remarks>
-   ///   Until 2026-11-15 the list was put together from the rename's data model, of the symbol's declarations and the
-   ///   references to each element renamed, and it left out the files of the implementations: a rename of an
-   ///   interface's method with implementations in four projects listed only the interface's file and the callers'.
-   /// </remarks>
-   static List<object> ChangedFiles(IEnumerable<IPsiSourceFile> affected) =>
-   [
-      .. affected.Select(it => it.GetLocation().FullPath)
-                 .Where(it => it.Length > 0)
-                 .Distinct()
-                 .OrderBy(it => it, StringComparer.Ordinal)
-                 .Select(it => (object)new { file = it, fileName = Path.GetFileName(it) })
-   ];
 
    /// <summary>
    /// Headless rename workflow: the base <c>DataModel</c> setter is <c>protected</c> and the
