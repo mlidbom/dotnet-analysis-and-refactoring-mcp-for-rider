@@ -1,10 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
-using System.Xml;
-using System.Xml.Linq;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.CSharp;
@@ -155,93 +151,11 @@ public class GetSymbolInfoTool : IMcpTool
 
    static void AppendXmlDocumentation(StringBuilder sb, IDeclaredElement declaredElement)
    {
-      var xmlDoc = TryGetXmlDoc(declaredElement);
-      var summary = xmlDoc?.SelectSingleNode("//summary") is { } summaryPart ? DocCommentText.Of(summaryPart) : null;
-      var remarks = xmlDoc?.SelectSingleNode("//remarks") is { } remarksPart ? DocCommentText.Of(remarksPart) : null;
+      var docComment = DocComment.Of(declaredElement);
+      if(docComment.SummaryLine is {} summary)
+         sb.AppendLine(summary);
 
-      // Some static methods trigger an internal NRE in ReSharper's XML-doc API.
-      // Fall back to source comments so symbol info still returns useful metadata.
-      if(string.IsNullOrEmpty(summary) && string.IsNullOrEmpty(remarks))
-      {
-         var fallback = TryReadXmlDocumentationFromSource(declaredElement);
-         summary = fallback.summary;
-         remarks = fallback.remarks;
-      }
-
-      if(!string.IsNullOrEmpty(summary))
-         sb.Append("doc: ").AppendLine(summary);
-
-      if(!string.IsNullOrEmpty(remarks))
-         sb.Append("remarks: ").AppendLine(remarks);
-   }
-
-   /// <remarks>The NRE is ReSharper's, observed for some static methods: their doc is then read from the source.</remarks>
-   static XmlNode TryGetXmlDoc(IDeclaredElement declaredElement)
-   {
-      try
-      {
-         return declaredElement.GetXMLDoc(true);
-      }
-      catch(NullReferenceException)
-      {
-         return null;
-      }
-   }
-
-   static (string summary, string remarks) TryReadXmlDocumentationFromSource(IDeclaredElement declaredElement)
-   {
-      var declaration = MainDeclaration.Of(declaredElement);
-      if(declaration == null)
-         return default;
-
-      var site = DeclarationSite.Of(declaration);
-      var filePath = site?.File;
-      if(string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
-         return default;
-
-      // Up from the name's line, over attributes, to the doc comment.
-      var declLine = site.Line;
-      if(declLine <= 1)
-         return default;
-
-      var lines = File.ReadAllLines(filePath);
-      if(declLine - 1 > lines.Length)
-         return default;
-
-      var docLines = new List<string>();
-      for(var lineIndex = declLine - 2; lineIndex >= 0; lineIndex--)
-      {
-         var trimmed = lines[lineIndex].TrimStart();
-         if(trimmed.StartsWith("///"))
-         {
-            docLines.Insert(0, trimmed.Substring(3));
-            continue;
-         }
-
-         if(string.IsNullOrWhiteSpace(trimmed) || (docLines.Count == 0 && trimmed.StartsWith("[")))
-            continue;
-
-         break;
-      }
-
-      if(docLines.Count == 0)
-         return default;
-
-      try
-      {
-         var document = XDocument.Parse("<root>" + string.Join(Environment.NewLine, docLines) + "</root>");
-         var root = document.Root;
-         if(root == null)
-            return default;
-
-         return (
-                   root.Element("summary") is { } summary ? DocCommentText.Of(summary) : null,
-                   root.Element("remarks") is { } remarks ? DocCommentText.Of(remarks) : null);
-      }
-      catch(XmlException)
-      {
-         // A doc comment that isn't well-formed XML, such as one with a bare '<': its text as written, and saying so.
-         return (string.Join(" ", docLines).Trim() + " [the doc comment isn't well-formed XML]", null);
-      }
+      if(docComment.RemarksLine is {} remarks)
+         sb.AppendLine(remarks);
    }
 }
