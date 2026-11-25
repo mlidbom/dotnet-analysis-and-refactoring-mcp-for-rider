@@ -1,6 +1,9 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using JetBrains.DocumentManagers.Transactions;
+using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Transactions;
 using JetBrains.ReSharper.Resources.Shell;
@@ -36,9 +39,20 @@ sealed class EditTransaction : IDisposable
    /// <summary>A transaction named <paramref name="name"/>, which a dry run rolls back when it ends.</summary>
    public static EditTransaction Begin(IPsiServices psiServices, string name, bool dryRun) => new(psiServices, name, dryRun);
 
-   /// <summary>The files the transaction has changed so far.</summary>
-   public IReadOnlyList<IPsiSourceFile> ChangedFiles =>
-      _changedBeforeTheRollback ?? [.. (_psiServices.Transactions.Current ?? throw new InvalidOperationException("No PSI transaction is open.")).AffectedFiles];
+   /// <summary>The files whose text the transaction has changed so far.</summary>
+   /// <remarks>
+   ///   Not every file of its <see cref="IPsiTransaction.AffectedFiles"/>: those count a file for ReSharper's symbol cache
+   ///   binding its declarations anew too, which it did in the call after a dry run for every file the dry run had
+   ///   rolled back, so that until 2026-11-25 a rename listed the previous rename's files as its own.
+   /// </remarks>
+   public IReadOnlyList<IPsiSourceFile> ChangedFiles => _changedBeforeTheRollback ?? FilesWhoseTextChanged();
+
+   IReadOnlyList<IPsiSourceFile> FilesWhoseTextChanged()
+   {
+      var transaction = _psiServices.Transactions.Current ?? throw new InvalidOperationException("No PSI transaction is open.");
+      var changedDocuments = _psiServices.Solution.GetComponent<SolutionDocumentTransactionManager>().CurrentTransaction?.GetCurrentRollbackChanges().Keys;
+      return [.. transaction.AffectedFiles.Where(it => changedDocuments?.Contains(it.Document) == true)];
+   }
 
    /// <summary>Discards what the transaction changed, now.</summary>
    public void Rollback()
