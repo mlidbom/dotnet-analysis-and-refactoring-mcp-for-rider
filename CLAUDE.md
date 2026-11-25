@@ -420,7 +420,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
   Severities.cs                        # "error"/"warning"/... to and from ReSharper's Severity, and their order
   SuperMembers.cs                      # The members a member overrides/implements: what find_usages and call hierarchy follow
   DeclarationSite.cs                   # Where a declaration is: the file, line and column of its name (not its doc comment)
-  DeclarationSource.cs                 # A declaration's whole lines, numbered, under its name, file and lines (get_symbol_source)
+  DeclarationSource.cs                 # A declaration's whole lines, numbered, under its name, file and lines (get_symbol_source); from after its doc comment (go_to_definition)
   DecompiledSource.cs                  # ReSharper decompiler / metadata view for compiled types
   Signature.cs                         # A declared element's one-line signature, as every tool writes it: method Mix(first:string) : string
   CallTrees/                           # get_call_hierarchy's trees (ICallTree); get_reachable_source is to build on the outgoing one
@@ -460,9 +460,11 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     ToolBatch.cs                       # Batch runner with per-item isolation; ToolText
     FindUsagesTool.cs                  # find_usages — IFinder.FindReferences()
     GetSymbolInfoTool.cs               # get_symbol_info — detailed symbol metadata
+    DocComment.cs                      # A declared element's doc comment: its summary and remarks as text (DocCommentText), doc: lines
     MemberListing.cs                   # A type's members as declared: no accessors, no generated members, extension blocks
     Json/                              # The JSON form, format: "json": JsonFormat, JsonNaming (kinds, bare names), the shapes
     FindImplementationsTool.cs         # find_implementations — FindInheritors/FindImplementingMembers
+    Implementation.cs                  # One implementation it lists: direct, via, indirect; its line and its own summary
     GetFileErrorsTool.cs               # get_file_errors — PSI tree walk for errors
     SearchSymbolTool.cs                # search_symbol — substring search across declarations
     GoToDefinitionTool.cs              # go_to_definition — navigate to symbol declaration

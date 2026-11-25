@@ -1,7 +1,6 @@
 #nullable enable
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using JetBrains.DocumentModel;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Tree;
@@ -40,37 +39,63 @@ public sealed class DeclarationSource
    ///   <paramref name="declaration"/>'s source, named as <paramref name="element"/>; nothing for a declaration with no
    ///   range in a document, such as a source-generated one.
    /// </summary>
-   public static DeclarationSource? Of(IDeclaredElement element, IDeclaration declaration)
+   public static DeclarationSource? Of(IDeclaredElement element, IDeclaration declaration) => From(element, declaration, declaration);
+
+   /// <summary>
+   ///   <paramref name="declaration"/>'s source from the first line after its doc comment: its attributes, its signature
+   ///   and its body, as <c>go_to_definition</c> shows them under the comment's summary.
+   /// </summary>
+   public static DeclarationSource? AfterTheDocCommentOf(IDeclaredElement element, IDeclaration declaration) =>
+      From(element, declaration, FirstNodeAfterTheDocCommentOf(declaration));
+
+   static DeclarationSource? From(IDeclaredElement element, IDeclaration declaration, ITreeNode firstNode)
    {
       var range = TreeNodeExtensions.GetDocumentRange(declaration);
       if(!range.IsValid()) return null;
 
       var document = range.Document;
-      var first = (int)range.StartOffset.ToDocumentCoords().Line;
+      var first = (int)TreeNodeExtensions.GetDocumentRange(firstNode).StartOffset.ToDocumentCoords().Line;
       var last = (int)range.EndOffset.ToDocumentCoords().Line;
       var lines = Enumerable.Range(first, last - first + 1).Select(it => LineText(document, it)).ToList();
       return new DeclarationSource(PsiHelpers.GetQualifiedName(element), declaration.GetSourceFile()?.GetLocation().FullPath ?? "", first + 1, lines);
    }
 
-   /// <summary>
-   ///   The heading and the numbered lines. Past <paramref name="maxCharacters"/> of source, the lines stop before the
-   ///   line that would exceed it, and a last line says where to read on.
-   /// </summary>
-   public string Text(int maxCharacters)
+   /// <summary>The first of <paramref name="declaration"/>'s parts that isn't its doc comment, or the line break after it.</summary>
+   static ITreeNode FirstNodeAfterTheDocCommentOf(IDeclaration declaration)
    {
-      var text = new StringBuilder($"{_qualifiedName} — {(_file.Length > 0 ? _file : "[no file]")}:{_firstLine}-{LastLine}");
+      for(var child = declaration.FirstChild; child != null; child = child.NextSibling)
+         if(child is not (IDocCommentBlock or IWhitespaceNode))
+            return child;
+
+      return declaration;
+   }
+
+   /// <summary>The heading, then the <see cref="Lines"/>.</summary>
+   public string Text(int maxCharacters) =>
+      $"{_qualifiedName} — {(_file.Length > 0 ? _file : "[no file]")}:{_firstLine}-{LastLine}\n{Lines(maxCharacters)}";
+
+   /// <summary>
+   ///   The numbered lines. Past <paramref name="maxCharacters"/> of source, they stop before the line that would exceed
+   ///   it, though never before the first, and a last line says where to read on.
+   /// </summary>
+   public string Lines(int maxCharacters)
+   {
       var numberWidth = LastLine.ToString().Length;
+      var lines = new List<string>();
       var characters = 0;
       for(var index = 0; index < _lines.Count; index++)
       {
          characters += _lines[index].Length + 1;
-         if(characters > maxCharacters)
-            return text.Append($"\n… cut at {maxCharacters} characters: the declaration goes on from line {_firstLine + index} to {LastLine}; read the file for the rest.").ToString();
+         if(characters > maxCharacters && index > 0)
+         {
+            lines.Add($"… cut at {maxCharacters} characters: the declaration goes on from line {_firstLine + index} to {LastLine}; read the file for the rest.");
+            break;
+         }
 
-         text.Append('\n').Append((_firstLine + index).ToString().PadLeft(numberWidth)).Append('\t').Append(_lines[index]);
+         lines.Add($"{(_firstLine + index).ToString().PadLeft(numberWidth)}\t{_lines[index]}");
       }
 
-      return text.ToString();
+      return string.Join("\n", lines);
    }
 
    static string LineText(IDocument document, int zeroBasedLine)

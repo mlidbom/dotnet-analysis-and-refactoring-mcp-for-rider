@@ -12,8 +12,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Navigation;
 /// </summary>
 public class When_finding_the_implementations_of_an_overloaded_method(TheSandboxWithTheFixtureSolution sandbox)
 {
-   const string TheTwoColorImplementation = "Blend(string first, string second) =>";
-   const string TheShareImplementation = "Blend(string first, string second, double share) =>";
+   const string TheTwoColorImplementation = "Shapes.EvenBlender.Blend — Shapes\\EvenBlender.cs:6";
+   const string TheShareImplementation = "Shapes.EvenBlender.Blend — Shapes\\EvenBlender.cs:8";
 
    readonly string _byName = sandbox.McpServer.CallTool("find_implementations", new { symbolName = "Shapes.IBlender.Blend" });
    readonly string _atTheShareOverload = sandbox.McpServer.CallTool("find_implementations", new { filePath = sandbox.PathOf("Shapes/IBlender.cs"), line = 8, column = 10 });

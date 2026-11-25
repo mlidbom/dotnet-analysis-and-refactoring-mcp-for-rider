@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using JetBrains.Application.Progress;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
@@ -91,7 +90,7 @@ public class FindImplementationsTool : IMcpTool
    string ImplementationsOf(IDeclaredElement declaredElement, int maxResults)
    {
       var skipped = new SkippedElements();
-      var implementations = new List<ImplInfo>();
+      var implementations = new List<Implementation>();
       var hitLimit = false;
 
       // For type elements (interfaces, abstract classes) — find inheritors with depth info
@@ -129,20 +128,11 @@ public class FindImplementationsTool : IMcpTool
             skipped.Guard(inheritor,
                           () =>
                           {
-                             var info = BuildImplInfo(inheritor);
-                             if(info == null) return;
+                             if(!HasSource(inheritor)) return;
 
-                             var directlyImplements = IsDirectImplementor(inheritor, typeElement);
-                             info.Direct = directlyImplements;
-
-                             if(!directlyImplements)
-                             {
-                                var via = FindIntermediateTypes(inheritor, typeElement, inheritorSet);
-                                if(via.Count > 0)
-                                   info.Via = via;
-                             }
-
-                             implementations.Add(info);
+                             implementations.Add(IsDirectImplementor(inheritor, typeElement)
+                                                    ? Implementation.Direct(inheritor)
+                                                    : Implementation.Through(inheritor, FindIntermediateTypes(inheritor, typeElement, inheritorSet)));
                           });
          }
       }
@@ -173,21 +163,11 @@ public class FindImplementationsTool : IMcpTool
                   skipped.Guard(member,
                                 () =>
                                 {
-                                   var info = BuildImplInfo(member);
-                                   if(info == null) return;
+                                   if(!HasSource(member)) return;
 
-                                   if(member is IClrDeclaredElement clr)
-                                   {
-                                      var containingType = clr.GetContainingType();
-                                      if(containingType != null && declaredElement is IClrDeclaredElement baseClr)
-                                      {
-                                         var baseContainingType = baseClr.GetContainingType();
-                                         if(baseContainingType != null)
-                                            info.Direct = IsDirectImplementor(containingType, baseContainingType);
-                                      }
-                                   }
-
-                                   implementations.Add(info);
+                                   implementations.Add(IsDeclaredInATypeThatNamesTheBaseMembersType(member)
+                                                          ? Implementation.Direct(member)
+                                                          : Implementation.Through(member, []));
                                 });
                }
 
@@ -197,80 +177,25 @@ public class FindImplementationsTool : IMcpTool
             NullProgressIndicator.Create());
       }
 
-      // Sort: direct first, then by name
-      var sorted = implementations
-                  .OrderBy(i => i.Direct ? 0 : 1)
-                  .ThenBy(i => i.Name)
-                  .ToList();
-
-      // Format compact output
-      var sb = new StringBuilder();
-      sb.Append(Signature.Of(declaredElement));
-      if(hitLimit)
-      {
-         sb.Append(" — showing ").Append(sorted.Count).Append(" of ").Append(sorted.Count)
-           .Append("+ implementations (limit reached; increase maxResults to see more)");
-      } else
-      {
-         sb.Append(" — ").Append(sorted.Count).Append(" implementations");
-      }
-
-      sb.AppendLine();
-
-      foreach(var impl in sorted)
-      {
-         sb.AppendLine();
-         if(impl.Direct)
-            sb.Append("[direct] ");
-         else if(impl.Via != null && impl.Via.Count > 0)
-            sb.Append("[via ").Append(string.Join(", ", impl.Via)).Append("] ");
-         else
-            sb.Append("[indirect] ");
-
-         sb.Append(impl.Kind).Append(' ').Append(impl.Name);
-         sb.Append(" — ").Append(impl.File).Append(':').AppendLine(impl.Line.ToString());
-         if(impl.Text != null)
-            sb.Append("  ").AppendLine(impl.Text);
-      }
-
+      var root = SolutionRoot.Of(_solution);
+      var count = implementations.Count == 1 ? "1 implementation" : $"{implementations.Count} implementations";
+      var lines = new List<string> { $"{Signature.Of(declaredElement)} — {count}{(hitLimit ? ", and more past maxResults" : "")}" };
+      if(implementations.Count > 0)
+         lines.Add("");
+      lines.AddRange(implementations.OrderBy(it => it.IsDirect ? 0 : 1).ThenBy(it => it.Name).Select(it => it.Text(root)));
       if(skipped.Line != null)
-         sb.AppendLine().AppendLine(skipped.Line);
+         lines.AddRange(["", skipped.Line]);
 
-      return sb.ToString().TrimEnd();
+      return string.Join("\n", lines);
+
+      bool IsDeclaredInATypeThatNamesTheBaseMembersType(IDeclaredElement member) =>
+         member is IClrDeclaredElement implementing && implementing.GetContainingType() is {} containingType
+      && declaredElement is IClrDeclaredElement implemented && implemented.GetContainingType() is {} implementedMembersType
+      && IsDirectImplementor(containingType, implementedMembersType);
    }
 
-   class ImplInfo
-   {
-      public string Name;
-      public string Kind;
-      public string File;
-      public int Line;
-      public string Text;
-      public bool Direct;
-      public List<string> Via;
-   }
-
-   ImplInfo BuildImplInfo(IDeclaredElement element)
-   {
-      if(element == null) return null;
-      var declaration = MainDeclaration.Of(element);
-      if(declaration == null) return null;
-
-      var site = DeclarationSite.Of(declaration);
-      if(site == null) return null;
-
-      var implFilePath = site.File.Length > 0 ? SolutionRoot.Of(_solution).Relative(site.File) : "[no source]";
-      var implLine = site.Line;
-
-      return new ImplInfo
-             {
-                Name = element.ShortName,
-                Kind = element.GetElementType().PresentableName,
-                File = implFilePath,
-                Line = implLine,
-                Text = PsiHelpers.TruncateSnippet(declaration.GetText(), 200)
-             };
-   }
+   /// <summary>Whether <paramref name="element"/> is declared in the solution's source: one compiled into a library isn't listed.</summary>
+   static bool HasSource(IDeclaredElement element) => MainDeclaration.Of(element) != null;
 
    /// <summary>
    /// Checks if inheritor directly lists the target type in its super types (not via intermediate).

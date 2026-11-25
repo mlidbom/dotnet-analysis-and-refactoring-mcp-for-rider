@@ -22,7 +22,7 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
    public string Description =>
       "Navigate to the definition/declaration of a symbol. " +
       "Given a usage site (file+line+column) or a symbol name, returns the file path and position " +
-      "where the symbol is declared, along with the declaration source text. " +
+      "where the symbol is declared, its doc comment's summary, and the declaration's first lines after that comment, numbered. " +
       "For a symbol compiled into a referenced DLL, returns its assembly and decompiled source instead. " +
       "A member's name gives every overload of it; a position, the one there. " +
       "Pass multiple symbols via the 'symbols' array to navigate to several in one call. " +
@@ -38,7 +38,7 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
                                                 {
                                                    symbolName = new { type = "string", description = "Symbol name to find the definition of (e.g. 'MyClass', 'Namespace.MyClass'). Alternative to filePath+line+column." },
                                                    kind = new { type = "string", description = "Filter by symbol kind when using symbolName: 'type', 'method', 'property', 'field', 'event'. Helps disambiguate when multiple symbols share a name." },
-                                                   maxTextLength = new { type = "integer", @default = DefaultSourceTextLength, description = $"Maximum source characters in the text reply. Default: {DefaultSourceTextLength}. Set higher for a longer declaration." },
+                                                   maxTextLength = new { type = "integer", @default = DefaultSourceTextLength, description = $"Maximum source characters in the text reply, in whole lines, the first one always. Default: {DefaultSourceTextLength}. Set higher for a longer declaration." },
                                                    filePath = new { type = "string", description = "Absolute path to the file containing a usage of the symbol" },
                                                    line = new { type = "integer", description = "1-based line number of the symbol usage" },
                                                    column = new { type = "integer", description = "1-based column number of the symbol usage" },
@@ -121,16 +121,19 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
    }
 
    /// <summary>
-   ///   <paramref name="member"/>'s signature, where it is declared, and its declaration's source cut at
-   ///   <paramref name="maxTextLength"/>; for a compiled member, its assembly in place of the last two.
+   ///   <paramref name="member"/>'s signature and where it is declared, its doc comment's summary, and its declaration's
+   ///   numbered lines from after that comment, up to <paramref name="maxTextLength"/> characters of them; for a compiled
+   ///   member, its assembly in place of where and the lines.
    /// </summary>
    string DefinitionOf(IDeclaredElement member, int maxTextLength)
    {
-      var signature = Signature.Of(member);
+      var summary = DocComment.Of(member).SummaryLine;
       if(MainDeclaration.Of(member) is not {} declaration)
-         return $"{signature} — {PsiHelpers.AssemblyLabel(member) ?? "no source declarations (may be source-generated)"}";
+         return Lines($"{Signature.Of(member)} — {PsiHelpers.AssemblyLabel(member) ?? "no source declarations (may be source-generated)"}", summary);
 
       var where = DeclarationSite.Of(declaration) is { File.Length: > 0 } site ? $"{SolutionRoot.Of(_solution).Relative(site.File)}:{site.Line}:{site.Column}" : "[no source]";
-      return $"{signature} — {where}\n{PsiHelpers.TruncateSnippet(declaration.GetText(), maxTextLength)}";
+      return Lines($"{Signature.Of(member)} — {where}", summary, DeclarationSource.AfterTheDocCommentOf(member, declaration)?.Lines(maxTextLength));
+
+      static string Lines(params string[] lines) => string.Join("\n", lines.Where(it => it != null));
    }
 }
