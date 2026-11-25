@@ -152,7 +152,7 @@ it reverted a file the agent had just restored. `tests/live_disk_sync.py` checks
 | `flow` | Describe control flow of a method or type: execution steps, branches, loops, error paths, inlined call targets, why-hints |
 | `get_symbol_source` | Get the full declaration source code of a symbol (not just a truncated snippet) |
 | `get_call_hierarchy` | Call hierarchy of a method or property as a text outline (`CallTrees/`): `incoming` (callers via `IFinder.FindReferences`, each with its call sites' lines) or `outgoing` (callees, implementations followed, the solution's code by default) |
-| `get_type_hierarchy` | Get the inheritance hierarchy of a type: `supertypes` (base/interfaces) or `subtypes` (`FindInheritors`) |
+| `get_type_hierarchy` | Inheritance hierarchy of a type as a text outline (`TypeHierarchies/`): `supertypes` (base types and interfaces, compiled ones included) or `subtypes` (the solution's, via `FindInheritors`) |
 | `get_diagnostics` | Run the daemon (`DaemonHighlightingCollector`) on a file: severity, inspection id, message, location, quick-fix availability |
 | `inspect_code` | Inspect Code's engine (`CollectInspectionResults`) over files, folders, projects, the solution, or the files changed since a git ref; solution-wide inspections when SWEA is complete |
 | `list_quick_fixes` | List ReSharper quick-fixes (bulb actions) available at a position |
@@ -433,6 +433,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     CodeThatCalls.cs                   # The callers of a callee, by ReSharper's reference search, with their call sites
     CallScope.cs                       # The code followed: the solution's, narrowed to namespaces, widened to assemblies
     CallsNotShown.cs                   # The calls left out, by assembly, for the answer's last line
+  TypeHierarchies/                     # get_type_hierarchy's trees: Supertypes, Subtypes; TypeHierarchy writes the outline
   Disk/
     GitChanges.cs                      # Files changed since a git ref (for get_file_errors changedSince)
     DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk, before every call

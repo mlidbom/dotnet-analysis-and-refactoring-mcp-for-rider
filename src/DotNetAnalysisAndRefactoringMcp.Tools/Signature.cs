@@ -25,8 +25,11 @@ public static class Signature
       var language = LanguageOf(element);
       return element is ITypeExtension block
                 ? OfExtensionBlock(block, language)
-                : $"{ModifiersOf(element)}{element.GetElementType().PresentableName} {element.ShortName}{ParameterListOf(element, language)}{TypeOf(element, language)}";
+                : $"{KindOf(element)} {element.ShortName}{ParameterListOf(element, language)}{TypeOf(element, language)}";
    }
+
+   /// <summary>What a signature writes before the name: <c>sealed class</c>, <c>static method</c>, <c>interface</c>.</summary>
+   public static string KindOf(IDeclaredElement element) => $"{ModifiersOf(element)}{element.GetElementType().PresentableName}";
 
    /// <summary>
    ///   The language whose names the signature uses: C# for a compiled element, whose own presentation language writes

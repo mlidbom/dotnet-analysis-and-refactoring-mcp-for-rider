@@ -11,8 +11,25 @@ source in an escaped string, each file's full path repeated at every node, an em
 same; only these two were checked. Wanted: go through every tool's answer as an agent reads it, and for each that
 answers in JSON where text would serve better, a text form, with the JSON on `format: "json"` where a program reads it.
 The JSON the symbol linker reads stays as agreed (see "What the symbol linker relies on" in `CLAUDE.md`). The text
-forms in the next section are part of this pass. Those two tools answer in text since 2026-11-25; the other tools are
-still to go through.
+forms in the next section are part of this pass. Those two tools answer in text since 2026-11-25, and
+`get_type_hierarchy` too.
+
+Went through on 2026-11-25, each tool called on this repository's own code in the sandbox (`sandbox call`). Still to do,
+most used first, as Claude judges it:
+
+1. **`get_diagnostics`:** JSON, where `inspect_code`'s text has a line per finding, `66:63 warning Id: message`.
+2. **Full paths in text answers:** `search_symbol`, `go_to_definition`, `get_symbol_info`, `find_implementations` and
+   `get_solution_structure` write each file's full path, where `find_usages` and the trees write it relative to the
+   work tree: about 60 characters a line here.
+3. **`go_to_definition`'s and `find_implementations`' snippet:** the raw doc comment, `///` and tags, cut at 200
+   characters, where the declaration or the summary as `get_symbol_info` writes it would tell more.
+4. **`rename_symbol`:** JSON, each changed file's full path and its name again.
+5. **Errors:** a tool's failure is `{"error": "..."}`, where a batch section writes `error: ...`.
+6. **`list_quick_fixes`, `apply_quick_fix`, `generate_members`, `format_file`, `reload_projects`:** JSON results.
+7. **`complete_at`:** JSON, 207 lines for its list of names.
+
+`list_symbols_in_file` lists a lambda as `anonymous method Lambda Expression(it:IDeclaration)`, which no agent goes to.
+`list_solutions` answers JSON, which the symbol linker reads.
 
 ## Next: reading code without opening files
 
