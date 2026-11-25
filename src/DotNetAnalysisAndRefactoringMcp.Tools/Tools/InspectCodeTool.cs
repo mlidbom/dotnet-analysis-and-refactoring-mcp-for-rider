@@ -108,7 +108,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool, IMcpExpandableTool
       if(scope.Files.Count == 0)
          return new { error = scopeLabel + (scope.NotFound.Count > 0 ? "Nothing to inspect in " + Listed(scope.NotFound) : "The solution has no files to inspect.") };
 
-      var issues = new ConcurrentBag<Issue>();
+      var issues = new ConcurrentBag<InspectionIssue>();
       var inspected = 0;
       var stopwatch = Stopwatch.StartNew();
 
@@ -119,7 +119,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool, IMcpExpandableTool
 
       void Keep(IPsiSourceFile? file, IssuePointer issue)
       {
-         if(file != null && Issue.Of(file, issue) is {} kept && Severities.AtLeast(kept.Severity, minSeverity)
+         if(file != null && InspectionIssue.Of(file, issue) is {} kept && Severities.AtLeast(kept.Severity, minSeverity)
          && (inspectionIds == null || inspectionIds.Contains(kept.InspectionId)))
             issues.Add(kept);
       }
@@ -165,7 +165,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool, IMcpExpandableTool
 
    /// <param name="inspected">How many files were inspected, when they were inspected one by one.</param>
    /// <param name="solutionWideAnalysis">Why the inspections that need solution-wide analysis weren't run; nothing if they were.</param>
-   string Answer(List<Issue> issues,
+   string Answer(List<InspectionIssue> issues,
                  Scope scope,
                  int? inspected,
                  bool finished,
@@ -202,7 +202,7 @@ public sealed class InspectCodeTool : IMcpAsyncTool, IMcpExpandableTool
          foreach(var issue in file.OrderBy(it => it.Line).ThenBy(it => it.Column))
          {
             if(printed++ >= maxResults) break;
-            answer.AppendLine($"  {issue.Line}:{issue.Column} {Severities.Name(issue.Severity)} {issue.InspectionId}: {issue.Message}");
+            answer.AppendLine($"  {issue.Text}");
          }
       }
 
@@ -216,32 +216,6 @@ public sealed class InspectCodeTool : IMcpAsyncTool, IMcpExpandableTool
       string.Join(", ", paths.Take(5)) + (paths.Count > 5 ? $", +{paths.Count - 5} more" : "");
 
    static string Seconds(TimeSpan time) => time.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
-
-   /// <summary>An issue as plain values, taken while the engine holds its read lock: nothing of the engine's is kept.</summary>
-   sealed class Issue
-   {
-      public string File { get; private set; } = "";
-      public int Line { get; private set; }
-      public int Column { get; private set; }
-      public Severity Severity { get; private set; }
-      public string InspectionId { get; private set; } = "";
-      public string Message { get; private set; } = "";
-
-      public static Issue? Of(IPsiSourceFile file, IssuePointer issue)
-      {
-         if(!issue.IsValid) return null;
-         var (line, column) = PsiHelpers.GetLineColumn(new DocumentOffset(file.Document, issue.NavigationOffset));
-         return new Issue
-                {
-                   File = file.GetLocation().FullPath,
-                   Line = line,
-                   Column = column,
-                   Severity = issue.GetSeverity(),
-                   InspectionId = issue.IssueType.ConfigurableSeverityId ?? issue.IssueType.GroupId,
-                   Message = issue.Message
-                };
-      }
-   }
 
    sealed class Scope(List<IPsiSourceFile> files, List<string> notFound)
    {
