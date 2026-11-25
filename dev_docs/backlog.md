@@ -392,21 +392,28 @@ Found while doing this, to fix:
   Learned restarting it: `Stop-ScheduledTask RoyderPrimary` ends the console wrapper and leaves `Royder.Primary.exe`
   running; end the process itself. `verify_on_demand.py` left its private Rider running after a failed run, holding
   its ports; end it before the next run. Its calls now retry "still opening", as an agent does.
-- **The private Rider ignores settings layers a solution injects** (from xunitbdd-scenario-once, 2026-11-25). Compze's
-  `*.slnx.DotSettings` inject `CompzeResharperSettings.DotSettings` as a `FileInjectedLayer`; in a managed worktree,
-  `get_diagnostics` reported `ReplaceWithPrimaryConstructorParameter`, which the layer sets to `DO_NOT_SHOW`, and
-  `InconsistentNaming` at warning, which it lowers to suggestion. Reproduced at 01:29 in a disposable worktree of this
-  repository on the fixture solution: its `.slnx.DotSettings` setting `RedundantUsingDirective` to `DO_NOT_SHOW` took
-  effect in `Shapes.Drawing/Drawing.cs`; a layer it injected (`ProbeLayer.DotSettings` beside it, absolute and relative
-  path both given, as Compze's) setting `ConvertToPrimaryConstructor` to `DO_NOT_SHOW` did not, in
-  `Shapes.Drawing/Sketch.cs`. The sandbox Rider, with a window, applied Compze's layer on the same worktree. So
-  `get_diagnostics` and `inspect_code` give wrong severities in every managed worktree of a repository that injects
-  layers. Found so far: ReSharper mounts injected layers only on a settings mount whose metadata says
-  `IsHostingUserInjections` and isn't hidden from the user-facing layers (`UserInjectedSettingsLayers.Init_WatchForHostingLayers`,
-  `RegisterInjectedMounts` in `JetBrains.Platform.Shell`), and the path resolves against the hosting file's folder,
-  falling back to the absolute one, so the path is not the cause. Next: what sets that metadata on the solution's
-  team-shared mount in an ordinary Rider and not in the private one, whose projects open through
-  `PrivateProjectStore` with no client connected. Build `verify_on_demand.py --check-injected-layer` with the fix.
+- *Done 2026-11-25:* **Severities in Compze's managed worktrees that Magnus's Rider doesn't show** (from
+  xunitbdd-scenario-once, twice: `get_diagnostics` reported `ReplaceWithPrimaryConstructorParameter`, which Compze's
+  settings hide, `InconsistentNaming` at warning, which they lower to suggestion, and `DateTimeCE` against the `CE`
+  abbreviation; once it made the agent revert a correct rename). First thought to be the private Rider ignoring the
+  layers a solution injects; it applies them. Two other causes:
+  - **Compze's solution settings inject a file that isn't there.** ReSharper resolves a relative injection path from
+    the hosting settings file itself, as if it were a folder, and prefers it to the absolute path
+    (`RegisterInjectedMounts.SynchronizeHostLayer_ReadCurrent` in `JetBrains.Platform.Shell`). Rider writes a sibling
+    as `..\X`: Magnus's global file injects `..\..\..\Shared\vAny\MyResharperSettings.DotSettings`. Compze's
+    `edcfb17e4` (2026-06-22), moving the solutions to the repository root, wrote `CompzeResharperSettings.DotSettings`
+    where `..\CompzeResharperSettings.DotSettings` was needed, in all 18 `*.slnx.DotSettings`. So the layer has applied
+    in no Rider since. Magnus's to fix in Compze. In the probe, the fixture solution injecting `..\ProbeLayer.DotSettings`
+    hid `ConvertToPrimaryConstructor` in the private Rider, and `ProbeLayer.DotSettings` without `..\` did not.
+  - **The private Rider had none of Magnus's global settings**: not his `Rider2026.3/resharper-host/GlobalSettingsStorage.DotSettings`,
+    nor the `MyResharperSettings.DotSettings` it injects, which hold the same three settings and hide the Compze bug in
+    his Rider. Since `7557016`, `New-HostPlan` injects the everyday global file and the files it injects into the private
+    profile's own global file, in Rider's order, the global file over its injections. `verify_on_demand.py
+    --check-global-settings` checks it with an everyday APPDATA of its own.
+  - Learned: the first diagnosis compared the private Rider with the sandbox Rider, whose global settings file holds a
+    copy of Magnus's settings, 395 KB, so the sandbox showed the same severities without the layer. A backend log records
+    an injected file it loads as `SettingsStorage(UserInjected::File::<path>)`. `ilspycmd` (a global tool now)
+    decompiles ReSharper's assemblies when sherlock's connection drops.
 - **A call in the window after the private cluster's primary backend closes gets "Solution … not found"** (from
   optimize-royder, 2026-11-25 00:05: `get_symbol_info` with its absolute `ReSharperMcp.sln` answered "not found.
   Available solutions: 'ClaudeTooling'", the next call "still opening" for over two minutes). When the backend on the

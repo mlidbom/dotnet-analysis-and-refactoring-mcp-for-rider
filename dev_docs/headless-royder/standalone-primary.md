@@ -10,6 +10,12 @@ with its own settings directory in the private run folder and initializes Rider'
 filename. Navigation and edits use the original checkout. The headless project saves its own workspace state;
 the desktop's tabs, workspace and project settings stay in the checkout.
 
+The private Rider's ReSharper settings are the everyday Rider's, so that a severity is the same whichever Rider
+answers. Each start injects the everyday global settings file, `%APPDATA%/JetBrains/<Rider>/resharper-host/GlobalSettingsStorage.DotSettings`,
+and the files it injects, such as Magnus's `MyResharperSettings.DotSettings`, into the private profile's own global
+file, in Rider's order. Injected, they are read where they are, not copied.
+A solution's and a project's settings files apply from the checkout, as in any Rider.
+
 ## Prepare an installation
 
 On Windows with the installed Rider, Royder plugin, .NET SDK and PowerShell 7.4+, build a fresh package.
@@ -170,7 +176,8 @@ It checks two racing first calls, generated source references in each worktree, 
 and release of the final idle host. Include `--main-checkout` to exercise a real rename in the main checkout, check
 its existing project settings byte-for-byte and timestamp-for-timestamp, and verify that a removal request leaves
 it open. Run with `--check-timeout` to verify a timed-out cold edit never executes. `--check-solution-edit` verifies that a project added to an open solution's file
-joins the others.
+joins the others. `--check-global-settings` verifies, with an everyday APPDATA of its own, that the private Rider
+applies the everyday global settings over the file they inject.
 
 ~~~powershell
 python -B tests/headless/verify_on_demand.py --primary C:/Royder/packages/current-build/Royder.Primary.dll --assets C:/Royder/packages/current-build/RiderHost --check-replacement --check-idle
