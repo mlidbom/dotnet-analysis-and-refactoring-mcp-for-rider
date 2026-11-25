@@ -29,6 +29,9 @@ most used first, as Claude judges it:
    decompiled type's first `maxTextLength` characters, which by default are all the decompiler's header comments
    (`// Decompiled with JetBrains decompiler`, `// Type:`, `// Assembly:`, `// MVID:`, the paths). The member's own
    declaration in that text would tell more, or nothing, pointing to `get_symbol_source`.
+7. **`find_implementations`' `maxResults`:** for a type it counts the inheritors found, compiled ones included, before
+   those without source are left out; for a member, only those listed. So a type's answer can say "and more past
+   maxResults" with fewer lines than `maxResults`. Both should count what is listed.
 
 `list_symbols_in_file` lists a lambda as `anonymous method Lambda Expression(it:IDeclaration)`, which no agent goes to.
 `list_solutions` answers JSON, which the symbol linker reads.
