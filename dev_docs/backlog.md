@@ -933,5 +933,5 @@ backend.
   10 minutes gave agents a cold start nearly every call. The stall recorder's log confirmed it on 2026-11-25 (asked by
   tooling-owner): from 11-24 16:00 to 11-25 06:40 the private Rider averaged 0.3–1.3 of the 32 logical processors per
   hour, and 0.5–1.3 in the ten-second lines with the machine at 90% or more, when builds and test hosts held 2–9.
-  `.scratch/rider_backend_cpu.py` worked it out: it matches the recorder's busiest process ids to the process ids in
-  Rider's backend and Roslyn worker log file names.
+  Worked out by matching the recorder's busiest process ids to the process ids in Rider's backend and Roslyn worker log
+  file names: the desktop Rider's log folder, the private Rider's `runs/*/log`, the sandbox's.
