@@ -930,4 +930,8 @@ backend.
   worktree's backend 0.3–1.5 GB, its Roslyn worker 0.4–1 GB and its MSBuild node about 0.1 GB, and the JVM 1.5 GB.
   Solution-wide analysis makes a full pass over about 2,600 files at each open, roughly 3 processors for 1–2 minutes.
   Over the evening the whole private Rider averaged about 1.3 processors. A shorter idle close is no answer either:
-  10 minutes gave agents a cold start nearly every call.
+  10 minutes gave agents a cold start nearly every call. The stall recorder's log confirmed it on 2026-11-25 (asked by
+  tooling-owner): from 11-24 16:00 to 11-25 06:40 the private Rider averaged 0.3–1.3 of the 32 logical processors per
+  hour, and 0.5–1.3 in the ten-second lines with the machine at 90% or more, when builds and test hosts held 2–9.
+  `.scratch/rider_backend_cpu.py` worked it out: it matches the recorder's busiest process ids to the process ids in
+  Rider's backend and Roslyn worker log file names.
