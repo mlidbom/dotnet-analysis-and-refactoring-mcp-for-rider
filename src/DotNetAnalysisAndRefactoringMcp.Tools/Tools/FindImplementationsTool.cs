@@ -89,109 +89,106 @@ public class FindImplementationsTool : IMcpTool
    /// </summary>
    string ImplementationsOf(IDeclaredElement declaredElement, int maxResults)
    {
-      var skipped = new SkippedElements();
-      var implementations = new List<Implementation>();
-      var hitLimit = false;
-
-      // For type elements (interfaces, abstract classes) — find inheritors with depth info
+      var listing = new ImplementationListing(declaredElement);
       if(declaredElement is ITypeElement typeElement)
-      {
-         var searchDomain = SearchDomainFactory.Instance.CreateSearchDomain(_solution, false);
-         var psiServices = _solution.GetPsiServices();
+         AddInheritorsOf(typeElement, maxResults, listing);
 
-         // Collect inheritors (with limit to prevent overflow)
-         var inheritors = new List<ITypeElement>();
-         psiServices.Finder.FindInheritors(
-            typeElement,
-            searchDomain,
-            new FindResultConsumer(findResult =>
-            {
-               if(inheritors.Count >= maxResults)
-               {
-                  hitLimit = true;
-                  return FindExecution.Stop;
-               }
+      if(!listing.HasMorePastMaxResults && declaredElement is IOverridableMember overridable)
+         AddOverridersOf(overridable, maxResults, listing);
 
-               if(findResult is FindResultInheritedElement inherited &&
-                  inherited.DeclaredElement is ITypeElement inheritedType)
-                  inheritors.Add(inheritedType);
-               return FindExecution.Continue;
-            }),
-            NullProgressIndicator.Create());
+      return listing.Text(SolutionRoot.Of(_solution));
+   }
 
-         // Build a set of all inheritor FQNs for "via" resolution
-         var inheritorSet = new HashSet<string>(
-            inheritors.Select(i => i.GetClrName().FullName));
+   /// <summary>
+   ///   The types that inherit <paramref name="typeElement"/>, such as an interface's or an abstract class's, up to
+   ///   <paramref name="maxResults"/> of them, added to <paramref name="listing"/>: each directly, or through which of its
+   ///   supertypes.
+   /// </summary>
+   void AddInheritorsOf(ITypeElement typeElement, int maxResults, ImplementationListing listing)
+   {
+      var searchDomain = SearchDomainFactory.Instance.CreateSearchDomain(_solution, false);
+      var psiServices = _solution.GetPsiServices();
 
-         foreach(var inheritor in inheritors)
+      var inheritors = new List<ITypeElement>();
+      psiServices.Finder.FindInheritors(
+         typeElement,
+         searchDomain,
+         new FindResultConsumer(findResult =>
          {
-            skipped.Guard(inheritor,
-                          () =>
-                          {
-                             if(!HasSource(inheritor)) return;
+            if(inheritors.Count >= maxResults)
+            {
+               listing.HasMorePastMaxResults = true;
+               return FindExecution.Stop;
+            }
 
-                             implementations.Add(IsDirectImplementor(inheritor, typeElement)
+            if(findResult is FindResultInheritedElement inherited &&
+               inherited.DeclaredElement is ITypeElement inheritedType)
+               inheritors.Add(inheritedType);
+            return FindExecution.Continue;
+         }),
+         NullProgressIndicator.Create());
+
+      // Build a set of all inheritor FQNs for "via" resolution
+      var inheritorSet = new HashSet<string>(
+         inheritors.Select(i => i.GetClrName().FullName));
+
+      foreach(var inheritor in inheritors)
+      {
+         listing.Skipped.Guard(inheritor,
+                               () =>
+                               {
+                                  if(HasSource(inheritor))
+                                     listing.Add(IsDirectImplementor(inheritor, typeElement)
                                                     ? Implementation.Direct(inheritor)
                                                     : Implementation.Through(inheritor, FindIntermediateTypes(inheritor, typeElement, inheritorSet)));
-                          });
-         }
+                               });
       }
+   }
 
-      // For overridable members (virtual/abstract methods, properties) — find overrides
-      if(!hitLimit && declaredElement is IOverridableMember overridable)
-      {
-         var psiServices = _solution.GetPsiServices();
+   /// <summary>
+   ///   The members that implement or override <paramref name="overridable"/>, a virtual or abstract method, property or
+   ///   event, up to <paramref name="maxResults"/> of them, added to <paramref name="listing"/>: directly when the type
+   ///   each is declared in names <paramref name="overridable"/>'s type among its own supertypes.
+   /// </summary>
+   void AddOverridersOf(IOverridableMember overridable, int maxResults, ImplementationListing listing)
+   {
+      var psiServices = _solution.GetPsiServices();
 
-         //refactor: the same search as Callee.Overriders and FlowTool.FindSingleImplementation. One type, such as
-         //   Overriders.Of(member) beside SuperMembers, should search, with a cap and a stop, for all three.
-         psiServices.Finder.FindImplementingMembers(
-            overridable,
-            overridable.GetSearchDomain(),
-            new FindResultConsumer(findResult =>
+      //refactor: the same search as Callee.Overriders and FlowTool.FindSingleImplementation. One type, such as
+      //   Overriders.Of(member) beside SuperMembers, should search, with a cap and a stop, for all three.
+      psiServices.Finder.FindImplementingMembers(
+         overridable,
+         overridable.GetSearchDomain(),
+         new FindResultConsumer(findResult =>
+         {
+            if(listing.Count >= maxResults)
             {
-               if(implementations.Count >= maxResults)
-               {
-                  hitLimit = true;
-                  return FindExecution.Stop;
-               }
+               listing.HasMorePastMaxResults = true;
+               return FindExecution.Stop;
+            }
 
-               if(findResult is FindResultOverridableMember overrideResult)
-               {
-                  var member = overrideResult.OverridableMember;
-                  if(member == null) return FindExecution.Continue;
-
-                  skipped.Guard(member,
-                                () =>
-                                {
-                                   if(!HasSource(member)) return;
-
-                                   implementations.Add(IsDeclaredInATypeThatNamesTheBaseMembersType(member)
+            if(findResult is FindResultOverridableMember overrideResult)
+            {
+               var member = overrideResult.OverridableMember;
+               listing.Skipped.Guard(member,
+                                     () =>
+                                     {
+                                        if(HasSource(member))
+                                           listing.Add(IsDeclaredInATypeThatNamesTheBaseMembersType(member)
                                                           ? Implementation.Direct(member)
-                                                          : Implementation.Through(member, []));
-                                });
-               }
+                                                          : Implementation.Indirect(member));
+                                     });
+            }
 
-               return FindExecution.Continue;
-            }),
-            true,
-            NullProgressIndicator.Create());
-      }
+            return FindExecution.Continue;
+         }),
+         true,
+         NullProgressIndicator.Create());
 
-      var root = SolutionRoot.Of(_solution);
-      var count = implementations.Count == 1 ? "1 implementation" : $"{implementations.Count} implementations";
-      var lines = new List<string> { $"{Signature.Of(declaredElement)} — {count}{(hitLimit ? ", and more past maxResults" : "")}" };
-      if(implementations.Count > 0)
-         lines.Add("");
-      lines.AddRange(implementations.OrderBy(it => it.IsDirect ? 0 : 1).ThenBy(it => it.Name).Select(it => it.Text(root)));
-      if(skipped.Line != null)
-         lines.AddRange(["", skipped.Line]);
-
-      return string.Join("\n", lines);
-
-      bool IsDeclaredInATypeThatNamesTheBaseMembersType(IDeclaredElement member) =>
-         member is IClrDeclaredElement implementing && implementing.GetContainingType() is {} containingType
-      && declaredElement is IClrDeclaredElement implemented && implemented.GetContainingType() is {} implementedMembersType
-      && IsDirectImplementor(containingType, implementedMembersType);
+      bool IsDeclaredInATypeThatNamesTheBaseMembersType(IOverridableMember member) =>
+         member.ContainingType is {} containingType
+      && overridable.ContainingType is {} baseMembersType
+      && IsDirectImplementor(containingType, baseMembersType);
    }
 
    /// <summary>Whether <paramref name="element"/> is declared in the solution's source: one compiled into a library isn't listed.</summary>
@@ -214,16 +211,16 @@ public class FindImplementationsTool : IMcpTool
    }
 
    /// <summary>
-   /// Finds intermediate types through which inheritor implements targetType.
-   /// Returns the short names of those intermediate types.
+   ///   The types through which <paramref name="inheritor"/> inherits <paramref name="targetType"/>: those of its own
+   ///   supertypes that inherit it themselves.
    /// </summary>
-   static List<string> FindIntermediateTypes(
+   static List<ITypeElement> FindIntermediateTypes(
       ITypeElement inheritor,
       ITypeElement targetType,
       HashSet<string> allInheritorFqns)
    {
       var targetFqn = targetType.GetClrName().FullName;
-      var via = new List<string>();
+      var via = new List<ITypeElement>();
 
       foreach(var superType in inheritor.GetSuperTypes())
       {
@@ -234,7 +231,7 @@ public class FindImplementationsTool : IMcpTool
          if(resolvedFqn == targetFqn) continue;
 
          if(allInheritorFqns.Contains(resolvedFqn) || ImplementsType(resolved, targetFqn))
-            via.Add(resolved.ShortName);
+            via.Add(resolved);
       }
 
       return via;

@@ -129,11 +129,11 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
    {
       var summary = DocComment.Of(member).SummaryLine;
       if(MainDeclaration.Of(member) is not {} declaration)
-         return Lines($"{Signature.Of(member)} — {PsiHelpers.AssemblyLabel(member) ?? "no source declarations (may be source-generated)"}", summary);
+         return Text($"{Signature.Of(member)} — {PsiHelpers.AssemblyLabel(member) ?? "no source declarations (may be source-generated)"}", summary);
 
       var where = DeclarationSite.Of(declaration) is { File.Length: > 0 } site ? $"{SolutionRoot.Of(_solution).Relative(site.File)}:{site.Line}:{site.Column}" : "[no source]";
-      return Lines($"{Signature.Of(member)} — {where}", summary, DeclarationSource.AfterTheDocCommentOf(member, declaration)?.Lines(maxTextLength));
+      return Text($"{Signature.Of(member)} — {where}", summary, DeclarationSource.AfterTheDocCommentOf(member, declaration)?.Lines(maxTextLength));
 
-      static string Lines(params string[] lines) => string.Join("\n", lines.Where(it => it != null));
+      static string Text(params string[] linesThatMayBeMissing) => string.Join("\n", linesThatMayBeMissing.Where(it => it != null));
    }
 }

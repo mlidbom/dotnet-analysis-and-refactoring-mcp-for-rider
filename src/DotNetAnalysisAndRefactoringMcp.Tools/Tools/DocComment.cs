@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using JetBrains.ReSharper.Psi;
@@ -14,25 +15,37 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 /// </summary>
 sealed class DocComment
 {
-   DocComment(string? summary, string? remarks)
-   {
-      Summary = summary;
-      Remarks = remarks;
-   }
+   static readonly DocComment None = new(null, null);
 
    /// <summary>The summary's text; nothing when the comment has none.</summary>
-   public string? Summary { get; }
+   readonly string? _summary;
 
    /// <summary>The remarks' text; nothing when the comment has none.</summary>
-   public string? Remarks { get; }
+   readonly string? _remarks;
+
+   DocComment(string? summary, string? remarks)
+   {
+      _summary = summary;
+      _remarks = remarks;
+   }
 
    /// <summary>The line the tools write for the summary, <c>doc: …</c>; nothing when there is no summary.</summary>
-   public string? SummaryLine => string.IsNullOrEmpty(Summary) ? null : $"doc: {Summary}";
+   public string? SummaryLine => string.IsNullOrEmpty(_summary) ? null : $"doc: {_summary}";
 
    /// <summary>The line the tools write for the remarks, <c>remarks: …</c>; nothing when there are none.</summary>
-   public string? RemarksLine => string.IsNullOrEmpty(Remarks) ? null : $"remarks: {Remarks}";
+   string? RemarksLine => string.IsNullOrEmpty(_remarks) ? null : $"remarks: {_remarks}";
 
-   bool IsEmpty => string.IsNullOrEmpty(Summary) && string.IsNullOrEmpty(Remarks);
+   bool IsEmpty => string.IsNullOrEmpty(_summary) && string.IsNullOrEmpty(_remarks);
+
+   /// <summary>Its <see cref="SummaryLine"/> and its <see cref="RemarksLine"/>, those it has, each as a line of <paramref name="text"/>.</summary>
+   public void AppendTo(StringBuilder text)
+   {
+      if(SummaryLine is {} summary)
+         text.AppendLine(summary);
+
+      if(RemarksLine is {} remarks)
+         text.AppendLine(remarks);
+   }
 
    /// <summary>
    ///   <paramref name="element"/>'s doc comment, an <c>&lt;inheritdoc/&gt;</c> replaced by what it inherits. A compiled
@@ -48,12 +61,11 @@ sealed class DocComment
 
    static DocComment Read(IDeclaredElement element, bool expandInheritdoc)
    {
-      var xml = XmlOf(element, expandInheritdoc);
-      var fromTheXml = new DocComment(xml?.SelectSingleNode("//summary") is {} summary ? DocCommentText.Of(summary) : null,
-                                      xml?.SelectSingleNode("//remarks") is {} remarks ? DocCommentText.Of(remarks) : null);
+      var fromTheXml = FromTheXml(XmlOf(element, expandInheritdoc));
       return fromTheXml.IsEmpty ? FromTheSourceOf(element) : fromTheXml;
    }
 
+   /// <summary>The XML ReSharper gives for <paramref name="element"/>'s doc comment; nothing when it has none, or fails.</summary>
    /// <remarks>The NRE is ReSharper's, observed for some static methods: their doc comment is then read from the source.</remarks>
    static XmlNode? XmlOf(IDeclaredElement element, bool expandInheritdoc)
    {
@@ -67,62 +79,68 @@ sealed class DocComment
       }
    }
 
+   /// <summary>The summary and the remarks in <paramref name="xml"/>, the XML ReSharper gives for a doc comment.</summary>
+   static DocComment FromTheXml(XmlNode? xml) =>
+      xml == null
+         ? None
+         : new DocComment(xml.SelectSingleNode("//summary") is {} summary ? DocCommentText.Of(summary) : null,
+                          xml.SelectSingleNode("//remarks") is {} remarks ? DocCommentText.Of(remarks) : null);
+
    /// <summary>
    ///   The doc comment above <paramref name="element"/>'s declaration, read from its file: for when ReSharper gives no
    ///   XML for it, as when <see cref="IDeclaredElement.GetXMLDoc"/> fails, or when the comment isn't well-formed XML.
    /// </summary>
    static DocComment FromTheSourceOf(IDeclaredElement element)
    {
-      var none = new DocComment(null, null);
-      var declaration = MainDeclaration.Of(element);
-      if(declaration == null)
-         return none;
+      var lines = MainDeclaration.Of(element) is {} declaration && DeclarationSite.Of(declaration) is {} site
+                     ? DocCommentLinesAbove(site)
+                     : [];
+      return lines.Count == 0 ? None : FromTheLines(lines);
+   }
 
-      var site = DeclarationSite.Of(declaration);
-      var filePath = site?.File;
-      if(string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
-         return none;
+   /// <summary>
+   ///   The lines of the doc comment above <paramref name="site"/>, each without its <c>///</c>: up from the line of the
+   ///   declaration's name, over its attributes and blank lines. None when its file isn't on disk, or ends before that line.
+   /// </summary>
+   static IReadOnlyList<string> DocCommentLinesAbove(DeclarationSite site)
+   {
+      if(!File.Exists(site.File))
+         return [];
 
-      // Up from the name's line, over attributes, to the doc comment.
-      var declarationLine = site!.Line;
-      if(declarationLine <= 1)
-         return none;
-
-      var lines = File.ReadAllLines(filePath);
-      if(declarationLine - 1 > lines.Length)
-         return none;
+      var fileLines = File.ReadAllLines(site.File);
+      if(site.Line - 1 > fileLines.Length)
+         return [];
 
       var docLines = new List<string>();
-      for(var lineIndex = declarationLine - 2; lineIndex >= 0; lineIndex--)
+      for(var lineIndex = site.Line - 2; lineIndex >= 0; lineIndex--)
       {
-         var trimmed = lines[lineIndex].TrimStart();
+         var trimmed = fileLines[lineIndex].TrimStart();
          if(trimmed.StartsWith("///"))
-         {
             docLines.Insert(0, trimmed.Substring(3));
-            continue;
-         }
-
-         if(string.IsNullOrWhiteSpace(trimmed) || (docLines.Count == 0 && trimmed.StartsWith("[")))
-            continue;
-
-         break;
+         else if(!IsBlankOrAnAttributeBelowTheComment(trimmed))
+            break;
       }
 
-      if(docLines.Count == 0)
-         return none;
+      return docLines;
 
+      bool IsBlankOrAnAttributeBelowTheComment(string line) => string.IsNullOrWhiteSpace(line) || (docLines.Count == 0 && line.StartsWith("["));
+   }
+
+   /// <summary>
+   ///   The summary and the remarks of the doc comment written as <paramref name="lines"/>; for one that isn't well-formed
+   ///   XML, such as one with a bare <c>&lt;</c>, its text as written, saying so, as its summary.
+   /// </summary>
+   static DocComment FromTheLines(IReadOnlyList<string> lines)
+   {
       try
       {
-         var root = XDocument.Parse("<root>" + string.Join(Environment.NewLine, docLines) + "</root>").Root;
-         return root == null
-                   ? none
-                   : new DocComment(root.Element("summary") is {} summary ? DocCommentText.Of(summary) : null,
-                                    root.Element("remarks") is {} remarks ? DocCommentText.Of(remarks) : null);
+         var comment = XElement.Parse("<root>" + string.Join(Environment.NewLine, lines) + "</root>");
+         return new DocComment(comment.Element("summary") is {} summary ? DocCommentText.Of(summary) : null,
+                               comment.Element("remarks") is {} remarks ? DocCommentText.Of(remarks) : null);
       }
       catch(XmlException)
       {
-         // A doc comment that isn't well-formed XML, such as one with a bare '<': its text as written, and saying so.
-         return new DocComment(string.Join(" ", docLines).Trim() + " [the doc comment isn't well-formed XML]", null);
+         return new DocComment(string.Join(" ", lines).Trim() + " [the doc comment isn't well-formed XML]", null);
       }
    }
 }

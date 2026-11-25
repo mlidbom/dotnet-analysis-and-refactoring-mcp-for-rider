@@ -128,7 +128,7 @@ public class GetSymbolInfoTool : IMcpTool
       if(site != null)
          sb.Append("declared: ").Append(SolutionRoot.Of(_solution).Relative(site.File)).Append(':').Append(site.Line).Append(':').AppendLine(site.Column.ToString());
 
-      AppendXmlDocumentation(sb, declaredElement);
+      DocComment.Of(declaredElement).AppendTo(sb);
 
       if(includeMembers && declaredElement is ITypeElement membersType)
       {
@@ -148,14 +148,4 @@ public class GetSymbolInfoTool : IMcpTool
       containingType is ITypeExtension block && block.GetContainingType() is {} staticClass
          ? $"{staticClass.GetClrName().FullName}, {Signature.Of(block)}"
          : containingType.GetClrName().FullName;
-
-   static void AppendXmlDocumentation(StringBuilder sb, IDeclaredElement declaredElement)
-   {
-      var docComment = DocComment.Of(declaredElement);
-      if(docComment.SummaryLine is {} summary)
-         sb.AppendLine(summary);
-
-      if(docComment.RemarksLine is {} remarks)
-         sb.AppendLine(remarks);
-   }
 }

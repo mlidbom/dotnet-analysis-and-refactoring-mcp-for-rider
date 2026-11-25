@@ -48,6 +48,10 @@ public sealed class DeclarationSource
    public static DeclarationSource? AfterTheDocCommentOf(IDeclaredElement element, IDeclaration declaration) =>
       From(element, declaration, FirstNodeAfterTheDocCommentOf(declaration));
 
+   /// <summary>
+   ///   <paramref name="declaration"/>'s source from the line <paramref name="firstNode"/>, one of its parts, starts on, to
+   ///   its last line.
+   /// </summary>
    static DeclarationSource? From(IDeclaredElement element, IDeclaration declaration, ITreeNode firstNode)
    {
       var range = TreeNodeExtensions.GetDocumentRange(declaration);
@@ -70,9 +74,11 @@ public sealed class DeclarationSource
       return declaration;
    }
 
-   /// <summary>The heading, then the <see cref="Lines"/>.</summary>
-   public string Text(int maxCharacters) =>
-      $"{_qualifiedName} — {(_file.Length > 0 ? _file : "[no file]")}:{_firstLine}-{LastLine}\n{Lines(maxCharacters)}";
+   /// <summary>The <see cref="Heading"/>, then the <see cref="Lines"/>.</summary>
+   public string Text(int maxCharacters) => $"{Heading}\n{Lines(maxCharacters)}";
+
+   /// <summary>The declared element's name, and where its source is: <c>Shapes.Palette.Pick — C:\…\Palette.cs:8-9</c>.</summary>
+   string Heading => $"{_qualifiedName} — {(_file.Length > 0 ? _file : "[no file]")}:{_firstLine}-{LastLine}";
 
    /// <summary>
    ///   The numbered lines. Past <paramref name="maxCharacters"/> of source, they stop before the line that would exceed

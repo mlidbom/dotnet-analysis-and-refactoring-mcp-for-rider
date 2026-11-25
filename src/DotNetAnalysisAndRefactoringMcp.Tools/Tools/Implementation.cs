@@ -1,5 +1,6 @@
 #nullable enable
 using System.Collections.Generic;
+using System.Linq;
 using JetBrains.ReSharper.Psi;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
@@ -10,33 +11,35 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 /// </summary>
 sealed class Implementation
 {
-   readonly IReadOnlyList<string> _typesItInheritsThrough;
+   /// <summary>The inheriting type, or the implementing or overriding member.</summary>
+   readonly IDeclaredElement _element;
 
-   Implementation(IDeclaredElement element, bool isDirect, IReadOnlyList<string> typesItInheritsThrough)
+   readonly IReadOnlyList<ITypeElement> _typesItInheritsThrough;
+
+   Implementation(IDeclaredElement element, bool isDirect, IReadOnlyList<ITypeElement> typesItInheritsThrough)
    {
-      Element = element;
+      _element = element;
       IsDirect = isDirect;
       _typesItInheritsThrough = typesItInheritsThrough;
    }
-
-   /// <summary>The inheriting type, or the implementing or overriding member.</summary>
-   public IDeclaredElement Element { get; }
 
    /// <summary>Whether it, or the type it is declared in, names what was asked about among its own supertypes.</summary>
    public bool IsDirect { get; }
 
    /// <summary>Its qualified name, as the call trees and the type hierarchy name it.</summary>
-   public string Name => PsiHelpers.GetQualifiedName(Element);
+   public string Name => PsiHelpers.GetQualifiedName(_element);
 
    /// <summary>One that names what was asked about itself.</summary>
    public static Implementation Direct(IDeclaredElement element) => new(element, isDirect: true, []);
 
    /// <summary>
-   ///   One that inherits what was asked about through other types: those of them it names itself, by their short names,
-   ///   when they are known.
+   ///   One that inherits what was asked about through other types: those of them it names itself, when they are known.
    /// </summary>
-   public static Implementation Through(IDeclaredElement element, IReadOnlyList<string> typesItInheritsThrough) =>
+   public static Implementation Through(IDeclaredElement element, IReadOnlyList<ITypeElement> typesItInheritsThrough) =>
       new(element, isDirect: false, typesItInheritsThrough);
+
+   /// <summary>One that inherits what was asked about through other types, which aren't known.</summary>
+   public static Implementation Indirect(IDeclaredElement element) => new(element, isDirect: false, []);
 
    /// <summary>
    ///   Its line, <c>[direct] sealed class Shapes.Circle — Shapes\Circle.cs:4</c>, and under it the summary of the doc
@@ -44,12 +47,12 @@ sealed class Implementation
    /// </summary>
    public string Text(SolutionRoot root)
    {
-      var line = $"{How} {Signature.KindOf(Element)} {Name} — {PsiHelpers.Location(Element, root)}";
-      return DocComment.WrittenOn(Element).SummaryLine is {} summary ? $"{line}\n  {summary}" : line;
+      var line = $"{How} {Signature.KindOf(_element)} {Name} — {PsiHelpers.Location(_element, root)}";
+      return DocComment.WrittenOn(_element).SummaryLine is {} summary ? $"{line}\n  {summary}" : line;
    }
 
    string How =>
-      IsDirect                           ? "[direct]"
-      : _typesItInheritsThrough.Count > 0 ? $"[via {string.Join(", ", _typesItInheritsThrough)}]"
+      IsDirect                            ? "[direct]"
+      : _typesItInheritsThrough.Count > 0 ? $"[via {string.Join(", ", _typesItInheritsThrough.Select(it => it.ShortName))}]"
                                           : "[indirect]";
 }
