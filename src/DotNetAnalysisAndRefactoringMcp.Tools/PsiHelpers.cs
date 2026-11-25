@@ -427,7 +427,7 @@ public static class PsiHelpers
                        {
                           var fqn = GetQualifiedName(element);
                           if(seen.Add(fqn))
-                             found.Add($"{fqn} — {Location(element)}");
+                             found.Add($"{fqn} — {Location(element, SolutionRoot.Of(solution))}");
                        });
       }
 
@@ -490,14 +490,13 @@ public static class PsiHelpers
    }
 
    /// <summary>
-   /// "path:line" for a source element, "[assembly Name.dll]" for a compiled one.
+   ///   Where <paramref name="element"/> is written, as the text answers say it: <c>Shapes\Palette.cs:9</c>, the path
+   ///   relative to <paramref name="root"/>, for one in source; <c>[assembly Name.dll]</c> for a compiled one.
    /// </summary>
-   public static string Location(IDeclaredElement element)
-   {
-      var (file, line) = Declaration(element);
-
-      return file != null ? $"{file}:{line}" : AssemblyLabel(element) ?? "[generated]";
-   }
+   public static string Location(IDeclaredElement element, SolutionRoot root) =>
+      DeclarationSite.WhereWritten(element) is { File.Length: > 0 } site
+         ? site.Location(root)
+         : AssemblyLabel(element) ?? "[no source]";
 
    static bool MatchesKind(IDeclaredElement element, string kind)
    {

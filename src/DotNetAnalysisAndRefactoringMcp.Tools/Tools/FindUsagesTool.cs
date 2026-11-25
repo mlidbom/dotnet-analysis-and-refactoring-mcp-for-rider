@@ -230,11 +230,7 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
       return sb.ToString().TrimEnd();
    }
 
-   string Declared(IDeclaredElement member)
-   {
-      var (path, line) = PsiHelpers.Declaration(member);
-      return path != null ? $"{Relative(path)}:{line}" : PsiHelpers.Location(member);
-   }
+   string Declared(IDeclaredElement member) => PsiHelpers.Location(member, SolutionRoot.Of(_solution));
 
    /// <summary>
    /// rg-shaped: a relative path, then "  line: code" per usage, in path and line order.

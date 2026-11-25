@@ -97,10 +97,7 @@ public sealed class Callee : IEquatable<Callee>
    };
 
    /// <summary>Where it is declared, <c>Shapes\Palette.cs:9</c>, the path relative to <paramref name="root"/>; the assembly of a compiled one.</summary>
-   public string Location(SolutionRoot root) =>
-      DeclarationSite.WhereWritten(Member) is { File.Length: > 0 } site
-         ? site.Location(root)
-         : PsiHelpers.AssemblyLabel(Member) ?? "[no source]";
+   public string Location(SolutionRoot root) => PsiHelpers.Location(Member, root);
 
    /// <summary>
    ///   Whether it is declared in the solution's source, or, for an implicit constructor, which has no declaration, its
