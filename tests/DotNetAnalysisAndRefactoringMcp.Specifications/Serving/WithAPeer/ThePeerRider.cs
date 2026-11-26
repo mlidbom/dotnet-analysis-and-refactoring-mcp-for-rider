@@ -31,7 +31,7 @@ public sealed class ThePeerRider : IDisposable
       _peer.InstallThePluginOf(sandbox.Build);
 
       _solutionFolder = Path.Combine(_peer.SolutionsFolder, TheSandboxWithTheFixtureSolution.SolutionName);
-      TheSandboxWithTheFixtureSolution.CopyTheFixtureSolutionTo(_solutionFolder);
+      FixtureSolutionCopy.MakeIn(_solutionFolder);
       File.WriteAllText(PathOf("Shapes/OnlyInThePeer.cs"),
                         "namespace Shapes;\n\n/// <summary>A type only the peer's copy of the fixture solution has.</summary>\npublic sealed class OnlyInThePeer;\n");
 
