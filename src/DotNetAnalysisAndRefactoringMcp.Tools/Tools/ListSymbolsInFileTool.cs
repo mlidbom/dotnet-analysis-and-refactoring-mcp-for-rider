@@ -144,7 +144,7 @@ public class ListSymbolsInFileTool : IMcpAlwaysLoadedTool
 
       // Format compact output with indentation by containing type
       var sb = new StringBuilder();
-      sb.Append(filePath).Append(" — ").Append(symbols.Count).AppendLine(" symbols");
+      sb.Append(filePath).Append(" — ").Append(symbols.Count).Append(" symbols").Append('\n');
 
       string lastContainingType = null;
       foreach(var sym in symbols)
@@ -152,9 +152,9 @@ public class ListSymbolsInFileTool : IMcpAlwaysLoadedTool
          if(sym.IsType)
          {
             // Type declaration — top-level (no indent)
-            sb.AppendLine();
+            sb.Append('\n');
             sb.Append(Signature.Of(sym.Element));
-            sb.Append(" :").AppendLine(sym.Line.ToString());
+            sb.Append(" :").Append(sym.Line.ToString()).Append('\n');
             lastContainingType = sym.Element.ShortName;
          } else if(sym.ContainingType != null)
          {
@@ -162,24 +162,24 @@ public class ListSymbolsInFileTool : IMcpAlwaysLoadedTool
             if(sym.ContainingType != lastContainingType)
             {
                // New containing type we haven't seen as a declaration
-               sb.AppendLine();
-               sb.Append("(").Append(sym.ContainingType).AppendLine(")");
+               sb.Append('\n');
+               sb.Append("(").Append(sym.ContainingType).Append(")").Append('\n');
                lastContainingType = sym.ContainingType;
             }
 
             sb.Append("  ").Append(Signature.Of(sym.Element));
-            sb.Append(" :").AppendLine(sym.Line.ToString());
+            sb.Append(" :").Append(sym.Line.ToString()).Append('\n');
          } else
          {
             // Top-level non-type (rare: delegates, etc.)
             sb.Append(Signature.Of(sym.Element));
-            sb.Append(" :").AppendLine(sym.Line.ToString());
+            sb.Append(" :").Append(sym.Line.ToString()).Append('\n');
             lastContainingType = null;
          }
       }
 
       if(skipped.Line != null)
-         sb.AppendLine().AppendLine(skipped.Line);
+         sb.Append('\n').Append(skipped.Line).Append('\n');
 
       return sb.ToString().TrimEnd();
    }

@@ -89,25 +89,25 @@ public class GetSymbolInfoTool : IMcpTool
       var sb = new StringBuilder();
 
       // Header: compact signature
-      sb.AppendLine(Signature.Of(declaredElement));
+      sb.Append(Signature.Of(declaredElement)).Append('\n');
 
       // Containing type / namespace
       if(declaredElement is IClrDeclaredElement clrElement)
       {
          var containingType = clrElement.GetContainingType();
          if(containingType != null)
-            sb.Append("containingType: ").AppendLine(NameOf(containingType));
+            sb.Append("containingType: ").Append(NameOf(containingType)).Append('\n');
 
          if(declaredElement is ITypeElement typeElem)
          {
             var ns = typeElem.GetContainingNamespace();
             if(ns != null && !string.IsNullOrEmpty(ns.QualifiedName))
-               sb.Append("namespace: ").AppendLine(ns.QualifiedName);
+               sb.Append("namespace: ").Append(ns.QualifiedName).Append('\n');
          } else if(containingType != null)
          {
             var ns = containingType.GetContainingNamespace();
             if(ns != null && !string.IsNullOrEmpty(ns.QualifiedName))
-               sb.Append("namespace: ").AppendLine(ns.QualifiedName);
+               sb.Append("namespace: ").Append(ns.QualifiedName).Append('\n');
          }
       }
 
@@ -120,19 +120,19 @@ public class GetSymbolInfoTool : IMcpTool
                                      .Select(t => t.GetPresentableName(lang))
                                      .ToList();
          if(superTypes.Any())
-            sb.Append("baseTypes: ").AppendLine(string.Join(", ", superTypes));
+            sb.Append("baseTypes: ").Append(string.Join(", ", superTypes)).Append('\n');
       }
 
       // Declaration location
       if(DeclarationSite.WhereDeclared(declaredElement) is {} site)
-         sb.Append("declared: ").AppendLine(site.LocationWithColumn(SolutionRoot.Of(_solution)));
+         sb.Append("declared: ").Append(site.LocationWithColumn(SolutionRoot.Of(_solution))).Append('\n');
 
       DocComment.Of(declaredElement).AppendTo(sb);
 
       if(includeMembers && declaredElement is ITypeElement membersType)
       {
-         sb.AppendLine();
-         sb.AppendLine("members:");
+         sb.Append('\n');
+         sb.Append("members:").Append('\n');
          new MemberListing(membersType).AppendTo(sb, "  ");
       }
 

@@ -41,10 +41,10 @@ sealed class DocComment
    public void AppendTo(StringBuilder text)
    {
       if(SummaryLine is {} summary)
-         text.AppendLine(summary);
+         text.Append(summary).Append('\n');
 
       if(RemarksLine is {} remarks)
-         text.AppendLine(remarks);
+         text.Append(remarks).Append('\n');
    }
 
    /// <summary>

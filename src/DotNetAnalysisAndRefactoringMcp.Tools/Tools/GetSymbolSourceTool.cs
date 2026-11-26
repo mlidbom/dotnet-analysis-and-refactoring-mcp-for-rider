@@ -81,11 +81,11 @@ public class GetSymbolSourceTool : IMcpAlwaysLoadedTool
    {
       var qualifiedName = PsiHelpers.GetQualifiedName(element);
       var text = new StringBuilder();
-      text.AppendLine($"{qualifiedName} — {PsiHelpers.AssemblyLabel(element)}");
+      text.Append($"{qualifiedName} — {PsiHelpers.AssemblyLabel(element)}").Append('\n');
       if(!Equals(element, decompiled.Type))
-         text.AppendLine($"// {element.ShortName} is declared in {PsiHelpers.GetQualifiedName(decompiled.Type)}, shown whole below");
+         text.Append($"// {element.ShortName} is declared in {PsiHelpers.GetQualifiedName(decompiled.Type)}, shown whole below").Append('\n');
 
-      text.AppendLine(decompiled.Label);
+      text.Append(decompiled.Label).Append('\n');
       var source = decompiled.Text;
       if(source.Length > MaxSourceLength)
          source = source.Substring(0, MaxSourceLength) + "\n... (truncated)";

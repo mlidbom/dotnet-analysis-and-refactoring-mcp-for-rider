@@ -147,28 +147,28 @@ public sealed class MoveTypeToNamespaceTool : IMcpMainThreadTool, IMcpFileMoving
 
       var root = SolutionRoot.Of(_solution);
       var answer = new StringBuilder();
-      answer.AppendLine(dryRun
+      answer.Append(dryRun
                            ? $"Would move {shortName} from {oldNamespace} to {newNamespace} (dry run: nothing changed). Files it may change:"
-                           : $"Moved {shortName} from {oldNamespace} to {newNamespace}. Files it may have changed:");
-      foreach(var file in affected) answer.AppendLine("  " + root.Relative(file));
+                           : $"Moved {shortName} from {oldNamespace} to {newNamespace}. Files it may have changed:").Append('\n');
+      foreach(var file in affected) answer.Append("  " + root.Relative(file)).Append('\n');
       if(usingsAdded.Count > 0)
       {
-         answer.AppendLine($"{(dryRun ? "Would add" : "Added")} using {newNamespace}; for the extension methods' callers in:");
-         foreach(var file in usingsAdded) answer.AppendLine("  " + root.Relative(file));
+         answer.Append($"{(dryRun ? "Would add" : "Added")} using {newNamespace}; for the extension methods' callers in:").Append('\n');
+         foreach(var file in usingsAdded) answer.Append("  " + root.Relative(file)).Append('\n');
       }
       if(madeFileScoped.Count > 0)
       {
-         answer.AppendLine($"{(dryRun ? "Would make" : "Made")} the namespace file-scoped again, as the solution's code style has it, in:");
-         foreach(var file in madeFileScoped) answer.AppendLine("  " + root.Relative(file));
+         answer.Append($"{(dryRun ? "Would make" : "Made")} the namespace file-scoped again, as the solution's code style has it, in:").Append('\n');
+         foreach(var file in madeFileScoped) answer.Append("  " + root.Relative(file)).Append('\n');
       }
 
       foreach(var conflict in driver.Conflicts)
-         answer.AppendLine("conflict: " + conflict.Description);
+         answer.Append("conflict: " + conflict.Description).Append('\n');
       if(toMove.Count == 0)
-         answer.AppendLine("The file wasn't moved: it holds types in other namespaces too.");
+         answer.Append("The file wasn't moved: it holds types in other namespaces too.").Append('\n');
       foreach(var file in toMove)
          if(PlanTheMoveOf(file, newNamespace!, dryRun, root) is { Length: > 0 } line)
-            answer.AppendLine(line);
+            answer.Append(line).Append('\n');
       return answer.ToString().TrimEnd();
    }
 

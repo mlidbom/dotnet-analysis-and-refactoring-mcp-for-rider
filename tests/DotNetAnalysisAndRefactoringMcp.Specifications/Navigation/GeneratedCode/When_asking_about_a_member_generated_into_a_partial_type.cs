@@ -13,7 +13,7 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Navigation.GeneratedCod
 /// </summary>
 public class When_asking_about_a_member_generated_into_a_partial_type(TheSandboxWithTheFixtureSolution sandbox)
 {
-   readonly string _information = sandbox.McpServer.CallTool("get_symbol_info", new { symbolName = "Shapes.Swatch.Shade" }).ReplaceLineEndings("\n");
+   readonly string _information = sandbox.McpServer.CallTool("get_symbol_info", new { symbolName = "Shapes.Swatch.Shade" });
    readonly string _source = sandbox.McpServer.CallTool("get_symbol_source", new { symbolName = "Shapes.Swatch.Shade" });
 
    [XF] public void its_information_says_it_is_declared_in_its_generated_file() =>

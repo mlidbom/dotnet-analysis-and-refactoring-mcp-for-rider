@@ -115,7 +115,7 @@ public class BrowseNamespaceTool : IMcpTool
       var sb = new StringBuilder();
       var skipped = new SkippedElements();
       var displayName = string.IsNullOrEmpty(namespaceName) ? "(root)" : namespaceName;
-      sb.Append("namespace: ").AppendLine(displayName);
+      sb.Append("namespace: ").Append(displayName).Append('\n');
 
       // Child namespaces
       var childNamespaces = targetNs.GetNestedNamespaces(symbolScope)
@@ -124,8 +124,8 @@ public class BrowseNamespaceTool : IMcpTool
 
       if(childNamespaces.Count > 0)
       {
-         sb.AppendLine();
-         sb.AppendLine("child namespaces:");
+         sb.Append('\n');
+         sb.Append("child namespaces:").Append('\n');
          foreach(var childNs in childNamespaces)
          {
             skipped.Guard(childNs.QualifiedName,
@@ -133,7 +133,7 @@ public class BrowseNamespaceTool : IMcpTool
                           {
                              var typeCount = childNs.GetNestedTypeElements(symbolScope).Count();
                              sb.Append("  ").Append(childNs.QualifiedName);
-                             sb.Append(" (").Append(typeCount).AppendLine(" types)");
+                             sb.Append(" (").Append(typeCount).Append(" types)").Append('\n');
                           });
          }
       }
@@ -141,8 +141,8 @@ public class BrowseNamespaceTool : IMcpTool
       var types = TypesIn(targetNs, skipped);
       if(types.Count > 0)
       {
-         sb.AppendLine();
-         sb.AppendLine("types:");
+         sb.Append('\n');
+         sb.Append("types:").Append('\n');
          foreach(var typeElement in types)
             skipped.Guard(typeElement,
                           () =>
@@ -153,7 +153,7 @@ public class BrowseNamespaceTool : IMcpTool
       }
 
       if(skipped.Line != null)
-         sb.AppendLine().AppendLine(skipped.Line);
+         sb.Append('\n').Append(skipped.Line).Append('\n');
 
       return sb.ToString().TrimEnd();
    }
@@ -181,7 +181,7 @@ public class BrowseNamespaceTool : IMcpTool
          }
       }
 
-      return sb.AppendLine().ToString();
+      return sb.Append('\n').ToString();
    }
 
    static bool IsGeneratedFile(string fileName)

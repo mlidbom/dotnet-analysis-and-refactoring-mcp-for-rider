@@ -356,6 +356,9 @@ Method bodies only when `DecompilerSettings.DecompilerLegalNoticeAccepted` is se
 Never show the notice from a tool (it is a modal `MessageBox`).
 
 ### Small API traps
+- `StringBuilder.AppendLine` and Newtonsoft's `ToString(Formatting.Indented)` end lines with `Environment.NewLine`, a
+  carriage return and a line feed on Windows. Answers end their lines with a line feed alone: `.Append('\n')`, and
+  `JsonOf.Indented` for indented JSON. `When_every_tool_that_changes_nothing_answers` checks it.
 - `IPsiSourceFile.PsiModule` is a property; there is no `GetPsiModule()` extension for it.
 - `psiFile.Descendants().OfType<T>()` returns a struct enumerator, not `IEnumerable<T>`: `foreach` it, no LINQ.
 

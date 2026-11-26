@@ -43,17 +43,17 @@ public class GetSolutionStructureTool : IMcpTool
                               .Where(p => p.ProjectFileLocation != null && !p.ProjectFileLocation.IsEmpty)
                               .ToList();
 
-      sb.Append(solutionPath).Append(" — ").Append(projects.Count).AppendLine(" projects");
+      sb.Append(solutionPath).Append(" — ").Append(projects.Count).Append(" projects").Append('\n');
 
       foreach(var project in projects)
       {
-         sb.AppendLine();
-         sb.Append("[").Append(project.Name).Append("] ").AppendLine(root.Relative(project.ProjectFileLocation.FullPath));
+         sb.Append('\n');
+         sb.Append("[").Append(project.Name).Append("] ").Append(root.Relative(project.ProjectFileLocation.FullPath)).Append('\n');
 
          // Target frameworks
          var tfms = project.TargetFrameworkIds;
          if(tfms != null && tfms.Any())
-            sb.Append("  frameworks: ").AppendLine(string.Join(", ", tfms.Select(t => t.ToString())));
+            sb.Append("  frameworks: ").Append(string.Join(", ", tfms.Select(t => t.ToString()))).Append('\n');
 
          // Project references
          var projectRefs = new HashSet<string>();
@@ -68,18 +68,18 @@ public class GetSolutionStructureTool : IMcpTool
          }
 
          if(projectRefs.Count > 0)
-            sb.Append("  references: ").AppendLine(string.Join(", ", projectRefs.OrderBy(r => r)));
+            sb.Append("  references: ").Append(string.Join(", ", projectRefs.OrderBy(r => r))).Append('\n');
 
          // File count
          var fileCount = project.GetAllProjectFiles().Count();
-         sb.Append("  files: ").AppendLine(fileCount.ToString());
+         sb.Append("  files: ").Append(fileCount.ToString()).Append('\n');
 
          // File list (optional)
          if(includeFiles)
          {
             foreach(var file in project.GetAllProjectFiles().OrderBy(f => f.Location.FullPath))
             {
-               sb.Append("    ").AppendLine(root.Relative(file.Location.FullPath));
+               sb.Append("    ").Append(root.Relative(file.Location.FullPath)).Append('\n');
             }
          }
       }

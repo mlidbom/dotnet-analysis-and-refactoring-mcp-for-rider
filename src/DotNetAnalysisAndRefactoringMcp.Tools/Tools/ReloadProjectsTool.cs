@@ -96,11 +96,11 @@ public sealed class ReloadProjectsTool : IMcpAsyncTool
       var answer = new StringBuilder();
       if(loadEvents == null)
       {
-         answer.AppendLine("Asked Rider to reload them, but this Rider's solution host doesn't report loads, so the reload wasn't waited for.");
+         answer.Append("Asked Rider to reload them, but this Rider's solution host doesn't report loads, so the reload wasn't waited for.").Append('\n');
       } else if(await Task.WhenAny(load.Done, Task.Delay(HowLongLoadingMayTake, call.Lifetime)).ConfigureAwait(false) != load.Done)
       {
-         answer.AppendLine($"Asked Rider to reload them, and it hadn't loaded them after {Seconds(HowLongLoadingMayTake)}. " +
-                           "Rider holds reloads back during a build, for example.");
+         answer.Append($"Asked Rider to reload them, and it hadn't loaded them after {Seconds(HowLongLoadingMayTake)}. " +
+                           "Rider holds reloads back during a build, for example.").Append('\n');
       } else
       {
          // The result is applied on the main thread, queued when the load finished: these turns come after it.
@@ -108,15 +108,15 @@ public sealed class ReloadProjectsTool : IMcpAsyncTool
          await MainThreadTurn(call.Lifetime).ConfigureAwait(false);
          var loadedIn = stopwatch.Elapsed;
          var indexed = await new Indexing(_solution).IsDoneWithin(HowLongIndexingMayTake, call.Lifetime).ConfigureAwait(false);
-         answer.AppendLine(indexed
+         answer.Append(indexed
                               ? $"Reloaded in {Seconds(loadedIn)}, and ReSharper has indexed the result ({Seconds(stopwatch.Elapsed)} in all)."
-                              : $"Reloaded in {Seconds(loadedIn)}; ReSharper was still indexing {Seconds(HowLongIndexingMayTake)} later, so answers may be incomplete for a while.");
+                              : $"Reloaded in {Seconds(loadedIn)}; ReSharper was still indexing {Seconds(HowLongIndexingMayTake)} later, so answers may be incomplete for a while.").Append('\n');
       }
 
       foreach(var project in found.Projects)
-         answer.AppendLine("  " + project.Name + " — " + project.File);
+         answer.Append("  " + project.Name + " — " + project.File).Append('\n');
       if(found.NotFound.Count > 0)
-         answer.AppendLine("No project found for " + string.Join(", ", found.NotFound));
+         answer.Append("No project found for " + string.Join(", ", found.NotFound)).Append('\n');
       return answer.ToString().TrimEnd();
    }
 

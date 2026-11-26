@@ -42,10 +42,10 @@ class MemberListing
       {
          if(member is ITypeExtension block)
          {
-            text.Append(indent).AppendLine(Signature.Of(block));
+            text.Append(indent).Append(Signature.Of(block)).Append('\n');
             new MemberListing(block).AppendTo(text, indent + "  ");
          } else
-            text.Append(indent).Append(AccessOf(member) is { } access ? access + " " : "").AppendLine(Signature.Of(member));
+            text.Append(indent).Append(AccessOf(member) is { } access ? access + " " : "").Append(Signature.Of(member)).Append('\n');
       }
    }
 

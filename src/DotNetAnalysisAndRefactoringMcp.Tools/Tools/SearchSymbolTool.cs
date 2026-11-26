@@ -94,11 +94,11 @@ public class SearchSymbolTool : IMcpTool
 
       // Format compact output
       var sb = new StringBuilder();
-      sb.Append("query: ").Append(query).Append(" — ").Append(search.Results.Count).AppendLine(" results");
+      sb.Append("query: ").Append(query).Append(" — ").Append(search.Results.Count).Append(" results").Append('\n');
 
       foreach(var r in search.Results)
       {
-         sb.AppendLine();
+         sb.Append('\n');
          sb.Append(r.Kind).Append(' ');
          if(r.ContainingType != null)
             sb.Append(r.ContainingType).Append('.');
@@ -107,7 +107,7 @@ public class SearchSymbolTool : IMcpTool
       }
 
       if(search.Skipped.Line != null)
-         sb.AppendLine().AppendLine().Append(search.Skipped.Line);
+         sb.Append('\n').Append('\n').Append(search.Skipped.Line);
 
       return sb.ToString().TrimEnd();
    }
