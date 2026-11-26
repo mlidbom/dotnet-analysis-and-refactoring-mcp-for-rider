@@ -97,6 +97,8 @@ For subsequent local updates, stage the new package and its verified `catalog.js
 directory. `tools/Update-InstalledRoyderPrimary.ps1 -PackageDirectory <directory>` asks an idle primary to
 shut down, waits for requests to drain, updates the sign-in task and checks the new public listener. It keeps
 the old settings for rollback. Earlier packages that lack the `stop` command require a coordinated stop first.
+Each package's private Rider has a profile of its own, `everyday-state-<package>`, about 2 GB: once the new primary
+answers, the update deletes all but the new package's and the previous one's, which a rollback to the old settings uses.
 
 A new package is needed for a change to the primary, the host or the management plugins, not for a tools change.
 `-ToolsFolder <folder>` adds `toolsFolder` to the settings; an update keeps the one they name.

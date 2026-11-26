@@ -61,6 +61,16 @@ bites now and then:
    incoming tree names an initializer by its field, `Shapes.Drawing.SketchBook._first`, and says that its callers
    aren't followed, where it could go on to `new Shapes.Drawing.SketchBook`. It does find a primary constructor's base
    call as a call of `new DetailedSketch`.
+3. **`find_dependencies`, what a folder, a namespace or a set of files uses and what uses it** (agentharness-facades,
+   2026-11-25, choosing what to move out of the hub). The question before each seam: what has to move first, or go
+   behind an interface. Outgoing, the solution's types its code references, and incoming, the code that references the
+   types it declares, each grouped by project and namespace, each type with its count of references and the files
+   they are in; compiled assemblies on a line each. The agent's script matched type names in the text and counted
+   files of Cloyd and Peers, which don't reference the hub. Today it takes `list_symbols_in_file` over the files and
+   `find_usages` with every type in `symbols`, mode `files` and `excludeDeclarationFile`, and that answers only the
+   incoming half, not grouped. Incoming builds on `IFinder.FindReferences` over the declared types; outgoing on
+   resolving every reference in the scope's files, as `CallTrees/CallsInCode` resolves calls. ReSharper's own forms,
+   the type dependency diagram and Find Code Dependent on Module, are a diagram and a module's references.
 
 `get_symbol_source`'s answer, item 4 here until 2026-11-24, is text now; so are `get_call_hierarchy`'s trees: the
 outgoing one, item 1 until 2026-11-25, which follows implementations, `new`, properties, indexers and operators, within
@@ -228,6 +238,27 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   file qualifies its other crefs by namespace (`Skills.LinkedSkills`). A cref rewritten as its file writes the others
   would fit. Not checked: whether that is ReSharper's own Move refactoring following its reference-qualification
   settings.
+
+  A third case (agentharness-facades, 2026-11-25, splitting the hub in the `m-test-structure` worktree of `~/.claude`):
+  34 files moved from `ClaudeTooling/StatusLine` to the project `ClaudeTooling.ClaudeCode`, their namespace from
+  `ClaudeTooling.StatusLine.*` to `ClaudeTooling.ClaudeCode.StatusLine.*`. One type per call would have been 34 calls,
+  so the agent rewrote the usings with a script, which broke files holding several of them: it rewrote at offsets that
+  had shifted. Finding 4 of `dev_docs/what-agents-lack.md` counts 74 renames by hand, mostly of namespaces.
+
+  Decided 2026-11-26, as two tools rather than a batch form of `move_type_to_namespace`, since moves come as a namespace
+  or a folder, not as a list of types:
+  - **`rename_symbol` takes a namespace:** ReSharper's own namespace rename, which renames it in every file that
+    declares it or a namespace under it, and rewrites every reference. A prefix such as `ClaudeTooling.StatusLine` to
+    `ClaudeTooling.ClaudeCode.StatusLine` is such a rename.
+  - **`move_to_folder`, a new tool:** files, or everything under a folder, moved to a folder in any project of the
+    solution, each namespace made the target folder's and every reference rewritten, as ReSharper's Move to Folder does
+    into another project; files moved on disk as `move_type_to_namespace` moves them (`Disk/FileMoves.cs`). That is the
+    whole of the case above, in one call.
+
+  Both check what the bullets above want: the solution still compiling over every reference to the namespaces they
+  change. Once they exist, the handshake instructions or the always-on rule on tool use should name them: the agent
+  reached for a script since neither says Royder moves code. Not before, and not before optimize-royder reads the
+  usage measurement of the instructions changed on 23 November: they have 12 of their 250 characters left.
 
 - **`rename_symbol` of a nested type leaves its file's name** (gpt-collaborators' refactoring subagent, 2026-11-21
   ~16:55, in `~/.claude`). `Peers.Codex.CodexSessions.ReadFromCodex`, nested in the partial class `CodexSessions`, in
@@ -424,8 +455,17 @@ Found while doing this, to fix:
   `RiderBackendCluster.WaitForRouting`'s repair at the end of that close. A call forwarded before then gets the new
   cluster primary's refusal verbatim, and the primary, finding no health row, invalidates the worktree: the next call
   closes a healthy backend and opens it cold. On 2026-11-24 the repair never ran at all, since its sibling check waited
-  for a backend the primary could not identify (fixed in `72f6d97`); the window remains. Better: on that refusal for
+  for a backend the primary could not identify (fixed in `72f6d97`); the window remains. Again at 02:18 the same night:
+  `get_symbol_source` with the main checkout's absolute `ReSharperMcp.sln` answered "not found. Available solutions:
+  'ReSharperMcp'", and the next call "still opening". Better: on that refusal for
   a live backend, repair the registration and forward once more, instead of invalidating.
+- **The private Rider's JVM ended while closing one worktree with two others open** (found 2026-11-25, 04:22). The
+  primary logged "Worktree maintenance: The private Rider JVM stopped while closing a project with open siblings"
+  (`SharedRiderHost`) while closing `surrogate-session-ids`. In run `5bdae639…`, `idea.log` shows the closing backend
+  "exited by request with exit code 0" at 04:22:10.057 and ends 100 ms later, with no shutdown of the JVM's own logged.
+  There was no Windows Error Reporting event and no `hs_err` file, so it was ended or exited quietly. A new run started
+  at 04:24, and every worktree that was open in it was reopened cold. Not known yet: what ended it. Look first at what
+  the supervisor recorded of the JVM's exit at 04:22.
 - **The supervisor's record of the private Rider's processes grows without bound** (found 2026-11-25). `Supervise.ps1`
   keeps every process ever seen in the job in `observed` and writes all of it to `state.json` at each change of
   membership; the primary parses that file every 150–250 ms while a close waits for workers. After 90 minutes: 23,628
@@ -924,4 +964,8 @@ backend.
   worktree's backend 0.3–1.5 GB, its Roslyn worker 0.4–1 GB and its MSBuild node about 0.1 GB, and the JVM 1.5 GB.
   Solution-wide analysis makes a full pass over about 2,600 files at each open, roughly 3 processors for 1–2 minutes.
   Over the evening the whole private Rider averaged about 1.3 processors. A shorter idle close is no answer either:
-  10 minutes gave agents a cold start nearly every call.
+  10 minutes gave agents a cold start nearly every call. The stall recorder's log confirmed it on 2026-11-25 (asked by
+  tooling-owner): from 11-24 16:00 to 11-25 06:40 the private Rider averaged 0.3–1.3 of the 32 logical processors per
+  hour, and 0.5–1.3 in the ten-second lines with the machine at 90% or more, when builds and test hosts held 2–9.
+  Worked out by matching the recorder's busiest process ids to the process ids in Rider's backend and Roslyn worker log
+  file names: the desktop Rider's log folder, the private Rider's `runs/*/log`, the sandbox's.

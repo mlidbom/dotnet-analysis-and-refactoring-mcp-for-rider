@@ -126,3 +126,12 @@ try {
    throw "Restored the previous primary after the update failed: $failure"
 }
 Write-Output "Active primary: $newExecutable on $($current.port). Previous settings: $backup."
+
+# Each package's private Rider gets a profile of its own, about 2 GB of packages, caches and indexes. Only the new one
+# runs, and the previous one is what a rollback to the previous settings uses: the others are deleted.
+$kept = $updated.rider.profileDirectory, $current.rider.profileDirectory | ForEach-Object { [IO.Path]::GetFullPath($_) }
+foreach ($profile in Get-ChildItem -LiteralPath $installation -Directory -Filter 'everyday-state-*') {
+   if ($profile.FullName -in $kept) { continue }
+   try { Remove-Item -LiteralPath $profile.FullName -Recurse -Force }
+   catch { Write-Warning "The old profile $($profile.FullName) was not deleted: $($_.Exception.Message)" }
+}
