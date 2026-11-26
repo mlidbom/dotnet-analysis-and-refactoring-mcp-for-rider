@@ -273,6 +273,16 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   reached for a script since neither says Royder moves code. Not before, and not before optimize-royder reads the
   usage measurement of the instructions changed on 23 November: they have 12 of their 250 characters left.
 
+- **No refactoring moves a type's instance members into a component it holds** (agentharness-facades, 2026-11-26,
+  in the `m-test-structure` worktree of `~/.claude`). Eight members of the hub's `UnarchivedSession`, properties among
+  them, moved into a new `UnarchivedConversationsOfASession`, which `UnarchivedSession` holds as `ConversationsOnDisk`:
+  31 callers in 9 files had `session.Titles` become `session.ConversationsOnDisk.Titles`. The agent deleted the members,
+  built, and had a script insert `ConversationsOnDisk.` at each CS1061 the build named: two builds, and a cref fixed by
+  hand. Rider's Move Instance Method moves one method at a time, to a parameter's or field's type, and no properties;
+  Move to Another Type takes only static members. Wanted: the members, the component's member that holds them, and
+  every `x.Member` rewritten as `x.ConversationsOnDisk.Member`, crefs included. To look at first, not checked:
+  ReSharper's Extract Class, which moves members into a new class the original holds, and how it treats outside callers.
+
 - **`rename_symbol` of a nested type leaves its file's name** (gpt-collaborators' refactoring subagent, 2026-11-21
   ~16:55, in `~/.claude`). `Peers.Codex.CodexSessions.ReadFromCodex`, nested in the partial class `CodexSessions`, in
   `src/Peers/Codex/CodexSessions.ReadFromCodex.cs`, renamed to `CodexOfTheHome`: the type and its references changed,
