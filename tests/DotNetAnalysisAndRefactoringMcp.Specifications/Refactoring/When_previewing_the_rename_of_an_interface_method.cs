@@ -23,10 +23,12 @@ public class When_previewing_the_rename_of_an_interface_method(TheSandboxWithThe
    [XF] public void it_says_what_it_would_rename_and_lists_the_files_by_their_paths_in_the_work_tree() =>
       _answer.Must().Be("""
                         Would rename abstract method Shapes.IShape.Area to Surface: a dry run, which changed nothing and renamed no file.
-                        Would change 4 files:
+                        Would change 6 files:
                           Shapes.Drawing\Drawing.cs
+                          Shapes.Drawing\Sketch.cs
                           Shapes\Circle.cs
                           Shapes\IShape.cs
+                          Shapes\ShapeExtensions.cs
                           Shapes\Square.cs
                         """.ReplaceLineEndings("\n"));
 }
