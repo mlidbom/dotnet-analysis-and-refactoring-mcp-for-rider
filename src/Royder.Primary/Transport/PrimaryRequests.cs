@@ -176,6 +176,11 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
    ///   close however long it took, and agents were told only "The operation timed out." by their MCP client after 60
    ///   seconds, of closes that had in fact freed the folder: they could not tell whether to remove it.
    /// </remarks>
+   /// <remarks>
+   ///   ClaudeTooling's <c>worktree remove</c> calls it before removing a worktree, and tells the answers apart by how
+   ///   they begin: <c>Closed:</c>, <c>Still closing</c> and <c>Nothing to close</c> (2026-11-26). Keep those beginnings
+   ///   until the answer carries its state as structured content, which the backlog has.
+   /// </remarks>
    async Task<JObject> ClosedByTheDeadline(JToken id, string path, Task<bool> closing, AnswerDeadline deadline, CancellationToken cancel)
    {
       try

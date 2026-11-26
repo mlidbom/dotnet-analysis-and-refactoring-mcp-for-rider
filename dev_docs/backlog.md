@@ -112,6 +112,13 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   and loses its tools until it reconnects through tool search or `/mcp`; it doesn't retry by itself. The agent took it
   for Royder being down, and renamed by text. A handover with no gap needs the old primary to keep the port until the
   new one is ready, such as by passing it the listening socket, or a small proxy that outlives both.
+- **`close_worktree` says its outcome only in words** (tooling-owner, 2026-11-26, not urgent). ClaudeTooling's
+  `worktree remove` (`RoyderServer.Close`, `AnswerToAClose` in `~/.claude`) calls it by a plain `tools/call` before
+  removing a worktree, asks again up to 5 times while the answer is `Still closing`, and tells the answers apart only
+  by how they begin: `Closed:`, `Still closing`, `Nothing to close`. Wanted: `structuredContent` beside the text,
+  `{ "state": "closed" | "stillClosing" | "notOpen" }`, with the tool's `outputSchema`, so that a rewording can't
+  break a removal (`PrimaryRequests.ClosedByTheDeadline`). A primary change: batch it with the next package, since an
+  install drops every session's tools for about 20 seconds.
 - **`sandbox start` gave up on one solution while the sandbox ran another** (royder-agent-rep, 2026-11-26). Three
   probe solutions in one folder, opened by switching: `Relative.slnx`, then `Plain.slnx`, opened. `Missing.slnx`, whose
   solution settings inject a layer by a relative path that resolves under the settings file itself, didn't open:
