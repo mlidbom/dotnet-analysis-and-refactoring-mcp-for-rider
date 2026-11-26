@@ -491,19 +491,30 @@ public static class PsiHelpers
 
    /// <summary>
    ///   Where <paramref name="element"/> is written, as the text answers say it: <c>Shapes\Palette.cs:9</c>, the path
-   ///   relative to <paramref name="root"/>, for one in source; <c>[assembly Name.dll]</c> for a compiled one;
-   ///   <c>[generated]</c> for one a source generator declares, whose declarations are all in in-memory files without a
-   ///   path; <c>[no source]</c> for one with none of these.
+   ///   relative to <paramref name="root"/>, for one in source; <c>[generated]</c> for one a source generator declares,
+   ///   whose in-memory file has no path; <c>[assembly Name.dll]</c> for a compiled one; <c>[no source]</c> for one with
+   ///   neither.
    /// </summary>
    /// <remarks>
-   ///   From 2026-11-25 01:07 until 2026-11-26, a generated one was <c>[no source]</c> too, which reads as if it had no
-   ///   source at all. <see cref="DeclarationSite.WhereWritten"/> has no site for it: it keeps only declarations in a
-   ///   file with a path.
+   ///   A generated member of a partial type is <c>[generated]</c>, not at the type's file, which
+   ///   <see cref="DeclarationSite.WhereWritten"/> gives for a member with no declaration at all, such as a positional
+   ///   record's property. From 2026-11-25 01:07 until 2026-11-26, a generated one was <c>[no source]</c>, which reads as
+   ///   if it had no source at all, or at its partial type's file.
    /// </remarks>
-   public static string Location(IDeclaredElement element, SolutionRoot root) =>
-      DeclarationSite.WhereWritten(element)?.Location(root)
-      ?? AssemblyLabel(element)
-      ?? (element.GetDeclarations().Count > 0 ? "[generated]" : "[no source]");
+   public static string Location(IDeclaredElement element, SolutionRoot root)
+   {
+      if(DeclarationSite.OfMainDeclarationOf(element) is {} site)
+         return site.Location(root);
+      if(IsDeclaredOnlyInFilesWithoutAPath())
+         return "[generated]";
+      return DeclarationSite.WhereWritten(element)?.Location(root) ?? AssemblyLabel(element) ?? "[no source]";
+
+      bool IsDeclaredOnlyInFilesWithoutAPath()
+      {
+         var declarations = element.GetDeclarations();
+         return declarations.Count > 0 && declarations.All(it => DeclarationSite.Of(it) is not { File.Length: > 0 });
+      }
+   }
 
    static bool MatchesKind(IDeclaredElement element, string kind)
    {

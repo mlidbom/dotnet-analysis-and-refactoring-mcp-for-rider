@@ -22,7 +22,7 @@ public class When_renaming_a_type_parameter(TheSandboxWithTheFixtureSolution san
 
    readonly Observed _the = _observed ??= Observe(sandbox);
 
-   [XF] public void the_rename_is_applied() => _the.Answer.Must().Contain("\"applied\": true");
+   [XF] public void the_rename_is_applied() => _the.Answer.Must().StartWith("Renamed type parameter Shapes.Drawing.Renaming.Stacking.TShape to TPiece.\nChanged 1 file:\n  Shapes.Drawing\\Renaming\\Stacking.cs");
    [XF] public void its_uses_in_code_are_renamed() => _the.Text.Must().Satisfy(it => it.Contains("where TPiece : class, IShape") && it.Contains("Put(TPiece shape)"));
    [XF] public void the_typeparamref_tags_to_it_are_renamed() => _the.Text.Must().Satisfy(it => !it.Contains("\"TShape\"") && it.Contains("<typeparamref name=\"TPiece\"/>"));
 

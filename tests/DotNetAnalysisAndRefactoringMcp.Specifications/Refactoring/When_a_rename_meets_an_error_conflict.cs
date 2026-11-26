@@ -15,8 +15,9 @@ public class When_a_rename_meets_an_error_conflict(TheSandboxWithTheFixtureSolut
    readonly string _answer = sandbox.McpServer.CallTool("rename_symbol", new { symbolName = "Shapes.Circle.Area", newName = "Circle" });
    readonly TheSandboxWithTheFixtureSolution _sandbox = sandbox;
 
-   [XF] public void it_is_not_applied() => _answer.Must().Contain("\"applied\": false").Contain("\"refused\"");
-   [XF] public void the_answer_names_the_conflict_and_its_severity() => _answer.Must().Contain("Containing type has the same name as the new name").Contain("\"severity\": \"Error\"");
+   [XF] public void it_is_not_applied() => _answer.Must().StartWith("Didn't rename method Shapes.Circle.Area to Circle: ReSharper reports an error conflict");
+   [XF] public void the_answer_names_the_conflict_and_its_severity() => _answer.Must().Contain("\nerror conflict: Containing type has the same name as the new name\n");
+   [XF] public void and_the_files_of_the_interface_method_and_its_implementations_it_would_change() => _answer.Must().Contain("\nWould change 6 files:\n").Contain("\n  Shapes\\Circle.cs\n").Contain("\n  Shapes\\IShape.cs\n");
    [XF] public void it_tells_how_to_apply_it_anyway() => _answer.Must().Contain("applyDespiteConflicts");
    [XF] public void the_file_is_as_it_was() => File.ReadAllText(_sandbox.PathOf("Shapes/Circle.cs")).Must().Contain("public double Area()");
 }

@@ -13,7 +13,7 @@ public class When_renaming_at_the_variable_of_a_using_declaration(TheSandboxWith
 {
    readonly string _answer = RenameAt(sandbox, "Shapes.Drawing/Exporting.cs", "using var stream", "stream");
 
-   [XF] public void it_renames_the_variable() => _answer.Must().Contain("\"oldName\": \"stream\"");
+   [XF] public void it_renames_the_variable() => _answer.Must().StartWith("Would rename variable Shapes.Drawing.Exporting.stream to memory:");
 
    static string RenameAt(TheSandboxWithTheFixtureSolution sandbox, string file, string lineText, string word)
    {

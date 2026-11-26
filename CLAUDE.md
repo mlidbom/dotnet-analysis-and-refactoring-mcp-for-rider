@@ -434,6 +434,12 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     CallScope.cs                       # The code followed: the solution's, narrowed to namespaces, widened to assemblies
     CallsNotShown.cs                   # The calls left out, by assembly, for the answer's last line
   TypeHierarchies/                     # get_type_hierarchy's trees: Supertypes, Subtypes; TypeHierarchy writes the outline
+  Renames/                             # rename_symbol's parts: Rider's Rename run with no dialog, and its answer
+    HeadlessRenameWorkflow.cs          # ReSharper's RenameWorkflow set up as its dialog would: renames, code, conflicts, files
+    RenameRequest.cs                   # What the call asks: the symbol, the new name, dry run, despite conflicts
+    RenameConflicts.cs                 # The conflicts ReSharper reported, a line each, and whether one is an error
+    RenameOutcome.cs                   # What a rename reported and changed: its answer, renamed, previewed or refused
+    RenamedFile.cs                     # A file a rename renamed with its type: from, to, and its line in the answer
   Disk/
     GitChanges.cs                      # Files changed since a git ref (for get_file_errors changedSince)
     DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk, before every call
