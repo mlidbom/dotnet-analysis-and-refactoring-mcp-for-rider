@@ -24,7 +24,7 @@ public sealed class TypeJson
 
    public static TypeJson Of(ITypeElement type, bool withMembers)
    {
-      var site = DeclarationSite.OfMainDeclarationOf(type);
+      var site = DeclarationSite.WhereDeclaredInAFileWithAPath(type);
       return new TypeJson
              {
                 Kind = JsonNaming.KindOf(type),

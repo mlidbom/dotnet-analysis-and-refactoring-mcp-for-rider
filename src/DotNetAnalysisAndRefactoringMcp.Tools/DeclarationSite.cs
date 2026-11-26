@@ -68,7 +68,7 @@ public sealed class DeclarationSite
    ///   The site of the element's <see cref="MainDeclaration"/> in a file with a path, or else of its first other one
    ///   there; nothing for compiled elements.
    /// </summary>
-   public static DeclarationSite? OfMainDeclarationOf(IDeclaredElement element) =>
+   public static DeclarationSite? WhereDeclaredInAFileWithAPath(IDeclaredElement element) =>
       MainDeclaration.InOrder(element).Select(Of).FirstOrDefault(it => it is { File.Length: > 0 });
 
    /// <summary>
@@ -90,14 +90,14 @@ public sealed class DeclarationSite
    ///   gives, which the .NET Terminal Symbol Linker reads.
    /// </summary>
    public static DeclarationSite? WhereWrittenInAFileWithAPath(IDeclaredElement element) =>
-      OfMainDeclarationOf(element) ?? WhereAMemberWithoutADeclarationIsWritten(element, OfMainDeclarationOf);
+      WhereDeclaredInAFileWithAPath(element) ?? WhereAMemberWithoutADeclarationIsWritten(element, WhereDeclaredInAFileWithAPath);
 
    /// <summary>
    ///   The site of the element's <see cref="MainDeclaration"/> in a file with a path, or else of its declaration in a
    ///   <see cref="GeneratedFile"/>; nothing for one with no declaration.
    /// </summary>
    public static DeclarationSite? WhereDeclared(IDeclaredElement element) =>
-      OfMainDeclarationOf(element) ?? MainDeclaration.InOrder(element).Select(Of).FirstOrDefault(it => it?.GeneratedFileName != null);
+      WhereDeclaredInAFileWithAPath(element) ?? MainDeclaration.InOrder(element).Select(Of).FirstOrDefault(it => it?.GeneratedFileName != null);
 
    static DeclarationSite? WhereAMemberWithoutADeclarationIsWritten(IDeclaredElement element, Func<IDeclaredElement, DeclarationSite?> whereDeclared)
    {
