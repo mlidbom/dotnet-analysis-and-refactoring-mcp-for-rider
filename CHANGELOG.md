@@ -28,6 +28,7 @@ plugin is a fork of.
 
 ### Fixed
 
+- `get_diagnostics` and `inspect_code` say, beside a cref to a C# 14 extension block's member, `extension(T).Member`, that ReSharper 2026.3 resolves no such cref and only a build that generates the documentation file checks it. They gave its "Cannot resolve symbol 'extension'" as one more cref to fix, of a comment the compiler accepts
 - A member's name stands for every overload of it in `find_usages`, `go_to_definition`, `get_symbol_info`, `find_implementations` and `get_call_hierarchy`, and in `get_symbol_source` with `allDeclarations`; without it, `get_symbol_source` says how many overloads there are. Each worked on whichever overload ReSharper listed first. A position still stands for the one there. `go_to_definition`'s JSON form gives a declaration for each overload, each with a `signature`
 - A signature, in every tool's text and in the JSON forms' `signature`, writes a parameter's modifiers before its name, `this`, `params`, `ref`, `out`, `in` or `ref readonly`, and its default value after its type, `unit:string = "cm"`: what tells apart overloads such as `TryParse(s:string, out result:int)`. A compiled member's types are written as C# writes them, `int` and `char[]`, where they were `Int32`, and an array's type was left empty
 - `get_call_hierarchy` tells overloads apart, and follows calls from one overload into another; its outgoing tree follows the calls an expression-bodied member makes, which it missed

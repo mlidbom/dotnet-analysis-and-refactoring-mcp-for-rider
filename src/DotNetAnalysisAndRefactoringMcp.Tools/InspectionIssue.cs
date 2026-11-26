@@ -1,4 +1,5 @@
 #nullable enable
+using System;
 using JetBrains.DocumentModel;
 using JetBrains.ReSharper.Daemon.SolutionAnalysis;
 using JetBrains.ReSharper.Feature.Services.Daemon;
@@ -57,6 +58,24 @@ public sealed class InspectionIssue
                                  hasQuickFix: false);
    }
 
+   /// <summary>
+   ///   What ReSharper is known to get wrong about it, said beside it in an answer, so that an agent doesn't "fix" code
+   ///   that is right; nothing when nothing is known.
+   /// </summary>
+   /// <remarks>
+   ///   ReSharper 2026.3 resolves no C# 14 cref to an extension block's member, <c>extension(Rope).Inches</c>, which
+   ///   the compiler resolves (from agentharness-facades, 2026-11-26). It reports one as <c>InvalidXmlDocComment</c>,
+   ///   or in a project that generates its documentation file, as the compiler's <c>CS1574</c>.
+   /// </remarks>
+   public string? KnownMistake => IsAnUnresolvedCrefToAnExtensionBlocksMember
+                                     ? "ReSharper 2026.3 resolves no cref to an extension block's member, such as extension(T).Member: only a build that generates the documentation file checks this one"
+                                     : null;
+
+   bool IsAnUnresolvedCrefToAnExtensionBlocksMember =>
+      (InspectionId == "InvalidXmlDocComment" || InspectionId.StartsWith("CSharpWarnings::CS1574", StringComparison.Ordinal))
+      && Message == "Cannot resolve symbol 'extension'";
+
    /// <summary>Its line in an answer, under its file: <c>66:63 warning ConvertTypeCheckPatternToNullCheck: Use not null pattern …</c>.</summary>
-   public string Text => $"{Line}:{Column} {Severities.Name(Severity)} {InspectionId}: {Message}{(HasQuickFix ? "  (quick-fix)" : "")}";
+   public string Text => $"{Line}:{Column} {Severities.Name(Severity)} {InspectionId}: {Message}{(HasQuickFix ? "  (quick-fix)" : "")}" +
+                         (KnownMistake is { } mistake ? $"  ({mistake})" : "");
 }
