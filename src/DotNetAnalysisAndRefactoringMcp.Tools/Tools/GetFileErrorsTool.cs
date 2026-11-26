@@ -135,13 +135,13 @@ public class GetFileErrorsTool : IMcpTool, IMcpExpandableTool
       {
          var listed = string.Join(", ", outside.Take(3).Select(Relative));
          var more = outside.Count > 3 ? $", +{outside.Count - 3} more" : "";
-         text.AppendLine().Append($"skipped {outside.Count} changed files in no project of this solution ({listed}{more})");
+         text.Append('\n').Append($"skipped {outside.Count} changed files in no project of this solution ({listed}{more})");
       }
 
       var budget = MaxDiagnostics(arguments);
       foreach(var (file, report) in failing)
       {
-         text.AppendLine().AppendLine();
+         text.Append('\n').Append('\n');
          text.Append(report.RenderErrors(Relative(file), ref budget));
       }
 

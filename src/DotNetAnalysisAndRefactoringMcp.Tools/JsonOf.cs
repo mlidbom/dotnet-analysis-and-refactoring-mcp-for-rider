@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using Newtonsoft.Json;
@@ -37,8 +39,21 @@ public static class JsonOf
                                .Where(property => property is not null))
       };
 
-   /// <summary>A tool's answer as the text a caller gets: text as it is, anything else as indented JSON.</summary>
-   public static string Text(object answer) => answer as string ?? Value(answer).ToString(Formatting.Indented);
+   /// <summary>A tool's answer as the text a caller gets: text as it is, anything else as <see cref="Indented"/> JSON.</summary>
+   public static string Text(object answer) => answer as string ?? Indented(Value(answer));
+
+   /// <summary>
+   ///   <paramref name="json"/> as indented text, each line ending in a line feed, as every answer's lines do.
+   ///   Newtonsoft.Json's own <c>ToString(Formatting.Indented)</c> ends them with <see cref="Environment.NewLine"/>: a
+   ///   carriage return and a line feed on Windows.
+   /// </summary>
+   public static string Indented(JToken json)
+   {
+      var text = new StringWriter(CultureInfo.InvariantCulture) { NewLine = "\n" };
+      using(var writer = new JsonTextWriter(text) { Formatting = Formatting.Indented })
+         json.WriteTo(writer);
+      return text.ToString();
+   }
 
    /// <summary>
    ///   <paramref name="property"/> of <paramref name="owner"/> as Newtonsoft.Json writes it: by the name its

@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using JetBrains.Application;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
@@ -49,9 +48,9 @@ public sealed class ToolBatch
       {
          var item = _items[index];
          if(index > 0)
-            text.AppendLine().AppendLine();
+            text.Append('\n').Append('\n');
 
-         text.AppendLine($"=== [{index + 1}/{_items.Count}] {Label(item)} ===");
+         text.Append($"=== [{index + 1}/{_items.Count}] {Label(item)} ===").Append('\n');
          text.Append(ToolText.Of(Isolated(single, Arguments(item), Label(item))));
       }
 
@@ -102,10 +101,10 @@ public static class ToolText
       var json = (JObject)JsonOf.Value(result);
       var error = json["error"]?.ToString();
       if(error == null)
-         return json.ToString(Formatting.Indented);
+         return JsonOf.Indented(json);
 
       json.Remove("error");
 
-      return json.Count == 0 ? $"error: {error}" : $"error: {error}\n{json.ToString(Formatting.Indented)}";
+      return json.Count == 0 ? $"error: {error}" : $"error: {error}\n{JsonOf.Indented(json)}";
    }
 }

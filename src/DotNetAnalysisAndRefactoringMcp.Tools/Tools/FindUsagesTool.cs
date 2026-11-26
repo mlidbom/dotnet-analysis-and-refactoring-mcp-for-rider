@@ -200,14 +200,14 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
       if(hitLimit) sb.Append('+');
       sb.Append(" usages in ");
       sb.Append(fileCount).Append(" files, ");
-      sb.Append(projectCount).AppendLine(" projects");
+      sb.Append(projectCount).Append(" projects").Append('\n');
       if(hitLimit)
-         sb.AppendLine($"(stopped counting at {SearchCap}; narrow with pathPrefix or excludeTests)");
+         sb.Append($"(stopped counting at {SearchCap}; narrow with pathPrefix or excludeTests)").Append('\n');
 
       foreach(var superMembersLine in superMembers.Select(it => it.Line("usages")).Where(it => it != null).Distinct())
-         sb.AppendLine(superMembersLine);
+         sb.Append(superMembersLine).Append('\n');
 
-      sb.Append("declared: ").AppendLine(string.Join(", ", searched.Select(Declared)));
+      sb.Append("declared: ").Append(string.Join(", ", searched.Select(Declared))).Append('\n');
 
       switch(mode)
       {
@@ -242,9 +242,9 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
 
       foreach(var file in ordered.Take(max).GroupBy(u => u.File))
       {
-         sb.AppendLine().AppendLine(Relative(file.Key));
+         sb.Append('\n').Append(Relative(file.Key)).Append('\n');
          foreach(var usage in file)
-            sb.Append("  ").Append(usage.Line).Append(": ").AppendLine(usage.Code);
+            sb.Append("  ").Append(usage.Line).Append(": ").Append(usage.Code).Append('\n');
       }
 
       AppendRest(sb, ordered.Skip(max).ToList());
@@ -257,12 +257,12 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
                  .OrderBy(g => Relative(g.Key), StringComparer.Ordinal)
                  .ToList();
 
-      sb.AppendLine();
+      sb.Append('\n');
       foreach(var file in files.Take(max))
-         sb.Append(Relative(file.Key)).Append(" (").Append(file.Count()).AppendLine(")");
+         sb.Append(Relative(file.Key)).Append(" (").Append(file.Count()).Append(")").Append('\n');
 
       if(files.Count > max)
-         sb.AppendLine($"… {files.Count - max} more files (raise maxResults)");
+         sb.Append($"… {files.Count - max} more files (raise maxResults)").Append('\n');
    }
 
    void AppendGrouped(StringBuilder sb, List<RawUsage> usages)
@@ -274,17 +274,17 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
 
       foreach(var projectGroup in grouped)
       {
-         sb.AppendLine();
+         sb.Append('\n');
          sb.Append("--- ").Append(projectGroup.Key).Append(" (")
-           .Append(projectGroup.Count()).AppendLine(" usages) ---");
+           .Append(projectGroup.Count()).Append(" usages) ---").Append('\n');
 
          foreach(var fileGroup in projectGroup.GroupBy(u => u.File).OrderByDescending(g => g.Count()))
          {
-            sb.AppendLine(Path.GetFileName(fileGroup.Key));
+            sb.Append(Path.GetFileName(fileGroup.Key)).Append('\n');
             foreach(var u in fileGroup)
             {
                sb.Append("  :").Append(u.Line).Append(':').Append(u.Column)
-                 .Append(" — ").AppendLine(u.Text);
+                 .Append(" — ").Append(u.Text).Append('\n');
             }
          }
       }
@@ -299,13 +299,13 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
          return;
 
       var files = rest.GroupBy(u => u.File).OrderByDescending(g => g.Count()).ToList();
-      sb.AppendLine();
-      sb.AppendLine($"… {rest.Count} more usages in {files.Count} files (raise maxResults, or narrow with pathPrefix / excludeTests):");
+      sb.Append('\n');
+      sb.Append($"… {rest.Count} more usages in {files.Count} files (raise maxResults, or narrow with pathPrefix / excludeTests):").Append('\n');
       foreach(var file in files.Take(SummarizedFiles))
-         sb.Append("  ").Append(Relative(file.Key)).Append(" (").Append(file.Count()).AppendLine(")");
+         sb.Append("  ").Append(Relative(file.Key)).Append(" (").Append(file.Count()).Append(")").Append('\n');
 
       if(files.Count > SummarizedFiles)
-         sb.AppendLine($"  … {files.Count - SummarizedFiles} more files");
+         sb.Append($"  … {files.Count - SummarizedFiles} more files").Append('\n');
    }
 
    string Relative(string path) =>

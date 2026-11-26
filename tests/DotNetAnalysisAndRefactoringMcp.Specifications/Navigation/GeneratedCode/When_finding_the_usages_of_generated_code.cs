@@ -13,8 +13,8 @@ namespace DotNetAnalysisAndRefactoringMcp.Specifications.Navigation.GeneratedCod
 /// </summary>
 public class When_finding_the_usages_of_generated_code(TheSandboxWithTheFixtureSolution sandbox)
 {
-   readonly string _usagesOfAWhollyGeneratedTypesMember = sandbox.McpServer.CallTool("find_usages", new { symbolName = "Shapes.Ruler.Doubled" }).ReplaceLineEndings("\n");
-   readonly string _usagesOfAMemberGeneratedIntoAPartialType = sandbox.McpServer.CallTool("find_usages", new { symbolName = "Shapes.Swatch.Shade" }).ReplaceLineEndings("\n");
+   readonly string _usagesOfAWhollyGeneratedTypesMember = sandbox.McpServer.CallTool("find_usages", new { symbolName = "Shapes.Ruler.Doubled" });
+   readonly string _usagesOfAMemberGeneratedIntoAPartialType = sandbox.McpServer.CallTool("find_usages", new { symbolName = "Shapes.Swatch.Shade" });
 
    [XF] public void it_counts_the_usages_in_generated_code_with_the_others() =>
       _usagesOfAWhollyGeneratedTypesMember.Must().StartWith("method Doubled — 2 usages in 2 files, 1 projects\n");

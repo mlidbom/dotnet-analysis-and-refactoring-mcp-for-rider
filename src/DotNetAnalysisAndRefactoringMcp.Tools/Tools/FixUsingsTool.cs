@@ -223,46 +223,46 @@ public class FixUsingsTool : IMcpWriteTool, IMcpEditTool
 
       // 5. Format compact output
       var sb = new StringBuilder();
-      sb.Append(filePath).AppendLine(" — fix_usings results");
+      sb.Append(filePath).Append(" — fix_usings results").Append('\n');
 
       if(added.Count > 0)
       {
-         sb.AppendLine();
-         sb.Append("added ").Append(added.Count).AppendLine(" usings:");
+         sb.Append('\n');
+         sb.Append("added ").Append(added.Count).Append(" usings:").Append('\n');
          foreach(var (ns, types) in added)
             sb.Append("  using ").Append(ns).Append("; (for: ")
-              .Append(string.Join(", ", types)).AppendLine(")");
+              .Append(string.Join(", ", types)).Append(")").Append('\n');
       }
 
       if(ambiguous.Count > 0)
       {
-         sb.AppendLine();
+         sb.Append('\n');
          sb.Append("ambiguous ").Append(ambiguous.Count)
-           .AppendLine(" references (call again with 'resolutions' to fix):");
+           .Append(" references (call again with 'resolutions' to fix):").Append('\n');
          foreach(var (typeName, namespaces) in ambiguous)
             sb.Append("  ").Append(typeName).Append(" — candidates: ")
-              .AppendLine(string.Join(", ", namespaces));
+              .Append(string.Join(", ", namespaces)).Append('\n');
       }
 
       if(invalidResolutions.Count > 0)
       {
-         sb.AppendLine();
-         sb.Append("invalid ").Append(invalidResolutions.Count).AppendLine(" resolutions:");
+         sb.Append('\n');
+         sb.Append("invalid ").Append(invalidResolutions.Count).Append(" resolutions:").Append('\n');
          foreach(var (typeName, requestedNs) in invalidResolutions)
             sb.Append("  ").Append(typeName).Append(" — '").Append(requestedNs)
-              .AppendLine("' is not a valid candidate");
+              .Append("' is not a valid candidate").Append('\n');
       }
 
       if(unresolved.Count > 0)
       {
-         sb.AppendLine();
-         sb.Append("unresolved ").Append(unresolved.Count).AppendLine(" references:");
+         sb.Append('\n');
+         sb.Append("unresolved ").Append(unresolved.Count).Append(" references:").Append('\n');
          foreach(var name in unresolved)
-            sb.Append("  ").Append(name).AppendLine(" — no matching type found");
+            sb.Append("  ").Append(name).Append(" — no matching type found").Append('\n');
       }
 
       if(added.Count == 0 && ambiguous.Count == 0 && unresolved.Count == 0 && invalidResolutions.Count == 0)
-         sb.AppendLine("\nno fixable unresolved type references found");
+         sb.Append("\nno fixable unresolved type references found").Append('\n');
 
       return sb.ToString().TrimEnd();
    }

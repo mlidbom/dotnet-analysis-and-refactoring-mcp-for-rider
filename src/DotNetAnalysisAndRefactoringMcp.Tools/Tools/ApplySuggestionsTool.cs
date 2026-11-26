@@ -115,7 +115,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
          var sb = new StringBuilder();
          for(var i = 0; i < filePathsToken.Count; i++)
          {
-            if(i > 0) sb.AppendLine().AppendLine();
+            if(i > 0) sb.Append('\n').Append('\n');
             var itemArgs = new JObject { ["filePath"] = filePathsToken[i]?.ToString() };
             CopyIfPresent(arguments, itemArgs, "inspectionIds");
             CopyIfPresent(arguments, itemArgs, "all");
@@ -123,7 +123,7 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
             CopyIfPresent(arguments, itemArgs, "scope");
 
             sb.Append("=== [").Append(i + 1).Append('/').Append(filePathsToken.Count)
-              .Append("] ").Append(filePathsToken[i]).Append(" ===").AppendLine();
+              .Append("] ").Append(filePathsToken[i]).Append(" ===").Append('\n');
             sb.Append(ResultToString(await ExecuteSingleAsync(itemArgs, execution).ConfigureAwait(false)));
          }
 
@@ -261,19 +261,19 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
       var ids = ApplicableIds(sourceFile, settingsManager, quickFixTable, unreadable);
 
       var sb = new StringBuilder();
-      sb.Append(filePath).AppendLine(" — specify 'inspectionIds' or pass all=true.");
+      sb.Append(filePath).Append(" — specify 'inspectionIds' or pass all=true.").Append('\n');
       if(ids.Count > 0)
       {
-         sb.AppendLine().AppendLine("applicable inspection ids in this file:");
+         sb.Append('\n').Append("applicable inspection ids in this file:").Append('\n');
          foreach(var id in ids.OrderBy(x => x))
-            sb.Append("  ").AppendLine(id);
+            sb.Append("  ").Append(id).Append('\n');
       } else
       {
-         sb.AppendLine().AppendLine("no applicable (scoped) suggestions found.");
+         sb.Append('\n').Append("no applicable (scoped) suggestions found.").Append('\n');
       }
 
       if(unreadable.Line != null)
-         sb.AppendLine().AppendLine(unreadable.Line);
+         sb.Append('\n').Append(unreadable.Line).Append('\n');
       return sb.ToString().TrimEnd();
    }
 
@@ -306,16 +306,16 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
 
       var sb = new StringBuilder();
       if(wouldApply.Count == 0)
-         sb.Append(filePath).AppendLine(" — dry run: nothing to apply");
+         sb.Append(filePath).Append(" — dry run: nothing to apply").Append('\n');
       else
       {
-         sb.Append(filePath).Append(" — dry run: would apply ").Append(wouldApply.Count).AppendLine(" fix type(s):");
+         sb.Append(filePath).Append(" — dry run: would apply ").Append(wouldApply.Count).Append(" fix type(s):").Append('\n');
          foreach(var entry in wouldApply)
-            sb.Append("  ").AppendLine(entry);
+            sb.Append("  ").Append(entry).Append('\n');
       }
 
       if(unreadable.Line != null)
-         sb.AppendLine(unreadable.Line);
+         sb.Append(unreadable.Line).Append('\n');
       return sb.ToString().TrimEnd();
    }
 
@@ -447,33 +447,33 @@ public class ApplySuggestionsTool : IMcpAsyncTool, IMcpEditTool
    {
       var sb = new StringBuilder();
       sb.Append(filePath).Append(" — applied ").Append(applied.Count).Append(" fix type(s)");
-      sb.AppendLine(scopeName == "file" ? "" : $", each in the file's {scopeName}");
+      sb.Append(scopeName == "file" ? "" : $", each in the file's {scopeName}").Append('\n');
 
       if(applied.Count > 0)
       {
-         sb.AppendLine();
+         sb.Append('\n');
          foreach(var entry in applied)
-            sb.Append("  ✓ ").AppendLine(entry);
+            sb.Append("  ✓ ").Append(entry).Append('\n');
       }
 
       if(skipped.Count > 0)
       {
-         sb.AppendLine();
-         sb.AppendLine("skipped (not headlessly applicable — try apply_quick_fix at a position):");
+         sb.Append('\n');
+         sb.Append("skipped (not headlessly applicable — try apply_quick_fix at a position):").Append('\n');
          foreach(var id in skipped.OrderBy(x => x))
-            sb.Append("  ").AppendLine(id);
+            sb.Append("  ").Append(id).Append('\n');
       }
 
       if(errors.Count > 0)
       {
-         sb.AppendLine();
-         sb.AppendLine("errors:");
+         sb.Append('\n');
+         sb.Append("errors:").Append('\n');
          foreach(var error in errors)
-            sb.Append("  ").AppendLine(error);
+            sb.Append("  ").Append(error).Append('\n');
       }
 
       foreach(var line in unreadable)
-         sb.AppendLine().AppendLine(line);
+         sb.Append('\n').Append(line).Append('\n');
 
       return sb.ToString().TrimEnd();
    }

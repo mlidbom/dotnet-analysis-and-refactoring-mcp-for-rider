@@ -3,7 +3,6 @@ using DotNetAnalysisAndRefactoringMcp.Protocol;
 using DotNetAnalysisAndRefactoringMcp.Tools;
 using JetBrains.Util;
 using JetBrains.Util.Logging;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Serving;
@@ -68,7 +67,7 @@ sealed class McpRequest(IMcpServer server, JsonRpcRequest request)
       var tool = _request.Params?["name"]?.ToString();
       var arguments = _request.Params?["arguments"] as JObject ?? new JObject();
       if(tool == "list_solutions")
-         return _request.ToolAnswer(_solutions.Listed().ToString(Formatting.Indented));
+         return _request.ToolAnswer(JsonOf.Indented(_solutions.Listed()));
 
       // The solution's tools don't know the parameter: it is the server's, for routing.
       var solutionName = arguments["solutionName"]?.ToString();

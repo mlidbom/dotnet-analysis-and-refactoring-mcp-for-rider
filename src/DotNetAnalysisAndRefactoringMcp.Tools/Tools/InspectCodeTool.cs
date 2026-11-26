@@ -178,36 +178,36 @@ public sealed class InspectCodeTool : IMcpAsyncTool, IMcpExpandableTool
       var answer = new StringBuilder();
       var files = issues.Select(it => it.File).Distinct().Count();
       answer.Append($"{issues.Count} issues at {Severities.Name(minSeverity)} or above in {files} files; ");
-      answer.AppendLine(finished
+      answer.Append(finished
                            ? $"inspected {scope.Files.Count} files in {Seconds(took)}."
                            : inspected is {} count
                               ? $"stopped after {Seconds(took)}, having inspected {count} of {scope.Files.Count} files: narrow the scope for the rest."
-                              : $"stopped after {Seconds(took)}, before every file was inspected: narrow the scope for the rest.");
-      answer.AppendLine(solutionWideAnalysis == null
+                              : $"stopped after {Seconds(took)}, before every file was inspected: narrow the scope for the rest.").Append('\n');
+      answer.Append(solutionWideAnalysis == null
                            ? "With solution-wide analysis: its inspections, such as UnusedMember.Global, are in."
-                           : $"Solution-wide analysis {solutionWideAnalysis}, so its inspections, such as UnusedMember.Global, are left out.");
+                           : $"Solution-wide analysis {solutionWideAnalysis}, so its inspections, such as UnusedMember.Global, are left out.").Append('\n');
       if(scope.NotFound.Count > 0)
-         answer.AppendLine("Nothing to inspect in " + Listed(scope.NotFound));
+         answer.Append("Nothing to inspect in " + Listed(scope.NotFound)).Append('\n');
       if(issues.Count == 0) return answer.ToString().TrimEnd();
 
-      answer.AppendLine("by inspection:");
+      answer.Append("by inspection:").Append('\n');
       foreach(var group in issues.GroupBy(it => (it.InspectionId, it.Severity)).OrderByDescending(it => it.Count()).ThenBy(it => it.Key.InspectionId, StringComparer.Ordinal))
-         answer.AppendLine($"  {group.Count(),5} {Severities.Name(group.Key.Severity)} {group.Key.InspectionId}");
+         answer.Append($"  {group.Count(),5} {Severities.Name(group.Key.Severity)} {group.Key.InspectionId}").Append('\n');
 
       var printed = 0;
       foreach(var file in issues.GroupBy(it => it.File).OrderBy(it => it.Key, StringComparer.OrdinalIgnoreCase))
       {
          if(printed >= maxResults) break;
-         answer.AppendLine(root.Relative(file.Key));
+         answer.Append(root.Relative(file.Key)).Append('\n');
          foreach(var issue in file.OrderBy(it => it.Line).ThenBy(it => it.Column))
          {
             if(printed++ >= maxResults) break;
-            answer.AppendLine($"  {issue.Text}");
+            answer.Append($"  {issue.Text}").Append('\n');
          }
       }
 
       if(issues.Count > maxResults)
-         answer.AppendLine($"({issues.Count - maxResults} more issues not printed: raise maxResults, or narrow with filePaths or inspectionIds)");
+         answer.Append($"({issues.Count - maxResults} more issues not printed: raise maxResults, or narrow with filePaths or inspectionIds)").Append('\n');
       return answer.ToString().TrimEnd();
    }
 

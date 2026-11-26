@@ -142,7 +142,7 @@ public class FlowTool : IMcpTool
 
    void DescribeType(ITypeElement typeElement, int depth, bool includeErrorPaths, StringBuilder sb)
    {
-      sb.Append("type ").AppendLine(typeElement.ShortName);
+      sb.Append("type ").Append(typeElement.ShortName).Append('\n');
 
       var members = typeElement.GetMembers().ToList();
 
@@ -164,26 +164,26 @@ public class FlowTool : IMcpTool
 
       foreach(var ctor in ctors)
       {
-         sb.AppendLine();
+         sb.Append('\n');
          var decl = ctor.GetDeclarations().FirstOrDefault();
          if(decl != null) DescribeFunction(ctor, decl, depth, includeErrorPaths, sb, "");
       }
 
       foreach(var method in regular)
       {
-         sb.AppendLine();
+         sb.Append('\n');
          var decl = method.GetDeclarations().FirstOrDefault();
          if(decl != null) DescribeFunction(method, decl, depth, includeErrorPaths, sb, "");
       }
 
       foreach(var prop in properties)
       {
-         sb.AppendLine();
+         sb.Append('\n');
          DescribeProperty(prop, depth, includeErrorPaths, sb, "");
       }
 
       if(ctors.Count == 0 && regular.Count == 0 && properties.Count == 0)
-         sb.AppendLine("  (no non-trivial method bodies in source)");
+         sb.Append("  (no non-trivial method bodies in source)").Append('\n');
    }
 
    // ── Function-level flow (method, constructor, accessor, etc.) ─
@@ -195,7 +195,7 @@ public class FlowTool : IMcpTool
                          StringBuilder sb,
                          string indent)
    {
-      sb.Append(indent).AppendLine(Signature.Of(element) + ":");
+      sb.Append(indent).Append(Signature.Of(element) + ":").Append('\n');
 
       // Find block body among declaration children
       var body = FindFirst<IBlock>(decl);
@@ -213,7 +213,7 @@ public class FlowTool : IMcpTool
          if(arrowIdx >= 0)
          {
             var exprText = declText.Substring(arrowIdx + 2).TrimEnd(';', ' ', '\n', '\r', '\t').Trim();
-            sb.Append(indent).Append("  → ").AppendLine(Compact(exprText));
+            sb.Append(indent).Append("  → ").Append(Compact(exprText)).Append('\n');
 
             // Try to inline any invocations in the expression body
             var invocation = FindFirst<IInvocationExpression>(decl);
@@ -223,7 +223,7 @@ public class FlowTool : IMcpTool
          }
       }
 
-      sb.Append(indent).AppendLine("  (no body — abstract or extern)");
+      sb.Append(indent).Append("  (no body — abstract or extern)").Append('\n');
    }
 
    // ── Property flow ─────────────────────────────────────────────
@@ -234,7 +234,7 @@ public class FlowTool : IMcpTool
                          StringBuilder sb,
                          string indent)
    {
-      sb.Append(indent).AppendLine(Signature.Of(property) + ":");
+      sb.Append(indent).Append(Signature.Of(property) + ":").Append('\n');
 
       var described = false;
       foreach(var decl in property.GetDeclarations())
@@ -251,7 +251,7 @@ public class FlowTool : IMcpTool
             var accBody = FindFirst<IBlock>(accessor);
             if(accBody != null)
             {
-               sb.Append(indent).Append("  ").Append(kind).AppendLine(":");
+               sb.Append(indent).Append("  ").Append(kind).Append(":").Append('\n');
                WalkBlock(accBody, depth, includeErrorPaths, sb, indent + "    ", 0);
                described = true;
             } else
@@ -263,7 +263,7 @@ public class FlowTool : IMcpTool
                {
                   var exprText = accDeclText.Substring(arrowIdx + 2).TrimEnd(';', ' ', '\n', '\r', '\t').Trim();
                   sb.Append(indent).Append("  ").Append(kind).Append(" → ")
-                    .AppendLine(Compact(exprText));
+                    .Append(Compact(exprText)).Append('\n');
                   described = true;
                }
             }
@@ -277,14 +277,14 @@ public class FlowTool : IMcpTool
             if(arrowIdx >= 0)
             {
                var exprText = propText.Substring(arrowIdx + 2).TrimEnd(';', ' ', '\n', '\r', '\t').Trim();
-               sb.Append(indent).Append("  → ").AppendLine(Compact(exprText));
+               sb.Append(indent).Append("  → ").Append(Compact(exprText)).Append('\n');
                described = true;
             }
          }
       }
 
       if(!described)
-         sb.Append(indent).AppendLine("  (auto-property or no source body)");
+         sb.Append(indent).Append("  (auto-property or no source body)").Append('\n');
    }
 
    // ── Block/statement walking ───────────────────────────────────
@@ -303,7 +303,7 @@ public class FlowTool : IMcpTool
          WalkStatement(stmt, depth, includeErrorPaths, sb, indent, nestLevel, ref step);
 
       if(step == 0)
-         sb.Append(indent).AppendLine("(empty)");
+         sb.Append(indent).Append("(empty)").Append('\n');
    }
 
    void WalkStatementBody(ICSharpStatement body,
@@ -352,7 +352,7 @@ public class FlowTool : IMcpTool
             sb.Append(Compact(thenBody?.GetText()));
 
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
          return;
       }
 
@@ -378,7 +378,7 @@ public class FlowTool : IMcpTool
          sb.Append(indent).Append(StepLabel(nestLevel, step)).Append(" branch on ")
            .Append(Compact(ExtractSwitchCondition(switchStmt))).Append(':');
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
 
          foreach(var section in switchStmt.Sections)
          {
@@ -393,7 +393,7 @@ public class FlowTool : IMcpTool
             }
 
             var labelText = labels.Count > 0 ? string.Join(", ", labels) : Compact(section.GetText(), 40);
-            sb.Append(indent).Append("   ").Append(labelText).AppendLine(" →");
+            sb.Append(indent).Append("   ").Append(labelText).Append(" →").Append('\n');
 
             var subStep = 0;
             foreach(var s in section.Statements)
@@ -421,7 +421,7 @@ public class FlowTool : IMcpTool
          step++;
          sb.Append(indent).Append(StepLabel(nestLevel, step)).Append(" try:");
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
 
          // Try block — first IBlock child of the try statement
          var firstBlock = FindFirst<IBlock>(tryStmt);
@@ -434,13 +434,13 @@ public class FlowTool : IMcpTool
             if(child is ISpecificCatchClause specific)
             {
                var exType = specific.ExceptionType?.GetPresentableName(CSharpLanguage.Instance) ?? "Exception";
-               sb.Append(indent).Append("   catch ").Append(Compact(exType)).AppendLine(" →");
+               sb.Append(indent).Append("   catch ").Append(Compact(exType)).Append(" →").Append('\n');
                var catchBody = FindFirst<IBlock>(specific);
                if(catchBody != null)
                   WalkBlock(catchBody, depth, includeErrorPaths, sb, indent + "     ", nestLevel + 2);
             } else if(child is IGeneralCatchClause general)
             {
-               sb.Append(indent).AppendLine("   catch (any) →");
+               sb.Append(indent).Append("   catch (any) →").Append('\n');
                var catchBody = FindFirst<IBlock>(general);
                if(catchBody != null)
                   WalkBlock(catchBody, depth, includeErrorPaths, sb, indent + "     ", nestLevel + 2);
@@ -453,7 +453,7 @@ public class FlowTool : IMcpTool
             var childText = child.GetText()?.TrimStart();
             if(childText != null && childText.StartsWith("finally"))
             {
-               sb.Append(indent).AppendLine("   finally →");
+               sb.Append(indent).Append("   finally →").Append('\n');
                var finallyBody = FindFirst<IBlock>(child);
                if(finallyBody != null)
                   WalkBlock(finallyBody, depth, includeErrorPaths, sb, indent + "     ", nestLevel + 2);
@@ -472,7 +472,7 @@ public class FlowTool : IMcpTool
          sb.Append(indent).Append(StepLabel(nestLevel, step)).Append(" loop: foreach ")
            .Append(iterVar).Append(" in ").Append(Compact(foreachStmt.Collection?.GetText()));
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
          WalkStatementBody(foreachStmt.Body, depth, includeErrorPaths, sb, indent + "   ", nestLevel + 1);
          return;
       }
@@ -484,7 +484,7 @@ public class FlowTool : IMcpTool
          sb.Append(indent).Append(StepLabel(nestLevel, step)).Append(" loop: for (")
            .Append(Compact(forStmt.Condition?.GetText() ?? "...")).Append(')');
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
          WalkStatementBody(forStmt.Body, depth, includeErrorPaths, sb, indent + "   ", nestLevel + 1);
          return;
       }
@@ -496,7 +496,7 @@ public class FlowTool : IMcpTool
          sb.Append(indent).Append(StepLabel(nestLevel, step)).Append(" loop: while (")
            .Append(Compact(whileStmt.Condition?.GetText())).Append(')');
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
          WalkStatementBody(whileStmt.Body, depth, includeErrorPaths, sb, indent + "   ", nestLevel + 1);
          return;
       }
@@ -508,7 +508,7 @@ public class FlowTool : IMcpTool
          sb.Append(indent).Append(StepLabel(nestLevel, step)).Append(" loop: do ... while (")
            .Append(Compact(doStmt.Condition?.GetText())).Append(')');
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
          WalkStatementBody(doStmt.Body, depth, includeErrorPaths, sb, indent + "   ", nestLevel + 1);
          return;
       }
@@ -520,7 +520,7 @@ public class FlowTool : IMcpTool
          var usingHeader = ExtractHeader(usingStmt);
          sb.Append(indent).Append(StepLabel(nestLevel, step)).Append(" using ").Append(usingHeader);
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
          WalkStatementBody(usingStmt.Body, depth, includeErrorPaths, sb, indent + "   ", nestLevel + 1);
          return;
       }
@@ -532,7 +532,7 @@ public class FlowTool : IMcpTool
          sb.Append(indent).Append(StepLabel(nestLevel, step)).Append(" lock (")
            .Append(Compact(lockStmt.Monitor?.GetText())).Append(')');
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
          WalkStatementBody(lockStmt.Body, depth, includeErrorPaths, sb, indent + "   ", nestLevel + 1);
          return;
       }
@@ -545,7 +545,7 @@ public class FlowTool : IMcpTool
          if(returnStmt.Value != null)
             sb.Append(' ').Append(Compact(returnStmt.Value.GetText()));
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
          return;
       }
 
@@ -559,7 +559,7 @@ public class FlowTool : IMcpTool
                       ? Compact(throwStatement.Exception.GetText())
                       : "(rethrow)");
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
          return;
       }
 
@@ -586,7 +586,7 @@ public class FlowTool : IMcpTool
       sb.Append(indent).Append(StepLabel(nestLevel, step)).Append(' ')
         .Append(Compact(stmt.GetText()));
       AppendComment(sb, comment);
-      sb.AppendLine();
+      sb.Append('\n');
    }
 
    // ── Expression statement handling ─────────────────────────────
@@ -613,7 +613,7 @@ public class FlowTool : IMcpTool
          if(isAwait) sb.Append("await ");
          sb.Append(FormatInvocation(invocation));
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
 
          if(depth > 1)
             TryInlineInvocation(invocation, depth - 1, includeErrorPaths, sb, indent + "   ");
@@ -637,14 +637,14 @@ public class FlowTool : IMcpTool
          {
             sb.Append(FormatInvocation(srcInvocation));
             AppendComment(sb, comment);
-            sb.AppendLine();
+            sb.Append('\n');
             if(depth > 1)
                TryInlineInvocation(srcInvocation, depth - 1, includeErrorPaths, sb, indent + "   ");
          } else
          {
             sb.Append(Compact(source?.GetText()));
             AppendComment(sb, comment);
-            sb.AppendLine();
+            sb.Append('\n');
          }
 
          return;
@@ -656,7 +656,7 @@ public class FlowTool : IMcpTool
       if(isAwait) sb.Append("await ");
       sb.Append(Compact(expr.GetText()));
       AppendComment(sb, comment);
-      sb.AppendLine();
+      sb.Append('\n');
    }
 
    // ── Declaration statement handling ─────────────────────────────
@@ -692,7 +692,7 @@ public class FlowTool : IMcpTool
          if(awaitExpr != null) sb.Append("await ");
          sb.Append(FormatInvocation(invocation));
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
 
          if(depth > 1)
             TryInlineInvocation(invocation, depth - 1, includeErrorPaths, sb, indent + "   ");
@@ -706,7 +706,7 @@ public class FlowTool : IMcpTool
          step++;
          sb.Append(indent).Append(StepLabel(nestLevel, step)).Append(' ').Append(Compact(stmtText));
          AppendComment(sb, comment);
-         sb.AppendLine();
+         sb.Append('\n');
       }
    }
 
@@ -724,7 +724,7 @@ public class FlowTool : IMcpTool
       sb.Append(indent).Append(label).Append(" if (")
         .Append(Compact(ifStmt.Condition?.GetText())).Append(')');
       AppendComment(sb, comment);
-      sb.AppendLine(" →");
+      sb.Append(" →").Append('\n');
 
       WalkStatementBody(ifStmt.Then, depth, includeErrorPaths, sb, indent + "   ", nestLevel + 1);
 
@@ -734,12 +734,12 @@ public class FlowTool : IMcpTool
          if(elseBody is IIfStatement elseIf)
          {
             sb.Append(indent).Append("   else if (")
-              .Append(Compact(elseIf.Condition?.GetText())).AppendLine(") →");
+              .Append(Compact(elseIf.Condition?.GetText())).Append(") →").Append('\n');
             WalkStatementBody(elseIf.Then, depth, includeErrorPaths, sb, indent + "   ", nestLevel + 1);
             elseBody = elseIf.Else;
          } else
          {
-            sb.Append(indent).AppendLine("   else →");
+            sb.Append(indent).Append("   else →").Append('\n');
             WalkStatementBody(elseBody, depth, includeErrorPaths, sb, indent + "   ", nestLevel + 1);
             break;
          }
@@ -784,7 +784,7 @@ public class FlowTool : IMcpTool
                   {
                      var summary = SummarizeStatement(stmt, depth, includeErrorPaths);
                      if(summary != null)
-                        sb.Append(indent).Append("└─ ").AppendLine(summary);
+                        sb.Append(indent).Append("└─ ").Append(summary).Append('\n');
                   }
 
                return;
@@ -798,7 +798,7 @@ public class FlowTool : IMcpTool
                if(arrowIdx >= 0)
                {
                   var exprText = lfdText.Substring(arrowIdx + 2).TrimEnd(';', ' ', '\n', '\r', '\t').Trim();
-                  sb.Append(indent).Append("└─ → ").AppendLine(Compact(exprText));
+                  sb.Append(indent).Append("└─ → ").Append(Compact(exprText)).Append('\n');
                }
             }
 
@@ -828,7 +828,7 @@ public class FlowTool : IMcpTool
             {
                var summary = SummarizeStatement(stmt, depth, includeErrorPaths);
                if(summary != null)
-                  sb.Append(indent).Append("└─ ").AppendLine(summary);
+                  sb.Append(indent).Append("└─ ").Append(summary).Append('\n');
             }
          }
 
@@ -843,7 +843,7 @@ public class FlowTool : IMcpTool
          if(arrowIdx >= 0)
          {
             var exprText = declText.Substring(arrowIdx + 2).TrimEnd(';', ' ', '\n', '\r', '\t').Trim();
-            sb.Append(indent).Append("└─ → ").AppendLine(Compact(exprText));
+            sb.Append(indent).Append("└─ → ").Append(Compact(exprText)).Append('\n');
          }
       }
    }
