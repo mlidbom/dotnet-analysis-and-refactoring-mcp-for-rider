@@ -97,7 +97,7 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
       var anchor = chosen?.FilePath ?? explicitPath ?? absolutePaths.FirstOrDefault();
       var registration = anchor == null ? null : worktrees.Registration(anchor);
       if(registration == null) return Rpc.ToolResult(id, anchor == null ? $"{refusal} {PrimaryToolCatalog.OpenOnDemand}" :
-         refusal ?? "The managed worktree is no longer registered.", true);
+         chosen == null ? $"{refusal} {NotTrusted(anchor)}" : "The managed worktree is no longer registered.", true);
       if(desktop.Any(it => RegisteredWorktree.SamePath(it.WorkTree, registration.Root)))
       {
          await worktrees.YieldToOrdinaryRider(registration.Root, cancel);
@@ -161,6 +161,10 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
          // After dispatch the lease stays held even if the MCP client disconnects. An edit is never replayed.
          return await endpoint.Send(call, CancellationToken.None);
       }
+
+      string NotTrusted(string path) =>
+         $"Royder opens on demand only the checkouts of the repositories its settings name, and {path} is in none of them: "
+         + string.Join(", ", settings.Repositories) + ".";
    }
 
    /// <summary>

@@ -219,6 +219,12 @@ def verify(args):
         assert not listing()
         names = {tool["name"] for tool in request("tools/list")["tools"]}
         assert {"find_usages", "warm_worktree", "close_worktree"} <= names
+        # Until 2026-11-26 a file in a repository the settings don't name got only "Path is outside open solutions".
+        stray = lab / "untrusted-repository"
+        command("git", "init", "-q", stray)
+        (stray / "Stray.cs").write_text("namespace Strays;\npublic class Stray;\n")
+        refused = request("tools/call", dict(name="get_diagnostics", arguments=dict(filePath=str(stray / "Stray.cs"))))
+        assert refused.get("isError") and "is in none of them: " + str(repo) in refused["content"][0]["text"], refused
         if args.check_timeout:
             source = first / SOURCE
             original = source.read_bytes()
