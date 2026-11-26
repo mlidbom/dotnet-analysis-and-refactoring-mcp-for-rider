@@ -496,19 +496,25 @@ public static class PsiHelpers
    ///   neither.
    /// </summary>
    /// <remarks>
-   ///   From 2026-11-25 01:07 until 2026-11-26, a generated one was <c>[no source]</c> too, which reads as if it had no
-   ///   source at all.
+   ///   A generated member of a partial type is <c>[generated]</c>, not at the type's file, which
+   ///   <see cref="DeclarationSite.WhereWritten"/> gives for a member with no declaration at all, such as a positional
+   ///   record's property. From 2026-11-25 01:07 until 2026-11-26, a generated one was <c>[no source]</c>, which reads as
+   ///   if it had no source at all, or at its partial type's file.
    /// </remarks>
-   public static string Location(IDeclaredElement element, SolutionRoot root) =>
-      DeclarationSite.WhereWritten(element) switch
+   public static string Location(IDeclaredElement element, SolutionRoot root)
+   {
+      if(DeclarationSite.OfMainDeclarationOf(element) is {} site)
+         return site.Location(root);
+      if(IsDeclaredOnlyInFilesWithoutAPath())
+         return "[generated]";
+      return DeclarationSite.WhereWritten(element)?.Location(root) ?? AssemblyLabel(element) ?? "[no source]";
+
+      bool IsDeclaredOnlyInFilesWithoutAPath()
       {
-         { File.Length: > 0 } site => site.Location(root),
-         //bug: never matches, so a generated element is still [no source], or at its partial type's file: every site
-         //   DeclarationSite.WhereWritten answers has a path, as OfMainDeclarationOf skips those without. Ask whether
-         //   the element has a declaration without a path instead, as GoToDefinitionTool does with DeclarationSite.Of.
-         not null                  => "[generated]",
-         null                      => AssemblyLabel(element) ?? "[no source]"
-      };
+         var declarations = element.GetDeclarations();
+         return declarations.Count > 0 && declarations.All(it => DeclarationSite.Of(it) is not { File.Length: > 0 });
+      }
+   }
 
    static bool MatchesKind(IDeclaredElement element, string kind)
    {
