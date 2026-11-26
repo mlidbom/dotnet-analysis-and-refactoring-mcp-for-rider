@@ -4,7 +4,10 @@ param([Parameter(Mandatory)][string]$PackageDirectory,
       [string]$SettingsFile = (Join-Path $env:LOCALAPPDATA 'DotNetAnalysisAndRefactoringMcp/primary/settings.json'),
       # A folder of tools builds for the private Rider to serve the newest of, such as the everyday Riders'. An update
       # keeps the one the settings name.
-      [string]$ToolsFolder)
+      [string]$ToolsFolder,
+      # Where the primary has projects open, stop it gracefully first, which lets the calls in flight finish and closes
+      # them, instead of refusing until they have closed by themselves. Their agents' next calls open them again, cold.
+      [switch]$CloseOpenProjects)
 
 $ErrorActionPreference = 'Stop'
 $package = (Get-Item -LiteralPath $PackageDirectory).FullName
@@ -80,16 +83,28 @@ if (($oldListener -and $oldListener.Path -ne $oldExecutable) -or (!$oldListener 
 }
 if ($oldExecutable -eq $newExecutable) { throw 'Stage the updated primary in a new package directory.' }
 
-$health = if ($oldListener) { Invoke-RestMethod $publicUrl -NoProxy -TimeoutSec 15 }
 # The private Rider runs nothing once its run has stopped or failed and no process of its job is left. Its journal's
 # projects are then open nowhere. On 2026-11-24 a Rider update closed it, the old package could no longer start one, and
 # every agent's call left an entry behind: the journal never emptied, and the run stayed 'Failed'.
 $runFile = Join-Path $current.rider.profileDirectory 'current.json'
-$riderRuns = if (Test-Path -LiteralPath $runFile) {
+function Test-PrivateRiderRuns {
+   if (!(Test-Path -LiteralPath $runFile)) { return $false }
    $run = Get-Content -Raw -LiteralPath $runFile | ConvertFrom-Json
    $state = Get-Content -Raw -LiteralPath (Join-Path $run 'state.json') | ConvertFrom-Json
    $state.phase -notin 'Stopped','Failed' -or $state.jobRemaining.Count -or $state.survivors.Count
-} else { $false }
+}
+
+if ($CloseOpenProjects -and $oldListener) {
+   # A graceful stop returns once the calls in flight are answered; the private Rider then closes its projects.
+   try {
+      Stop-Primary $oldExecutable
+      $until = [datetime]::UtcNow.AddSeconds(120)
+      while ((Test-PrivateRiderRuns) -and [datetime]::UtcNow -lt $until) { Start-Sleep -Seconds 2 }
+   } finally { Enable-ScheduledTask -TaskName $taskName -TaskPath '\' | Out-Null }
+   $oldListener = $null
+}
+$health = if ($oldListener) { Invoke-RestMethod $publicUrl -NoProxy -TimeoutSec 15 }
+$riderRuns = Test-PrivateRiderRuns
 $journal = Join-Path $current.rider.profileDirectory 'worktrees.json'
 if (($health -and @($health.openingWorktrees).Count) -or
     ($riderRuns -and (Test-Path -LiteralPath $journal) -and @(Get-Content -Raw -LiteralPath $journal | ConvertFrom-Json).Count)) {

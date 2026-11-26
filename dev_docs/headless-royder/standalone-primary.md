@@ -119,7 +119,9 @@ than verifying the desktop's build. It uses ports other than the running primary
 profile directory of its own, about 600 MB, deleted afterwards with the settings file. `catalogFile`,
 `assetsDirectory` and `toolsBuild` are the package's, and it names no `toolsFolder`, so the capture checks the
 package's own build. The update refuses while the primary has a managed project open; `-Install` retries it until
-they have closed, which they do after 30 idle minutes (`idleSeconds`), for an hour at most. Projects in a journal
+they have closed, which they do after 30 idle minutes (`idleSeconds`), for an hour at most.
+`Update-InstalledRoyderPrimary.ps1 -CloseOpenProjects` doesn't wait: it stops the primary gracefully first, which
+answers the calls in flight and closes the projects, and their agents' next calls open them again, cold. Projects in a journal
 whose private Rider runs nothing any more, its run stopped or failed with no process left, count as closed.
 
 **When the running primary can't close its projects,** as on 2026-11-24 when every close failed, the update would
