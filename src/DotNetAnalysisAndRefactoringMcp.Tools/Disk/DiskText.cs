@@ -21,7 +21,7 @@ static class DiskText
    {
       try
       {
-         return Normalized(text) == Normalized(File.ReadAllText(file));
+         return Normalized(text) == Normalized(Of(file));
       }
       catch(IOException)
       {
@@ -38,7 +38,7 @@ static class DiskText
       string onDisk;
       try
       {
-         onDisk = Normalized(File.ReadAllText(file));
+         onDisk = Normalized(Of(file));
       }
       catch(IOException exception)
       {
@@ -55,6 +55,24 @@ static class DiskText
 
       static string LineOf(string[] lines, int index) => index < lines.Length ? lines[index] : null;
       static string Quoted(string line) => line == null ? "no line" : $"\"{(line.Length > 80 ? line.Substring(0, 80) + "\u2026" : line)}\"";
+   }
+
+   /// <summary>
+   ///   The file's text, read without keeping anyone from writing or deleting it meanwhile, as Rider's frontend does when
+   ///   it saves a document.
+   /// </summary>
+   /// <remarks>
+   ///   <see cref="File.ReadAllText(string)"/> shares a file only for reading. While an edit's files were read every 50 ms
+   ///   to see whether Rider had saved them (<see cref="UnsavedDocuments"/>), the frontend's save of one failed with "The
+   ///   process cannot access the file because it is being used by another process", and a rename left that file's
+   ///   declaration unchanged while its caller was renamed, with the file's <c>~</c> copy beside it (from usage-tracking,
+   ///   2026-11-26).
+   /// </remarks>
+   public static string Of(string file)
+   {
+      using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+      using var reader = new StreamReader(stream);
+      return reader.ReadToEnd();
    }
 
    static string Normalized(string text) => text.TrimStart('\uFEFF').Replace("\r\n", "\n");

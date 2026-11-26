@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using DotNetAnalysisAndRefactoringMcp.Disk;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -107,7 +108,7 @@ sealed class DocComment
       if(!File.Exists(site.File))
          return [];
 
-      var fileLines = File.ReadAllLines(site.File);
+      var fileLines = DiskText.Of(site.File).Replace("\r\n", "\n").Split('\n');
       if(site.Line - 1 > fileLines.Length)
          return [];
 
