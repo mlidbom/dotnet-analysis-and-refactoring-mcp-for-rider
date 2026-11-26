@@ -15,7 +15,7 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
    public ManagedWorktree[] Open => [.._open.Values.Where(it => it.Ready)];
    public string[] Opening => [.._starting.Keys.Select(it => it.Root)];
 
-   public RegisteredWorktree? Registration(string path) => RegisteredWorktree.Find(path, settings.GitDirectories);
+   public RegisteredWorktree? Registration(string path) => RegisteredWorktree.Find(path, settings.Trusted);
 
    public override async Task StartAsync(CancellationToken cancel)
    {
@@ -194,7 +194,7 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
          if(!remove && _open.TryGetValue(current.Root, out var selected) && !RegisteredWorktree.SamePath(path, selected.SolutionPath))
             throw new InvalidOperationException($"The worktree serves '{selected.SolutionPath}'.");
          if(_open.TryGetValue(current.Root, out var opened)) await Close(opened, opened.Registration != current, cancel);
-         if(remove) await current.Remove(settings.GitDirectories);
+         if(remove) await current.Remove(settings.Trusted);
          return opened != null;
       }
       finally { _changes.Release(); }

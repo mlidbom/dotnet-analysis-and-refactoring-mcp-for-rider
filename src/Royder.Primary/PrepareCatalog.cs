@@ -10,7 +10,7 @@ static class PrepareCatalog
    public static async Task Run(PrimarySettings settings, HttpClient http, string solution, CancellationToken cancel)
    {
       solution = Path.GetFullPath(solution);
-      var tree = RegisteredWorktree.Find(solution, settings.GitDirectories) ?? throw new ArgumentException("Use a configured main checkout or one of its linked worktrees.");
+      var tree = RegisteredWorktree.Find(solution, settings.Trusted) ?? throw new ArgumentException("Use a configured main checkout or one of its linked worktrees.");
       await tree.SolutionFor([], solution, cancel);
       using var owner = WorktreeJournal.OwnProfile(settings.Rider.ProfileDirectory);
       var desktop = (await new OrdinaryRiders(http, settings).Solutions(cancel))

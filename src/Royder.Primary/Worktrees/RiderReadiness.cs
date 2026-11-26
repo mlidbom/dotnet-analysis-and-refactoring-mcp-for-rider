@@ -17,7 +17,7 @@ sealed class RiderReadiness(PrimarySettings settings, ToolCatalog catalog, Rider
    {
       while(true)
       {
-         if(RegisteredWorktree.Find(worktree.Registration.Root, settings.GitDirectories) != worktree.Registration) throw new InvalidOperationException("The worktree disappeared while Rider was opening it.");
+         if(RegisteredWorktree.Find(worktree.Registration.Root, settings.Trusted) != worktree.Registration) throw new InvalidOperationException("The worktree disappeared while Rider was opening it.");
          var health = await backend.Health(cancel);
          var row = (health?["solutions"] as JArray)?.OfType<JObject>().SingleOrDefault(it =>
             RegisteredWorktree.SamePath((string?)it["path"], worktree.SolutionPath));

@@ -163,8 +163,7 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
       }
 
       string NotTrusted(string path) =>
-         $"Royder opens on demand only the checkouts of the repositories its settings name, and {path} is in none of them: "
-         + string.Join(", ", settings.Repositories) + ".";
+         $"Royder opens on demand only the checkouts of the repositories its settings trust, and {path} is in none of them: {settings.Trusted.Described}.";
    }
 
    /// <summary>

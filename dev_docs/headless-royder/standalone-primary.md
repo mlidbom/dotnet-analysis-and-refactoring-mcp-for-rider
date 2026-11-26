@@ -1,9 +1,12 @@
 # On-demand Royder for trusted Git checkouts
 
 The standalone primary serves the ordinary MCP tools when every IDE is closed. An absolute file argument opens the
-owning solution in a shared private Rider JVM. This works in each main checkout listed in `repositories` and in
-its registered linked worktrees. Calls for a checkout open in ordinary Rider go to that Rider, including its
-unsaved-document handling.
+owning solution in a shared private Rider JVM. This works in each main checkout listed in `repositories`, in every
+main checkout directly in a folder listed in `repositoryFolders`, such as `C:/Dev`, and in their registered linked
+worktrees. Both lists are read from the settings file at each call, so a repository cloned into such a folder, or
+added to a list, is trusted from the next call, with no restart. A call on a checkout outside them is refused with
+what is trusted. Calls for a checkout open in ordinary Rider go to that Rider, including its unsaved-document
+handling.
 
 The private JVM starts without opening a solution. For each request to open one, it creates an IntelliJ project
 with its own settings directory in the private run folder and initializes Rider's backend with the real solution
@@ -32,7 +35,8 @@ ports. Use a dedicated profile directory.
 {
   "port": 24930,
   "desktopPort": 23751,
-  "repositories": ["C:/Dev/resharper-mcp"],
+  "repositories": ["C:/Users/magnu/.claude"],
+  "repositoryFolders": ["C:/Dev"],
   "catalogFile": "C:/Royder/state/catalog.json",
   "rider": {
     "profileDirectory": "C:/Royder/state/agent-rider",

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Royder.Primary.Hosting;
+using Royder.Primary.Worktrees;
 
 namespace Royder.Primary;
 
@@ -9,6 +10,8 @@ sealed class PrimarySettings
 {
    public required SharedRiderSettings Rider { get; init; }
    public required string[] Repositories { get; init; }
+   /// <summary>Folders, such as <c>C:\Dev</c>, every main Git checkout directly in which is trusted as the repositories are.</summary>
+   public string[] RepositoryFolders { get; init; } = [];
    public required string CatalogFile { get; init; }
    public int Port { get; init; } = 23751;
    public int? DesktopPort { get; init; }
@@ -21,7 +24,8 @@ sealed class PrimarySettings
    public int IdleSeconds { get; init; } = 1800;
    /// <summary>How long the primary takes at most to answer a tool call: see <see cref="Transport.AnswerDeadline"/>.</summary>
    public int AnswerWithinSeconds { get; init; } = 55;
-   public IReadOnlySet<string> GitDirectories { get; private set; } = new HashSet<string>();
+   /// <summary>The repositories it may open, read from the settings file at each use: see <see cref="TrustedRepositories"/>.</summary>
+   public TrustedRepositories Trusted { get; private set; } = null!;
 
    public static PrimarySettings Read(string path)
    {
@@ -39,13 +43,14 @@ sealed class PrimarySettings
                  .Concat(settings.Rider.ToolsFolder is { } toolsFolder ? [toolsFolder] : []))
          if(!Path.IsPathFullyQualified(location)) throw new InvalidDataException($"Expected an absolute installation path: {location}");
       if(OperatingSystem.IsWindows()) SharedRiderHost.CheckProfile(Path.GetFullPath(settings.Rider.ProfileDirectory));
-      settings.GitDirectories = settings.Repositories.Select(repo =>
+      foreach(var repo in settings.Repositories)
       {
          if(!Path.IsPathFullyQualified(repo)) throw new InvalidDataException($"Expected an absolute main repository path: {repo}");
-         var git = Path.GetFullPath(Path.Combine(repo, ".git"));
-         if(!Directory.Exists(git)) throw new InvalidDataException($"Expected a main Git checkout at {repo}.");
-         return git;
-      }).ToHashSet(StringComparer.OrdinalIgnoreCase);
+         if(!Directory.Exists(Path.Combine(repo, ".git"))) throw new InvalidDataException($"Expected a main Git checkout at {repo}.");
+      }
+      foreach(var folder in settings.RepositoryFolders)
+         if(!Path.IsPathFullyQualified(folder) || !Directory.Exists(folder)) throw new InvalidDataException($"Expected an absolute folder of repositories: {folder}");
+      settings.Trusted = new TrustedRepositories(Path.GetFullPath(path));
       return settings;
    }
 }

@@ -9,7 +9,7 @@ sealed record RegisteredWorktree(string Root, string GitDirectory, string Genera
    [System.Text.Json.Serialization.JsonIgnore]
    public bool IsMainCheckout => SamePath(GitDirectory, Path.Combine(Root, ".git"));
 
-   public static RegisteredWorktree? Find(string path, IReadOnlySet<string> trustedRepositories)
+   public static RegisteredWorktree? Find(string path, TrustedRepositories trusted)
    {
       var fullPath = Path.GetFullPath(path);
       var root = RequestedPath.WorkTreeOf(Directory.Exists(fullPath) ? fullPath : Path.GetDirectoryName(fullPath));
@@ -17,22 +17,22 @@ sealed record RegisteredWorktree(string Root, string GitDirectory, string Genera
       var marker = Path.Combine(root, ".git");
       try
       {
-         if(Directory.Exists(marker)) return MainCheckout(marker, trustedRepositories);
-         return File.Exists(marker) ? LinkedWorktree(root, marker, trustedRepositories) : null;
+         if(Directory.Exists(marker)) return MainCheckout(marker, trusted);
+         return File.Exists(marker) ? LinkedWorktree(root, marker, trusted) : null;
       }
       catch(FileNotFoundException) { return null; }
       catch(DirectoryNotFoundException) { return null; }
    }
 
-   static RegisteredWorktree? MainCheckout(string marker, IReadOnlySet<string> trustedRepositories)
+   static RegisteredWorktree? MainCheckout(string marker, TrustedRepositories trusted)
    {
-      var trusted = trustedRepositories.FirstOrDefault(it => SamePath(it, marker));
-      if(trusted == null) return null;
-      var checkout = Path.GetDirectoryName(trusted)!;
-      return new(checkout, trusted, WindowsFileIdentity.Read(checkout) + "/" + WindowsFileIdentity.Read(trusted));
+      var gitDirectory = trusted.GitDirectoryOf(marker);
+      if(gitDirectory == null) return null;
+      var checkout = Path.GetDirectoryName(gitDirectory)!;
+      return new(checkout, gitDirectory, WindowsFileIdentity.Read(checkout) + "/" + WindowsFileIdentity.Read(gitDirectory));
    }
 
-   static RegisteredWorktree? LinkedWorktree(string root, string marker, IReadOnlySet<string> trustedRepositories)
+   static RegisteredWorktree? LinkedWorktree(string root, string marker, TrustedRepositories trusted)
    {
       var pointer = File.ReadAllText(marker).Trim();
       if(!pointer.StartsWith("gitdir: ", StringComparison.Ordinal)) return null;
@@ -40,7 +40,7 @@ sealed record RegisteredWorktree(string Root, string GitDirectory, string Genera
       var backPointer = Path.Combine(admin, "gitdir");
       var common = Path.GetFullPath(File.ReadAllText(Path.Combine(admin, "commondir")).Trim(), admin);
       var registeredMarker = Path.GetFullPath(File.ReadAllText(backPointer).Trim(), admin);
-      if(!trustedRepositories.Contains(common) || !SamePath(Path.GetDirectoryName(admin), Path.Combine(common, "worktrees")) ||
+      if(trusted.GitDirectoryOf(common) == null || !SamePath(Path.GetDirectoryName(admin), Path.Combine(common, "worktrees")) ||
          !SamePath(registeredMarker, marker)) return null;
       return new(Path.GetDirectoryName(registeredMarker)!, admin, WindowsFileIdentity.Read(marker) + "/" + WindowsFileIdentity.Read(backPointer));
    }
@@ -72,10 +72,10 @@ sealed record RegisteredWorktree(string Root, string GitDirectory, string Genera
       throw new InvalidOperationException($"Choose a solution with its absolute path in 'solutionName'. Worktree '{Root}' contains: {string.Join(", ", candidates)}");
    }
 
-   public async Task Remove(IReadOnlySet<string> trustedRepositories)
+   public async Task Remove(TrustedRepositories trusted)
    {
       RequireLinkedForRemoval();
-      if(Find(Root, trustedRepositories) != this) throw new InvalidOperationException("Git registration changed before removal.");
+      if(Find(Root, trusted) != this) throw new InvalidOperationException("Git registration changed before removal.");
       var start = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = Path.GetDirectoryName(Root)!,
          UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
       foreach(var arg in new[] { "--git-dir", GitDirectory, "worktree", "remove", Root }) start.ArgumentList.Add(arg);

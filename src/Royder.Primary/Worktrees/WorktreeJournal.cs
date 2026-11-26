@@ -23,7 +23,7 @@ sealed class WorktreeJournal(string profile)
    {
       var projects = Read().ToArray();
       foreach(var it in projects)
-         if(RegisteredWorktree.Find(it.Registration.Root, settings.GitDirectories) != it.Registration)
+         if(RegisteredWorktree.Find(it.Registration.Root, settings.Trusted) != it.Registration)
             await host.CloseAsync(it.Solution, true, cancel);
       await host.StopAsync(cancel);
       if(projects.Length > 0) { _projects.Clear(); Save(); }

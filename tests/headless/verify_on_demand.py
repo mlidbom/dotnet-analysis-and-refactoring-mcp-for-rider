@@ -79,8 +79,10 @@ def verify(args):
         raise ValueError("The supplied catalog belongs to a different tools build; omit --catalog to capture a matching one.")
     primary = ["dotnet", str(args.primary.resolve())]
     config = lab / "primary.json"
+    trusted_folder = lab / "trusted-folder"
+    trusted_folder.mkdir()
     config.write_text(json.dumps(dict(
-        port=args.port, repositories=[str(repo)], catalogFile=str(lab / "catalog.json"),
+        port=args.port, repositories=[str(repo)], repositoryFolders=[str(trusted_folder)], catalogFile=str(lab / "catalog.json"),
         answerWithinSeconds=10 if args.check_timeout else 90, idleSeconds=60 if args.check_idle else 600,
         rider=dict(profileDirectory=str(lab / "profile"), riderHome=str(args.rider), assetsDirectory=str(package),
                    toolsBuild=manifest["build"], remoteDevPort=args.remote_port, backendMcpPort=args.backend_port)
@@ -225,6 +227,13 @@ def verify(args):
         (stray / "Stray.cs").write_text("namespace Strays;\npublic class Stray;\n")
         refused = request("tools/call", dict(name="get_diagnostics", arguments=dict(filePath=str(stray / "Stray.cs"))))
         assert refused.get("isError") and "is in none of them: " + str(repo) in refused["content"][0]["text"], refused
+        # Since 2026-11-26 a repository cloned into a folder the settings trust is trusted from the next call. With no
+        # solution in it, the call gets past the trust and is refused by the solution lookup.
+        late = trusted_folder / "late-repository"
+        command("git", "init", "-q", late)
+        (late / "Late.cs").write_text("namespace Lates;\npublic class Late;\n")
+        trusted = request("tools/call", dict(name="get_diagnostics", arguments=dict(filePath=str(late / "Late.cs"))))
+        assert trusted.get("isError") and f"Worktree '{late}' contains" in trusted["content"][0]["text"], trusted
         if args.check_timeout:
             source = first / SOURCE
             original = source.read_bytes()
