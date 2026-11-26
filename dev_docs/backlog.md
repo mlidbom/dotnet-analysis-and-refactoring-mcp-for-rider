@@ -14,22 +14,22 @@ The JSON the symbol linker reads stays as agreed (see "What the symbol linker re
 forms in the next section are part of this pass. Those two tools answer in text since 2026-11-25, and
 `get_type_hierarchy` and `get_diagnostics` too, and every text answer writes paths relative to the work tree.
 `go_to_definition` shows a doc comment by its summary and the declaration in numbered lines after it, and
-`find_implementations` lists each implementation on a line with its own summary, since 2026-11-25.
+`find_implementations` lists each implementation on a line with its own summary, since 2026-11-25, and `rename_symbol`
+answers in text since 2026-11-26.
 
 Went through on 2026-11-25, each tool called on this repository's own code in the sandbox (`sandbox call`). Still to do,
 most used first, as Claude judges it:
 
-1. **`rename_symbol`:** JSON, each changed file's full path and its name again.
-2. **Errors:** a tool's failure is `{"error": "..."}`, where a batch section writes `error: ...`.
-3. **`list_quick_fixes`, `apply_quick_fix`, `generate_members`, `format_file`, `reload_projects`:** JSON results.
-4. **`complete_at`:** JSON, 207 lines for its list of names.
-5. **Line ends:** 18 tools end their lines with `AppendLine`, CRLF on net472, where the trees and `get_diagnostics`
+1. **Errors:** a tool's failure is `{"error": "..."}`, where a batch section writes `error: ...`.
+2. **`list_quick_fixes`, `apply_quick_fix`, `generate_members`, `format_file`, `reload_projects`:** JSON results.
+3. **`complete_at`:** JSON, 207 lines for its list of names.
+4. **Line ends:** 18 tools end their lines with `AppendLine`, CRLF on net472, where the trees and `get_diagnostics`
    write LF, and some answers mix the two.
-6. **`go_to_definition` on a compiled symbol:** after the overloads' signatures and summaries, it shows the
+5. **`go_to_definition` on a compiled symbol:** after the overloads' signatures and summaries, it shows the
    decompiled type's first `maxTextLength` characters, which by default are all the decompiler's header comments
    (`// Decompiled with JetBrains decompiler`, `// Type:`, `// Assembly:`, `// MVID:`, the paths). The member's own
    declaration in that text would tell more, or nothing, pointing to `get_symbol_source`.
-7. **`find_implementations`' `maxResults`:** for a type it counts the inheritors found, compiled ones included, before
+6. **`find_implementations`' `maxResults`:** for a type it counts the inheritors found, compiled ones included, before
    those without source are left out; for a member, only those listed. So a type's answer can say "and more past
    maxResults" with fewer lines than `maxResults`. Both should count what is listed.
 
@@ -560,6 +560,10 @@ Found while doing this, to fix:
   On 2026-11-25 at about 01:55 `search_symbol_by_name_finds_no_declaration` failed so twice in a row in
   optimize-royder's runs, in the full run and then with the class alone, with the CPU at 60% (a VBCSCompiler busy),
   and the class passed in the two runs after.
+  On 2026-11-26 the linked file's specification failed so too, in a run of the specifications outside Refactoring:
+  in `When_a_linked_compile_item_is_deleted_on_disk`, `list_symbols_in_file` on the linked file answered "0 symbols",
+  where the specification expects `class StencilPattern`, and two of its facts failed. The class passed 3 of 3 run
+  alone.
 
 The pilot's questions, answers and grading are in `~/.claude/dev_docs/usage/royder-code-understanding-trial.md`;
 `codex-tooling-owner` maintains the shared usage measurements.

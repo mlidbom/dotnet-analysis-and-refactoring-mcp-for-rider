@@ -483,6 +483,8 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     ListQuickFixesTool.cs              # list_quick_fixes — bulb actions at a position
     CompleteAtTool.cs                  # complete_at — code completion suggestions (main-thread dispatch)
     RenameSymbolTool.cs                # rename_symbol — semantic solution-wide rename (self-transacting write)
+    RenameOutcome.cs                   # What a rename reported and changed: its answer, renamed, previewed or refused
+    RenamedFile.cs                     # A file a rename renamed with its type: from, to
     MoveTypeToNamespaceTool.cs         # move_type_to_namespace — Move to Another Namespace, checked, extension usings, file moved
     GenerateMembersTool.cs             # generate_members — generate type members (write)
     ApplyQuickFixTool.cs               # apply_quick_fix — apply a bulb action (self-transacting write)
