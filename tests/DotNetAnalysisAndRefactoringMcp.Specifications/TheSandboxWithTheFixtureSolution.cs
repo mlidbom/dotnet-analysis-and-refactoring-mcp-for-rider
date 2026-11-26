@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment;
 using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
 using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Riders;
@@ -46,6 +47,7 @@ public sealed class TheSandboxWithTheFixtureSolution : IDisposable
          FixtureSolutionCopy.MakeIn(_solutionFolder);
          sandbox.Start(PathOf(SolutionFile));
          WaitUntilTheSolutionResolves();
+         WaitUntilTheSourceGeneratorsRan();
          CallEveryToolThatChangesNothingOnce();
       }
       catch
@@ -102,6 +104,24 @@ public sealed class TheSandboxWithTheFixtureSolution : IDisposable
          if(DateTime.UtcNow > deadline) throw new TimeoutException($"The fixture solution still doesn't resolve after two minutes. get_file_errors answers: {answer}");
          Thread.Sleep(500);
       }
+   }
+
+   /// <summary>
+   ///   Waits until <c>/health</c> says Rider has the output of the Shapes project's source generator, as an agent waits:
+   ///   the specifications of generated members need it.
+   /// </summary>
+   void WaitUntilTheSourceGeneratorsRan()
+   {
+      var deadline = DateTime.UtcNow.AddMinutes(2);
+      JsonElement ready;
+      while((ready = TheFixtureSolutionsHealth().GetProperty("sourceGeneratorsReady")).ValueKind != JsonValueKind.True)
+      {
+         if(DateTime.UtcNow > deadline) throw new TimeoutException($"/health still says sourceGeneratorsReady: {ready} of the fixture solution after two minutes.");
+         Thread.Sleep(500);
+      }
+
+      JsonElement TheFixtureSolutionsHealth() =>
+         McpServer.Health().GetProperty("solutions").EnumerateArray().Single(it => it.GetProperty("name").GetString() == SolutionName);
    }
 
    /// <summary>

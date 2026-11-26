@@ -10,4 +10,9 @@
     <Compile Include="..\Shared\StencilPattern.cs" Link="StencilPattern.cs" />
   </ItemGroup>
 
+  <!-- Built from tests/DotNetAnalysisAndRefactoringMcp.FixtureSourceGenerator, and put here in each copy of the solution. -->
+  <ItemGroup>
+    <Analyzer Include="..\SourceGenerators\DotNetAnalysisAndRefactoringMcp.FixtureSourceGenerator.dll" />
+  </ItemGroup>
+
 </Project>

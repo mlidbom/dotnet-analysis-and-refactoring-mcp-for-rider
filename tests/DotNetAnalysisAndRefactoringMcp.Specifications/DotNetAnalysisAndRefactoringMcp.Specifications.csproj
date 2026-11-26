@@ -22,6 +22,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\tools\DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment\DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.csproj" />
+    <!-- For its DLL in the output folder, which every copy of the fixture solution gets as its source generator. -->
+    <ProjectReference Include="..\DotNetAnalysisAndRefactoringMcp.FixtureSourceGenerator\DotNetAnalysisAndRefactoringMcp.FixtureSourceGenerator.csproj" />
   </ItemGroup>
 
 </Project>

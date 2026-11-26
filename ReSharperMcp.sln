@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetAnalysisAndRefactorin
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Royder.Primary", "src\Royder.Primary\Royder.Primary.csproj", "{96172305-4B4C-4AAE-A47A-49A3BF7702B9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetAnalysisAndRefactoringMcp.FixtureSourceGenerator", "tests\DotNetAnalysisAndRefactoringMcp.FixtureSourceGenerator\DotNetAnalysisAndRefactoringMcp.FixtureSourceGenerator.csproj", "{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -103,6 +105,18 @@ Global
 		{96172305-4B4C-4AAE-A47A-49A3BF7702B9}.Release|x64.Build.0 = Release|Any CPU
 		{96172305-4B4C-4AAE-A47A-49A3BF7702B9}.Release|x86.ActiveCfg = Release|Any CPU
 		{96172305-4B4C-4AAE-A47A-49A3BF7702B9}.Release|x86.Build.0 = Release|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Debug|x64.Build.0 = Debug|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Debug|x86.Build.0 = Debug|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Release|x64.ActiveCfg = Release|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Release|x64.Build.0 = Release|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Release|x86.ActiveCfg = Release|Any CPU
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -113,5 +127,6 @@ Global
 		{AA26303A-1C05-4CEE-ACB9-BA90004D3E59} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{6BC68860-8DB4-4DBD-830B-D2E16E14667A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{96172305-4B4C-4AAE-A47A-49A3BF7702B9} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{A2F4A5C2-1FF5-4E30-8261-ABC295FA2536} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

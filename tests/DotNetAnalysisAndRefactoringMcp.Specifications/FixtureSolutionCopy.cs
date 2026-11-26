@@ -23,10 +23,26 @@ static class FixtureSolutionCopy
          Directory.CreateDirectory(Path.Combine(folder, Path.GetRelativePath(original, subfolder)));
       foreach(var file in Directory.GetFiles(original, "*", SearchOption.AllDirectories).Where(IsSource))
          File.Copy(file, Path.Combine(folder, Path.GetRelativePath(original, file)));
+      PutTheSourceGeneratorIn(folder);
       CommitAsTheOnlyCommit(folder);
 
       bool IsSource(string path) =>
          !Path.GetRelativePath(original, path).Split(Path.DirectorySeparatorChar).Any(it => it is "bin" or "obj" or ".idea");
+   }
+
+   /// <summary>
+   ///   <see cref="TheFixtureSourceGenerator"/>, built with the specifications, which reference it for this:
+   ///   <c>Shapes.csproj</c> names it, where a copy has it.
+   /// </summary>
+   /// <remarks>
+   ///   Not a project of the fixture solution's: Rider runs a source generator only once it is built, and a project of
+   ///   its own would show in the tools' answers about the solution.
+   /// </remarks>
+   static void PutTheSourceGeneratorIn(string folder)
+   {
+      var generators = Directory.CreateDirectory(Path.Combine(folder, "SourceGenerators")).FullName;
+      File.Copy(Path.Combine(AppContext.BaseDirectory, TheFixtureSourceGenerator.AssemblyFileName),
+                Path.Combine(generators, TheFixtureSourceGenerator.AssemblyFileName));
    }
 
    static void CommitAsTheOnlyCommit(string folder)
