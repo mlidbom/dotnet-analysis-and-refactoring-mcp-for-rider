@@ -1,14 +1,15 @@
 using System.Diagnostics;
 using System.Text.Json;
 using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Plugin;
-using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Screen;
+using DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Desktops;
 
 namespace DotNetAnalysisAndRefactoringMcp.DevelopmentEnvironment.Riders;
 
 /// <summary>
 ///   A second Rider, with settings, caches, plugins and logs of its own and the plugin's MCP server on a port of its
-///   own, <see cref="McpPort"/>. Claude starts it, tests builds in it and stops it, without touching the
-///   <see cref="EverydayRider"/> that Magnus and every session work in.
+///   own, <see cref="McpPort"/>, on a <see cref="HiddenDesktop"/> of its own, where nobody sees its windows. Claude
+///   starts it, tests builds in it and stops it, without touching the <see cref="EverydayRider"/> that Magnus and every
+///   session work in.
 /// </summary>
 /// <remarks>
 ///   Its folders are under <c>%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcpSandbox</c>, outside the repository, so the everyday Rider,
@@ -31,7 +32,7 @@ public sealed class SandboxRider
    static readonly TimeSpan HowLongStartingMayTake = TimeSpan.FromMinutes(5);
    /// <summary>
    ///   How long closing the sandbox's windows may take to end it, before its processes are killed. Rider sometimes asks
-   ///   "Confirm Exit", on every virtual desktop, which closing its windows doesn't answer (2026-11-17 and 2026-11-18).
+   ///   "Confirm Exit", which closing its windows doesn't answer (2026-11-17 and 2026-11-18).
    /// </summary>
    static readonly TimeSpan HowLongClosingMayTake = TimeSpan.FromSeconds(30);
 
@@ -43,28 +44,28 @@ public sealed class SandboxRider
 
    readonly RiderInstallation _rider;
    readonly string _root;
-   readonly int _windowSlot;
+   readonly string _folderName;
 
-   public SandboxRider(RiderInstallation rider) : this(rider, FolderName, windowSlot: 0, "The sandbox Rider") {}
+   public SandboxRider(RiderInstallation rider) : this(rider, FolderName, "The sandbox Rider") {}
 
-   SandboxRider(RiderInstallation rider, string folderName, int windowSlot, string name)
+   SandboxRider(RiderInstallation rider, string folderName, string name)
    {
       _rider = rider;
       Name = name;
+      _folderName = folderName;
       _root = Path.Combine(LocalApplicationData, folderName);
-      _windowSlot = windowSlot;
    }
 
    /// <summary>
    ///   A second sandbox, with folders of its own beside the first's, which runs as the first one's peer: its MCP server
    ///   takes the next free port after <see cref="McpPort"/> and registers its solutions with the first's, which
-   ///   forwards their calls. It serves the first sandbox's <see cref="Tools"/>, and its windows go beside the first's.
+   ///   forwards their calls. It serves the first sandbox's <see cref="Tools"/>, and runs on a hidden desktop of its own.
    /// </summary>
    /// <remarks>
    ///   Beside the first sandbox's folder, not in it: a solution in the first sandbox is then picked out by a segment of
    ///   its path, <c>DotNetAnalysisAndRefactoringMcpSandbox</c>, that the peer's path doesn't have.
    /// </remarks>
-   public static SandboxRider ThePeer(RiderInstallation rider) => new(rider, FolderName + "Peer", windowSlot: 1, "The peer sandbox Rider");
+   public static SandboxRider ThePeer(RiderInstallation rider) => new(rider, FolderName + "Peer", "The peer sandbox Rider");
 
    /// <summary>Which sandbox it is, as its messages name it, at the start of a sentence.</summary>
    public string Name { get; }
@@ -131,7 +132,7 @@ public sealed class SandboxRider
    public int? ProcessId => RunningProcess()?.Id;
 
    /// <summary>
-   ///   Starts the sandbox unless it's running, and places its windows. Given a <paramref name="solution"/>, it opens it,
+   ///   Starts the sandbox on its <see cref="HiddenDesktop"/> unless it's running. Given a <paramref name="solution"/>, it opens it,
    ///   and returns once the plugin's MCP server on <see cref="McpPort"/> answers with the solution loaded and indexed:
    ///   for <see cref="ThePeer"/>, the first sandbox's, which the peer's registers its solutions with.
    /// </summary>
@@ -143,6 +144,7 @@ public sealed class SandboxRider
    /// </remarks>
    public void Start(string? solution = null)
    {
+      using var desktop = TheDesktop();
       var settings = new SandboxRiderSettings(Path.Combine(_root, "config"));
       if(solution is not null && RunningProcess() is not null && !settings.Trust(solution))
          Stop(); // Its settings are written only while it doesn't run; without trust, Rider waits on its "Trust and open?" dialog.
@@ -152,20 +154,19 @@ public sealed class SandboxRider
          settings.Write(solution is null ? [SolutionsFolder] : [SolutionsFolder, Path.GetDirectoryName(Path.GetFullPath(solution))!]);
          WriteTheFoldersFile();
          File.WriteAllLines(JvmOptionsFile, [$"-Xmx{HeapLimitInMegabytes}m"]);
-         var process = Launch(solution);
+         var process = Launch(desktop, solution);
          File.WriteAllText(ProcessFile, $"{process.Id};{process.StartTime.Ticks}");
       } else if(solution is not null)
       {
-         Launch(solution); // A second launch hands the solution to the running sandbox and exits.
+         Launch(desktop, solution); // A second launch hands the solution to the running sandbox and exits.
       }
 
       var running = RunningProcess() ?? throw new InvalidOperationException($"{Name} exited while starting. See its logs in " + Path.Combine(_root, "log"));
-      WaitUntil(() => FramesOf(running).Count > 0, HowLongStartingMayTake, $"{Name} to show a window");
-      PlaceWindows();
+      // Until it shows a window, Rider may not be on the desktop yet, which closing this process's handle would end.
+      WaitUntil(() => desktop.Run(() => FramesOf(running).Count > 0), HowLongStartingMayTake, $"{Name} to show a window");
       if(solution is null || !HasThePluginInstalled) return;
 
       WaitUntil(() => TheMcpServerHasIndexed(solution), HowLongStartingMayTake, $"the MCP server on port {McpPort} to answer with {solution} loaded and indexed");
-      PlaceWindows(); // The solution's own window has replaced Rider Home by now.
    }
 
    /// <summary>
@@ -188,11 +189,16 @@ public sealed class SandboxRider
 
    bool ClosedByItsWindows(Process running)
    {
+      using var desktop = TheDesktop();
       var closing = Stopwatch.StartNew();
       while(closing.Elapsed < HowLongClosingMayTake)
       {
          if(running.HasExited) return true;
-         foreach(var window in FramesOf(running)) window.AskToClose();
+         desktop.Run(() =>
+         {
+            foreach(var window in FramesOf(running)) window.AskToClose();
+            return true;
+         });
          if(running.WaitForExit(TimeSpan.FromSeconds(5))) return true;
       }
 
@@ -200,44 +206,34 @@ public sealed class SandboxRider
    }
 
    /// <summary>
-   ///   Whether the sandbox runs, where its windows are next to the development Rider's, and what its MCP server's
-   ///   health endpoint answers.
+   ///   Whether the sandbox runs, its windows on its hidden desktop, and what its MCP server's health endpoint answers.
    /// </summary>
    public IReadOnlyList<string> Status()
    {
       if(RunningProcess() is not {} running) return [$"{Name} isn't running."];
 
-      return ScreenThread.Run(() => (IReadOnlyList<string>)
-                              [
-                                 $"{Name} runs as process {running.Id}.",
-                                 .. FramesOf(running).Select(it => "  sandbox window: " + it.Description),
-                                 "  development Rider window: " + (SandboxWindowPlacement.TheDevelopmentRiderWindow(running.Id)?.Description ?? "none open"),
-                                 "  MCP health: " + (HasThePluginInstalled ? TheMcpServersHealth() ?? "nothing listens on port " + McpPort : "the plugin isn't installed")
-                              ]);
+      using var desktop = TheDesktop();
+      return
+      [
+         $"{Name} runs as process {running.Id}, on the hidden desktop {desktop.Name}.",
+         .. desktop.Run(() => FramesOf(running).Select(it => "  window: " + it.Description).ToList()),
+         "  MCP health: " + (HasThePluginInstalled ? TheMcpServersHealth() ?? "nothing listens on port " + McpPort : "the plugin isn't installed")
+      ];
    }
 
-   /// <summary>Puts the sandbox's windows where <see cref="SandboxWindowPlacement"/> says.</summary>
-   public void PlaceWindows()
-   {
-      var running = RunningProcess() ?? throw new InvalidOperationException($"{Name} isn't running.");
-      SandboxWindowPlacement.Apply(FramesOf(running), running.Id, _windowSlot);
-   }
+   /// <summary>The sandbox's <see cref="HiddenDesktop"/>, named after its folder, created unless it exists.</summary>
+   HiddenDesktop TheDesktop() => HiddenDesktop.Named(_folderName);
 
    /// <remarks>
-   ///   Through the shell, so Rider gets none of this process's handles. Started directly, it inherited the console
-   ///   handles: Rider's output came out in the tool's, and a pipe the tool's output went into stayed open as long as
-   ///   Rider ran. The shell can't take environment variables for the one start, so they're set on this process, whose
-   ///   environment the started one inherits.
+   ///   The environment variables are set on this process, whose environment the started one inherits.
    /// </remarks>
-   Process Launch(string? solution)
+   Process Launch(HiddenDesktop desktop, string? solution)
    {
       Environment.SetEnvironmentVariable("RIDER_PROPERTIES", Path.Combine(_root, "idea.properties"));
       Environment.SetEnvironmentVariable("RIDER_VM_OPTIONS", JvmOptionsFile);
       Environment.SetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT", McpPort.ToString());
       Environment.SetEnvironmentVariable("DOTNET_ANALYSIS_AND_REFACTORING_MCP_TOOLS", Tools.Folder);
-      var startInformation = new ProcessStartInfo(_rider.Launcher) { UseShellExecute = true };
-      if(solution is not null) startInformation.ArgumentList.Add(solution);
-      return Process.Start(startInformation) ?? throw new InvalidOperationException($"Could not start {_rider.Launcher}.");
+      return desktop.Start(_rider.Launcher, solution is null ? [] : [solution]);
    }
 
    void WriteTheFoldersFile()
@@ -261,7 +257,7 @@ public sealed class SandboxRider
       return process is not null && process.StartTime.Ticks == long.Parse(recorded[1]) ? process : null;
    }
 
-   /// <summary>The sandbox's windows apart from its splash screen.</summary>
+   /// <summary>The sandbox's windows apart from its splash screen, on the calling thread's desktop.</summary>
    static IReadOnlyList<TopLevelWindow> FramesOf(Process process) =>
       [.. TopLevelWindow.AllVisible().Where(it => it.ProcessId == process.Id && it.Title.Length > 0 && it.Title != "splash")];
 

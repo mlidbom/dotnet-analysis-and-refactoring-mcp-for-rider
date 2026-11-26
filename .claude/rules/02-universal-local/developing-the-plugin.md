@@ -42,8 +42,9 @@ the sandbox Rider first: a second Rider, with folders of its own, its own tools 
   unless the plugin changed, its host or its frontend jar; then the whole plugin, restarting the sandbox if it runs.
 - `sandbox start <solution>` opens a solution in it and returns once the MCP server has it indexed. Call the tools on
   `http://127.0.0.1:23841/`; `/health` says which tools build serves them.
-- The sandbox's window goes, by itself, to the virtual desktop of the Rider that has this repository's solution open,
-  on the other monitor, small. `sandbox status` says where it is.
+- The sandbox runs on a Windows desktop that nobody sees, one per sandbox Rider and not a virtual desktop, so its
+  windows never show or take the foreground (since 2026-11-26). Nobody can look at it there: `sandbox status` lists
+  its windows by title.
 
 ## Deploying to the everyday Riders: the tools at once, the host at a restart
 

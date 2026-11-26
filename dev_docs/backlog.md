@@ -614,8 +614,9 @@ Magnus, 2026-11-19: Claude sessions will survive Rider restarts, and a tool in t
 will restart Rider and put its solutions back on their virtual desktops. Agents are told why Royder is gone, and he
 gets a prompt he can deny. Restarts can then happen almost any time, and an agent may request one, such as after a host
 change. The design is the tooling's, in `~/.claude/dev_docs/restarting-rider.md`. It reads `/health` before a restart,
-for the solutions that were open, and after, for when they are indexed again, and may reuse the development tools'
-`Screen/` code for the virtual desktops. What it means for Royder, talked over with its session,
+for the solutions that were open, and after, for when they are indexed again. The development tools' `Screen/` code
+for the virtual desktops, which it might have reused, is gone since 2026-11-26, when the sandbox moved to a desktop
+nobody sees; git has it. What it means for Royder, talked over with its session,
 `coordinated-rider-restart`:
 
 - **A peer takes over the primary's port slowly.** The primary's server holds port 23751, which every session calls.

@@ -9,7 +9,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Slions.VirtualDesktop" Version="6.9.2" />
     <PackageReference Include="Vanara.PInvoke.User32" Version="5.0.8" />
   </ItemGroup>
 

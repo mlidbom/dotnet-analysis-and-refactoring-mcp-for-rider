@@ -17,8 +17,8 @@ static class Program
                           sandbox start [<solution>]  Starts the sandbox Rider, opens the solution, waits until its MCP server
                                                       answers on port 23841 with the solution indexed
                           sandbox stop                Closes the sandbox Rider
-                          sandbox place               Puts the sandbox's windows in their place again
-                          sandbox status              Whether it runs, where its windows are, what its MCP server answers
+                          sandbox status              Whether it runs, its windows on the desktop nobody sees, what its MCP
+                                                      server answers
                           sandbox install             Builds the working tree and puts it in the sandbox: only the tools,
                                                       served from the next call, unless the plugin changed (its host or its
                                                       frontend jar); then the plugin, restarting the sandbox if it runs
@@ -28,7 +28,7 @@ static class Program
                           peer start [<solution>]     Starts the second sandbox Rider, the first one's peer, opens the
                                                       solution, waits until the first's MCP server lists it indexed
                           peer stop                   Closes the peer
-                          peer status                 Whether the peer runs, where its windows are
+                          peer status                 Whether the peer runs, its windows on the desktop nobody sees
                           everyday deploy             Builds the working tree and deploys it to the everyday Riders: the
                                                       tools, which every one of them serves from its next call, and the
                                                       plugin if it changed, which takes effect when they restart
@@ -58,9 +58,6 @@ static class Program
             break;
          case ["sandbox", "stop"]:
             InTheSandboxTurn("sandbox stop", sandbox.Stop);
-            break;
-         case ["sandbox", "place"]:
-            sandbox.PlaceWindows();
             break;
          case ["sandbox", "status"]:
             foreach(var line in sandbox.Status()) Console.WriteLine(line);
