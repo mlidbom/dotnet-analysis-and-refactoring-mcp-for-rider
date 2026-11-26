@@ -112,6 +112,14 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   and loses its tools until it reconnects through tool search or `/mcp`; it doesn't retry by itself. The agent took it
   for Royder being down, and renamed by text. A handover with no gap needs the old primary to keep the port until the
   new one is ready, such as by passing it the listening socket, or a small proxy that outlives both.
+- **An edit dispatched late in the primary's deadline answers no one** (usage-tracking, 2026-11-26 16:50). A
+  `rename_symbol` on a checkout the private Rider had closed: opening it took about 44 of the call's 55 seconds, the
+  primary dispatched the rename with about 11 left, and answered at the deadline that Rider had not answered. Rider's
+  answer came 11.5 seconds after the dispatch, just past the deadline, with the note that one of its two files wasn't saved, and reached no one: the
+  agent found the half-applied rename by itself. Proposal: dispatch an edit only while enough of the deadline is left
+  for it, say 30 seconds, and otherwise answer that the checkout is ready and the call is to be repeated, as for a
+  call that arrives while it opens. The save itself failed because Royder's checks of the file held it against
+  writing: fixed in `DiskText.Of` the same day.
 - **`close_worktree` says its outcome only in words** (tooling-owner, 2026-11-26, not urgent). ClaudeTooling's
   `worktree remove` (`RoyderServer.Close`, `AnswerToAClose` in `~/.claude`) calls it by a plain `tools/call` before
   removing a worktree, asks again up to 5 times while the answer is `Still closing`, and tells the answers apart only
