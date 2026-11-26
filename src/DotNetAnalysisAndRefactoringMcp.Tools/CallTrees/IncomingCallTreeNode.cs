@@ -57,7 +57,7 @@ public sealed class IncomingCallTreeNode
    public void WriteTo(StringBuilder text, string indentation, SolutionRoot root)
    {
       var declarationSite = Caller.DeclarationSite;
-      text.Append(indentation).Append(Caller.Name).Append("  ").Append(declarationSite?.Location(root) ?? "[no source]").Append(Suffix).Append('\n');
+      text.Append(indentation).Append(Caller.Name).Append("  ").Append(PsiHelpers.Location(Caller.Member, root)).Append(Suffix).Append('\n');
       WriteTheLinesThatCallTheNodeAbove(text, indentation + "  ", declarationSite, root);
       foreach(var caller in Callers)
          caller.WriteTo(text, indentation + "  ", root);
