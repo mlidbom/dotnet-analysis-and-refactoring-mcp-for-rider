@@ -19,8 +19,8 @@ public sealed class DeclarationSite
    /// <summary>The file's full path; empty for a declaration whose file has none.</summary>
    public string File { get; }
 
-   /// <summary>For a declaration in a file a source generator wrote, which has no path, that file's name: <see cref="GeneratedFile"/>.</summary>
-   public string? GeneratedFileName { get; }
+   /// <summary>For a declaration in a file a source generator wrote, which has no path, that file.</summary>
+   public GeneratedFile? GeneratedFile { get; }
 
    /// <summary>1-based.</summary>
    public int Line { get; }
@@ -28,10 +28,10 @@ public sealed class DeclarationSite
    /// <summary>1-based.</summary>
    public int Column { get; }
 
-   DeclarationSite(string file, string? generatedFileName, int line, int column)
+   DeclarationSite(string file, GeneratedFile? generatedFile, int line, int column)
    {
       File = file;
-      GeneratedFileName = generatedFileName;
+      GeneratedFile = generatedFile;
       Line = line;
       Column = column;
    }
@@ -45,7 +45,7 @@ public sealed class DeclarationSite
    /// <summary>As <see cref="Location"/>, with the column: <c>Shapes\Palette.cs:9:17</c>.</summary>
    public string LocationWithColumn(SolutionRoot root) => $"{Location(root)}:{Column}";
 
-   string FileAsWritten(SolutionRoot root) => GeneratedFileName ?? root.Relative(File);
+   string FileAsWritten(SolutionRoot root) => GeneratedFile?.Name ?? root.Relative(File);
 
    /// <summary>Nothing for a declaration without a source file or a range in it.</summary>
    public static DeclarationSite? Of(IDeclaration declaration)
@@ -61,7 +61,7 @@ public sealed class DeclarationSite
          return null;
 
       var (line, column) = PsiHelpers.GetLineColumn(range.StartOffset);
-      return new DeclarationSite(sourceFile.GetLocation().FullPath, GeneratedFile.NameOf(sourceFile), line, column);
+      return new DeclarationSite(sourceFile.GetLocation().FullPath, DotNetAnalysisAndRefactoringMcp.GeneratedFile.Of(sourceFile), line, column);
    }
 
    /// <summary>
@@ -97,7 +97,7 @@ public sealed class DeclarationSite
    ///   <see cref="GeneratedFile"/>; nothing for one with no declaration.
    /// </summary>
    public static DeclarationSite? WhereDeclared(IDeclaredElement element) =>
-      WhereDeclaredInAFileWithAPath(element) ?? MainDeclaration.InOrder(element).Select(Of).FirstOrDefault(it => it?.GeneratedFileName != null);
+      WhereDeclaredInAFileWithAPath(element) ?? MainDeclaration.InOrder(element).Select(Of).FirstOrDefault(it => it?.GeneratedFile != null);
 
    static DeclarationSite? WhereAMemberWithoutADeclarationIsWritten(IDeclaredElement element, Func<IDeclaredElement, DeclarationSite?> whereDeclared)
    {

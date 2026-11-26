@@ -355,7 +355,7 @@ public static class PsiHelpers
    public static (string file, int line) Declaration(IDeclaredElement element)
    {
       var site = DeclarationSite.WhereDeclared(element);
-      return site == null ? (null, 0) : (site.GeneratedFileName ?? site.File, site.Line);
+      return site == null ? (null, 0) : (site.GeneratedFile?.Name ?? site.File, site.Line);
    }
 
    /// <summary>

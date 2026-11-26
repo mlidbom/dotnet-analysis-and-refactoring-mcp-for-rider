@@ -15,8 +15,8 @@ public sealed class CallSite
    /// <summary>The file's full path; empty for a file that has none.</summary>
    public string File { get; }
 
-   /// <summary>For a call in a file a source generator wrote, which has no path, that file's name: <see cref="GeneratedFile"/>.</summary>
-   public string? GeneratedFileName { get; }
+   /// <summary>For a call in a file a source generator wrote, which has no path, that file.</summary>
+   public GeneratedFile? GeneratedFile { get; }
 
    /// <summary>1-based: the line of the called member's name, not of the start of an expression it is the end of.</summary>
    public int Line { get; }
@@ -36,10 +36,10 @@ public sealed class CallSite
    /// <summary>Whether the code passes the member as a delegate, <c>shapes.Select(AreaOf)</c>, rather than calling it.</summary>
    public bool AsDelegate { get; }
 
-   CallSite(string file, string? generatedFileName, int line, int column, string code, IDeclaredElement? through, bool asDelegate)
+   CallSite(string file, GeneratedFile? generatedFile, int line, int column, string code, IDeclaredElement? through, bool asDelegate)
    {
       File = file;
-      GeneratedFileName = generatedFileName;
+      GeneratedFile = generatedFile;
       Line = line;
       Column = column;
       Code = code;
@@ -49,13 +49,13 @@ public sealed class CallSite
 
    /// <summary>
    ///   Its file as the text answers write it: <c>Shapes\Palette.cs</c>, the path relative to <paramref name="root"/>, or
-   ///   the <see cref="GeneratedFileName"/>.
+   ///   the <see cref="GeneratedFile"/>'s <see cref="DotNetAnalysisAndRefactoringMcp.GeneratedFile.Name"/>.
    /// </summary>
-   public string FileAsWritten(SolutionRoot root) => GeneratedFileName ?? root.Relative(File);
+   public string FileAsWritten(SolutionRoot root) => GeneratedFile?.Name ?? root.Relative(File);
 
    /// <summary>Whether it is in the file of <paramref name="declaration"/>: never when that is nothing.</summary>
    public bool IsInTheFileOf(DeclarationSite? declaration) =>
-      string.Equals(File, declaration?.File, StringComparison.OrdinalIgnoreCase) && GeneratedFileName == declaration?.GeneratedFileName;
+      string.Equals(File, declaration?.File, StringComparison.OrdinalIgnoreCase) && GeneratedFile?.Name == declaration?.GeneratedFile?.Name;
 
    /// <summary>
    ///   The site of <paramref name="call"/>, made through <paramref name="reference"/>, which names
@@ -72,7 +72,7 @@ public sealed class CallSite
          return null;
 
       var (line, column) = PsiHelpers.GetLineColumn(range.StartOffset);
-      return new CallSite(sourceFile.GetLocation().FullPath, GeneratedFile.NameOf(sourceFile), line, column,
+      return new CallSite(sourceFile.GetLocation().FullPath, DotNetAnalysisAndRefactoringMcp.GeneratedFile.Of(sourceFile), line, column,
                           PsiHelpers.LineText(range.Document, line), through, call.Reached == HowReached.AsDelegate);
    }
 }

@@ -69,7 +69,7 @@ public sealed class IncomingCallTreeNode
    /// </summary>
    void WriteTheLinesThatCallTheNodeAbove(StringBuilder text, string indentation, DeclarationSite? declarationSite, SolutionRoot root)
    {
-      var firstCallOnEachLine = CallSites.GroupBy(it => (it.File, it.GeneratedFileName, it.Line)).Select(it => it.First()).ToList();
+      var firstCallOnEachLine = CallSites.GroupBy(it => (it.File, it.GeneratedFile?.Name, it.Line)).Select(it => it.First()).ToList();
       foreach(var call in firstCallOnEachLine.Take(MostLinesListed))
          text.Append(indentation).Append(FileOf(call)).Append(call.Line).Append(": ").Append(call.Code).Append('\n');
       if(firstCallOnEachLine.Count > MostLinesListed)
