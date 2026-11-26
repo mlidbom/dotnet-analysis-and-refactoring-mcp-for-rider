@@ -1,33 +1,21 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using JetBrains.Application.Progress;
+using DotNetAnalysisAndRefactoringMcp.Renames;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
-using JetBrains.ReSharper.Feature.Services.Refactorings;
-using JetBrains.ReSharper.Feature.Services.Refactorings.Conflicts;
 using JetBrains.ReSharper.Feature.Services.Refactorings.Specific.Rename;
 using JetBrains.ReSharper.Psi;
-using JetBrains.ReSharper.Refactorings.Rename;
 using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Tools;
 
 /// <summary>
-/// Safe, semantic, solution-wide rename. It runs as Rider runs its Rename (<see cref="IMcpMainThreadTool"/>): on the
-/// R# main thread, under a read lock, documents committed, in a PSI transaction of its own, so that it controls
-/// whether the transaction commits (a real rename) or is discarded (a dry-run).
-///
-/// The actual rename is driven by the standard ReSharper rename machinery:
-///   RenameWorkflow + RenameRefactoring (the high-level executer) over a RenameDataModel.
-/// The data model is populated via <c>LoadBaseRenames</c> (which builds the atomic renames AND
-/// searches the solution for usages — this is what makes the rename semantic, not textual) and
-/// then <c>RenameRefactoring.Execute</c> performs declaration + usage rebinding.
-///
-/// Conflicts are collected through a <see cref="RefactoringDriverWithConflicts"/> (the plain
-/// RefactoringDriver discards conflicts), and the driver-collected <see cref="IConflict"/>s are
-/// shaped into the output.
+///   <c>rename_symbol</c>: a safe, semantic, solution-wide rename. It runs as Rider runs its Rename
+///   (<see cref="IMcpMainThreadTool"/>): on the R# main thread, under a read lock, documents committed, in a PSI
+///   transaction of its own, an <see cref="EditTransaction"/>, which a real rename commits and a dry run rolls back.
 /// </summary>
+/// <remarks>
+///   ReSharper's own Rename does the work, run with no dialog: <see cref="HeadlessRenameWorkflow"/>. Its answer is the
+///   <see cref="RenameOutcome"/>'s.
+/// </remarks>
 public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
 {
    readonly ISolution _solution;
@@ -85,127 +73,58 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
 
       if(error != null) return error;
 
-      var oldName = named.ShortName;
+      var request = new RenameRequest(named, newName, isADryRun: dryRun, appliesDespiteConflicts: applyDespiteConflicts);
+
       var declaredElement = TheElementARenameStartsFrom(named);
       if(declaredElement == null)
-         return new { error = $"Symbol '{oldName}' cannot be renamed: ReSharper finds no element for its rename to start from." };
+         return new { error = $"Symbol '{request.OldName}' cannot be renamed: ReSharper finds no element for its rename to start from." };
 
-      if(string.Equals(oldName, newName, StringComparison.Ordinal))
-         return $"{Signature.KindOf(named)} {PsiHelpers.GetQualifiedName(named)} is named {newName} already: nothing to rename.";
+      if(request.KeepsTheName)
+         return $"{request.Symbol} is named {request.NewName} already: nothing to rename.";
 
-      // Verify the element can actually be renamed before we set anything up.
       var availability = new AtomicRenamesFactory().CheckRenameAvailability(declaredElement);
       if(availability != RenameAvailabilityCheckResult.CanBeRenamed)
-         return new { error = $"Symbol '{oldName}' cannot be renamed: {availability}." };
+         return new { error = $"Symbol '{request.OldName}' cannot be renamed: {availability}." };
 
-      var rename = RenameOutcome.Describe(named, newName);
-      var psiServices = _solution.GetPsiServices();
+      if(declaredElement.GetSourceFiles().FirstOrDefault()?.ResolveContext == null)
+         return new { error = $"Symbol '{request.OldName}' has no source file; only source-defined symbols can be renamed." };
 
-      // The plain RefactoringDriver swallows conflicts; the WithConflicts variant records them.
-      var storage = new RefactoringDriverStorage();
-      var driver = new RefactoringDriverWithConflicts(storage);
+      return Rename(declaredElement, request);
+   }
 
-      // A short-lived lifetime for the workflow/data-model scope.
-      var lifetimeDefinition = new LifetimeDefinition();
-      try
+   /// <summary>
+   ///   Renames <paramref name="element"/> as <paramref name="request"/> asks, with ReSharper's Rename, and answers with
+   ///   the <see cref="RenameOutcome"/>.
+   /// </summary>
+   object Rename(IDeclaredElement element, RenameRequest request)
+   {
+      using var lifetime = new LifetimeDefinition();
+      using var compilationContext = CompilationContexts.For(element);
+      var workflow = HeadlessRenameWorkflow.Of(_solution, element, request, lifetime.Lifetime);
+
+      bool renamedTheCode;
+      RenameOutcome outcome;
+      using(var transaction = EditTransaction.Begin(_solution.GetPsiServices(), "DotNetAnalysisAndRefactoringMcp.rename_symbol", request.IsADryRun))
       {
-         var lifetime = lifetimeDefinition.Lifetime;
-
-         // The rename machinery reads the ambient CompilationContextCookie (e.g. the naming
-         // suggestions built inside the RenameDataModel constructor resolve runtime features
-         // through it). The IDE's rename action establishes that cookie before invoking the
-         // workflow; headless we must establish it ourselves, otherwise the machinery falls
-         // back to the universal context and NREs deep inside GetRuntimeFeatures.
-         var resolveContext = declaredElement.GetSourceFiles().FirstOrDefault()?.ResolveContext;
-         if(resolveContext == null)
-            return new { error = $"Symbol '{oldName}' has no source file; only source-defined symbols can be renamed." };
-
-         using var contextCookie = CompilationContextCookie.GetOrCreate(resolveContext);
-
-         // Subclass exposes DataModel assignment (the base setter is protected) and lets us
-         // drive the workflow without a UI IDataContext.
-         var workflow = new HeadlessRenameWorkflow(_solution, "DotNetAnalysisAndRefactoringMcp.Rename")
-                        {
-                           WorkflowExecuterLifetime = lifetime
-                        };
-
-         var languageType = RenameUtil.GetPsiLanguageTypeOrKnownLanguage(declaredElement);
-         var renameHelper = workflow.LanguageSpecific[languageType];
-
-         // Build the options model. NOTE: the RenameDataModel constructor mutates this
-         // model (it sets HasUI=true, RenameDerived=true, ChangeTextOccurrences from
-         // settings), so we must force our non-interactive, code-only flags AFTER the
-         // data model has been constructed — not before.
-         var model = renameHelper.GetOptionsModel(declaredElement, null, lifetime);
-
-         var dataModel = new RenameDataModel(
-                            [declaredElement],
-                            null,
-                            dryRun ? RenameFilesOption.NothingToRename : RenameFilesOption.RenameWithoutConfirmation,
-                            lifetime,
-                            _solution,
-                            model,
-                            workflow)
-                         {
-                            NewName = newName
-                         };
-
-         // Force non-interactive behaviour (overriding the ctor's defaults).
-         // IMPORTANT: QuickRename must stay false. QuickRename=true short-circuits the
-         // solution-wide usage search in LoadBaseRenames (it is meant for inline/local
-         // rename where usages are trivial), which would leave references un-rewritten.
-         // With QuickRename=false the workflow searches the whole solution for usages.
-         // HasUI=false keeps it headless (no pages/dialogs are shown).
-         // RenameFile: a real rename renames a type's file named after it (RenameTheFiles); a dry
-         // run none, as its rollback wouldn't undo the project model's change.
-         model.HasUI = false;
-         model.QuickRename = false;
-         model.RenameDerived = false;
-         model.RenameFile = !dryRun;
-         model.ChangeTextOccurrences = false;
-
-         workflow.AssignDataModel(dataModel);
-
-         // The call opened no PSI transaction for us, as Rider's WorkflowExecuter opens one around a refactoring's
-         // Execute. Open our own, which a real rename commits as it ends, and a dry run rolls back, so none of the
-         // edits Execute() makes are ever persisted — while the conflict/affected-file analysis we capture from the
-         // (now discarded) tree mutation remains valid for reporting.
-         bool executed;
-         RenameOutcome outcome;
-         using(var transaction = EditTransaction.Begin(psiServices, "DotNetAnalysisAndRefactoringMcp.rename_symbol", dryRun))
+         workflow.FindTheRenames();
+         if(workflow.FoundNothingToRename)
          {
-            // Build atomic renames AND search the solution for usages (populates the
-            // references store the atomic renames consume). NameHasChanged ensures the load
-            // is not short-circuited.
-            dataModel.NameHasChanged = true;
-            dataModel.LoadBaseRenames(NullProgressIndicator.Create(), workflow, forceReload: true);
-
-            if(dataModel.AllRenames.Renames.Count == 0)
-            {
-               transaction.Rollback();
-               return new { error = $"No applicable renames were produced for '{oldName}'." };
-            }
-
-            // Execute the rename. RenameRefactoring.Execute performs cold conflict search
-            // (recorded in the driver) and then the actual declaration/usage rewrites.
-            executed = new RenameRefactoring(workflow, _solution, driver).Execute(NullProgressIndicator.Create());
-
-            outcome = new RenameOutcome(rename, driver, transaction.ChangedFiles, SolutionRoot.Of(_solution));
-            if(!dryRun && !applyDespiteConflicts && outcome.HasAnErrorConflict)
-            {
-               transaction.Rollback();
-               return outcome.Refused();
-            }
+            transaction.Rollback();
+            return new { error = $"No applicable renames were produced for '{request.OldName}'." };
          }
 
-         // A dry run's transaction rolled back as it ended; a real rename's committed.
-         if(dryRun) return outcome.Previewed();
-         return executed ? outcome.Applied(RenameTheFiles(workflow)) : outcome.NotCompleted();
+         renamedTheCode = workflow.RenameTheCode();
+         outcome = new RenameOutcome(request, workflow.ReadTheConflicts(), transaction.ChangedFiles, SolutionRoot.Of(_solution));
+         if(outcome.IsRefused)
+         {
+            transaction.Rollback();
+            return outcome.Refused();
+         }
       }
-      finally
-      {
-         lifetimeDefinition.Terminate();
-      }
+
+      // A dry run's transaction rolled back as it ended; a real rename's committed.
+      if(request.IsADryRun) return outcome.Previewed();
+      return renamedTheCode ? outcome.Applied(workflow.RenameTheFiles()) : outcome.NotCompleted();
    }
 
    /// <summary>
@@ -224,33 +143,4 @@ public class RenameSymbolTool : IMcpMainThreadTool, IMcpEditTool
    /// </remarks>
    static IDeclaredElement TheElementARenameStartsFrom(IDeclaredElement named) =>
       RenameRefactoringService.Instance.GetPrimevalDeclaredElement(named, null);
-
-   /// <summary>
-   ///   The rest of Rider's Rename, once its PSI transaction is committed (<see cref="RenameWorkflow.PostExecute"/>):
-   ///   renames the files named after a renamed type, through the project model, and the usages Rider's frontend keeps.
-   ///   The files it renamed, from and to.
-   /// </summary>
-   /// <remarks>
-   ///   Until 2026-11-15 the tool stopped after the transaction, and a renamed type's file kept the old name. A dry run
-   ///   renames no file: the project model's changes aren't the PSI transaction's, and its rollback wouldn't undo them.
-   /// </remarks>
-   static List<RenamedFile> RenameTheFiles(RenameWorkflow workflow)
-   {
-      List<RenamedFile> renamed = [.. workflow.IterateRenameFiles().Select(it => new RenamedFile(it.Rename.SourceLocation.FullPath, it.Rename.SourceLocation.Directory.Combine(it.NewName).FullPath))];
-      workflow.PostExecute(NullProgressIndicator.Create());
-      return renamed;
-   }
-
-   /// <summary>
-   /// Headless rename workflow: the base <c>DataModel</c> setter is <c>protected</c> and the
-   /// usual <c>Initialize(IDataContext)</c> path requires UI data we do not have, so we
-   /// subclass to inject a pre-built data model directly.
-   /// </summary>
-   sealed class HeadlessRenameWorkflow : RenameWorkflow
-   {
-      public HeadlessRenameWorkflow(ISolution solution, string actionId)
-         : base(solution, actionId) {}
-
-      public void AssignDataModel(RenameDataModel dataModel) => DataModel = dataModel;
-   }
 }

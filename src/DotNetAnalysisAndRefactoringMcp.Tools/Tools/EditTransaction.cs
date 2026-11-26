@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.DocumentManagers.Transactions;
+using JetBrains.DocumentModel.Transactions;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Transactions;
@@ -49,10 +50,20 @@ sealed class EditTransaction : IDisposable
 
    IReadOnlyList<IPsiSourceFile> FilesWhoseTextChanged()
    {
-      var transaction = _psiServices.Transactions.Current ?? throw new InvalidOperationException("No PSI transaction is open.");
-      var changedDocuments = _psiServices.Solution.GetComponent<SolutionDocumentTransactionManager>().CurrentTransaction?.GetCurrentRollbackChanges().Keys;
-      return [.. transaction.AffectedFiles.Where(it => changedDocuments?.Contains(it.Document) == true)];
+      var affectedFiles = ThePsiTransaction.AffectedFiles;
+      var changesARollbackUndoes = TheDocumentTransaction.GetCurrentRollbackChanges();
+      return [.. affectedFiles.Where(it => changesARollbackUndoes.ContainsKey(it.Document))];
    }
+
+   IPsiTransaction ThePsiTransaction => _psiServices.Transactions.Current ?? throw new InvalidOperationException("No PSI transaction is open.");
+
+   /// <summary>
+   ///   The transaction of the documents' text, which <see cref="IPsiTransactions.StartTransaction"/> opens with the PSI
+   ///   transaction.
+   /// </summary>
+   DocumentTransaction TheDocumentTransaction =>
+      _psiServices.Solution.GetComponent<SolutionDocumentTransactionManager>().CurrentTransaction
+         ?? throw new InvalidOperationException("No document transaction is open, which the PSI transaction opens with it.");
 
    /// <summary>Discards what the transaction changed, now.</summary>
    public void Rollback()

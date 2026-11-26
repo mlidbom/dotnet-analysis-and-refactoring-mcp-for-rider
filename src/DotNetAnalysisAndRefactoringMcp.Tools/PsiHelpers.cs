@@ -503,6 +503,9 @@ public static class PsiHelpers
       DeclarationSite.WhereWritten(element) switch
       {
          { File.Length: > 0 } site => site.Location(root),
+         //bug: never matches, so a generated element is still [no source], or at its partial type's file: every site
+         //   DeclarationSite.WhereWritten answers has a path, as OfMainDeclarationOf skips those without. Ask whether
+         //   the element has a declaration without a path instead, as GoToDefinitionTool does with DeclarationSite.Of.
          not null                  => "[generated]",
          null                      => AssemblyLabel(element) ?? "[no source]"
       };
