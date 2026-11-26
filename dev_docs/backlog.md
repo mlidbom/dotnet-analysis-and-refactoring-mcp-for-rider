@@ -111,6 +111,11 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   known: whether that injection makes Rider ask something as it switches, or the switch fails at times. If it recurs,
   capture the window while `sandbox start` waits:
   `ClaudeTooling.exe window capture <png> --process <pid> --title "Open Project"`.
+- **The specifications have no source generator** (royder-agent-rep, 2026-11-26). The fixture solution has none, so
+  nothing in the suite answers about a generated member: `[no source]` for one, from `1e0c2d1` until `ecef5f7`, was
+  caught only by `verify_on_demand.py`, which needs a primary package, and a first fix that didn't work passed the
+  suite. Give the fixture the generator `verify_on_demand.py` builds (`experiments/HeadlessRoslynPatcher/FixtureChecks`),
+  and specify `find_usages`' and `go_to_definition`'s `[generated]`, and a generated member of a partial type.
 - **A peer that registers on a dead peer's port, between a refused call and its removal, is removed too**
   (royder-codex-3, 2026-11-22). A refused connection removes every registration on the port (`PeerSolution.Call`),
   since nothing listens there. The window is under a millisecond, and a peer registers only once its solution has
