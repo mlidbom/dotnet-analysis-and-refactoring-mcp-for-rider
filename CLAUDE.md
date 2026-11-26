@@ -515,7 +515,11 @@ Override port: `DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT=9999`
 
 Released as the .NET Terminal Symbol Linker is: `pluginVersion` in `rider-plugin/gradle.properties`, the version's
 section in `CHANGELOG.md`, then a `v<version>` tag, which `.github/workflows/release.yml` builds, signs, releases on
-GitHub and publishes to the Marketplace. Publishing needs Magnus's word. The repository's secrets hold the signing
+GitHub and publishes to the Marketplace. Publishing needs Magnus's word.
+
+Before tagging, check the Unreleased section against git: `git log` and `git diff` since the last tag. An entry is
+written when its change lands and later commits can change what it says, so correct those, and add what has no entry.
+Two entries were wrong by the time of the backfill on 2026-11-26. The repository's secrets hold the signing
 certificate and the Marketplace token; `MARKETPLACE_ID` in `release.yml` is the plugin's Marketplace id, which its
 first upload, by hand, gave it.
 
