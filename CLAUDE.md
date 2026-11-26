@@ -187,7 +187,9 @@ before any of the following changes, so it can add a specification first (2026-1
   the other tools, not at whichever part ReSharper lists first; the session `symbol-linker` was told first. Since
   2026-11-24 too, a member's name gives a declaration for each of its overloads, in the order they are declared, and
   every declaration has a `signature`, such as `method Mix(first:string, second:string) : string`: agreed with
-  `symbol-linker`, whose picker shows it;
+  `symbol-linker`, whose picker shows it. Since 2026-11-26 a declaration or type a source generator wrote has `file`
+  null, its `line` and `column` in the generated file, and `generator` and `hintName` beside them: agreed with
+  `symbol-linker`, whose linker keeps only declarations with a file;
 - what its sandbox Rider copies from ours: the everyday plugin folder, the tools builds in
   `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp\tools`, each with its `host.sha256`, and `/health`'s
   `solutions[].tools.build` and `.host`, by which it waits until its sandbox serves the newest build;

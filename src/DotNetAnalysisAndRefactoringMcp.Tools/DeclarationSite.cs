@@ -1,5 +1,4 @@
 #nullable enable
-using System;
 using System.Linq;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Tree;
@@ -65,13 +64,6 @@ public sealed class DeclarationSite
    }
 
    /// <summary>
-   ///   The site of the element's <see cref="MainDeclaration"/> in a file with a path, or else of its first other one
-   ///   there; nothing for compiled elements.
-   /// </summary>
-   public static DeclarationSite? WhereDeclaredInAFileWithAPath(IDeclaredElement element) =>
-      MainDeclaration.InOrder(element).Select(Of).FirstOrDefault(it => it is { File.Length: > 0 });
-
-   /// <summary>
    ///   The site of the element's <see cref="MainDeclaration"/>, or else of its declaration in a
    ///   <see cref="GeneratedFile"/>, or for a member with no declaration of its own, where it is written: a positional
    ///   record's property at the parameter of the same name in its type's header, anything else, such as an implicit
@@ -82,15 +74,7 @@ public sealed class DeclarationSite
    ///   the type's part that the solution declares.
    /// </remarks>
    public static DeclarationSite? WhereWritten(IDeclaredElement element) =>
-      WhereDeclared(element) ?? WhereAMemberWithoutADeclarationIsWritten(element, WhereDeclared);
-
-   /// <summary>
-   ///   As <see cref="WhereWritten"/>, but of the declarations in files with a path only: a member a source generator
-   ///   wrote into a partial type is at the type's name, and one of a wholly generated type is nowhere. What the JSON form
-   ///   gives, which the .NET Terminal Symbol Linker reads.
-   /// </summary>
-   public static DeclarationSite? WhereWrittenInAFileWithAPath(IDeclaredElement element) =>
-      WhereDeclaredInAFileWithAPath(element) ?? WhereAMemberWithoutADeclarationIsWritten(element, WhereDeclaredInAFileWithAPath);
+      WhereDeclared(element) ?? WhereAMemberWithoutADeclarationIsWritten(element);
 
    /// <summary>
    ///   The site of the element's <see cref="MainDeclaration"/> in a file with a path, or else of its declaration in a
@@ -99,7 +83,14 @@ public sealed class DeclarationSite
    public static DeclarationSite? WhereDeclared(IDeclaredElement element) =>
       WhereDeclaredInAFileWithAPath(element) ?? MainDeclaration.InOrder(element).Select(Of).FirstOrDefault(it => it?.GeneratedFile != null);
 
-   static DeclarationSite? WhereAMemberWithoutADeclarationIsWritten(IDeclaredElement element, Func<IDeclaredElement, DeclarationSite?> whereDeclared)
+   /// <summary>
+   ///   The site of the element's <see cref="MainDeclaration"/> in a file with a path, or else of its first other one
+   ///   there: a type declared in parts is at its part in the file named after it, rather than at a generated part.
+   /// </summary>
+   static DeclarationSite? WhereDeclaredInAFileWithAPath(IDeclaredElement element) =>
+      MainDeclaration.InOrder(element).Select(Of).FirstOrDefault(it => it is { File.Length: > 0 });
+
+   static DeclarationSite? WhereAMemberWithoutADeclarationIsWritten(IDeclaredElement element)
    {
       if(element is not ITypeMember member || element is ITypeElement || member.ContainingType is not { } type)
          return null;
@@ -107,8 +98,8 @@ public sealed class DeclarationSite
       return type.Constructors
                  .SelectMany(it => it.Parameters)
                  .Where(it => it.ShortName == member.ShortName)
-                 .Select(whereDeclared)
+                 .Select(WhereDeclared)
                  .FirstOrDefault(it => it != null)
-          ?? whereDeclared(type);
+          ?? WhereDeclared(type);
    }
 }

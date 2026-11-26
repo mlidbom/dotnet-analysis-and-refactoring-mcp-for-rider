@@ -52,4 +52,22 @@ public class When_browsing_a_namespace_in_the_JSON_form(TheSandboxWithTheFixture
                                                             && string.Join(", ", it["members"]!.AsArray().Select(member => member!["name"])) == "Diameter, Grown");
 
    [XF] public void a_namespace_the_solution_does_not_have_is_an_error_of_its_own() => NotFound["error"]!.ToString().Must().Be("Namespace not found: No.Such.Namespace");
+
+   /// <summary>
+   ///   Shapes.Ruler, which <see cref="TheFixtureSourceGenerator"/> writes in Ruler.g.cs. Until 2026-11-26 it had no
+   ///   file and no line.
+   /// </summary>
+   [XF] public void a_type_a_source_generator_wrote_whole_with_its_members_and_its_generated_file() =>
+      new
+      {
+         File = (string?)Type("Ruler")["file"],
+         Where = $"{Type("Ruler")["line"]}:{Type("Ruler")["column"]}",
+         Generator = (string?)Type("Ruler")["generator"],
+         HintName = (string?)Type("Ruler")["hintName"],
+         Members = string.Join(", ", MembersOf(Type("Ruler")))
+      }.Must().Be(new { File = (string?)null, Where = "4:21", Generator = (string?)TheFixtureSourceGenerator.GeneratorName, HintName = (string?)"Ruler.g.cs", Members = "public method Doubled" });
+
+   /// <summary>Shapes.Swatch, whose Shade <see cref="TheFixtureSourceGenerator"/> writes in Swatch.g.cs.</summary>
+   [XF] public void a_partial_type_with_the_members_a_source_generator_wrote_into_it_among_its_own() =>
+      Type("Swatch")["members"]!.AsArray().Select(it => (string)it!["name"]!).Order().Must().Satisfy(it => it.SequenceEqual(["Color", "Describe", "Shade"]));
 }

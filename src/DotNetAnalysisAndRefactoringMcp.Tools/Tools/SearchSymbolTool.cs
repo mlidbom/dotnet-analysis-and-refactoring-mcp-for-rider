@@ -257,9 +257,9 @@ public class SearchSymbolTool : IMcpTool
       {
          var (file, line, column) = FirstDeclaration(element);
 
-         // Source-generated declarations have no file path; compiled ones have an assembly instead.
+         // Compiled declarations have no file; they have an assembly instead.
          var library = file == null ? PsiHelpers.AssemblyLabel(element) : null;
-         var key = library != null ? $"{library}:{PsiHelpers.GetQualifiedName(element)}" : $"{file ?? "[generated]"}:{line}:{column}";
+         var key = library != null ? $"{library}:{PsiHelpers.GetQualifiedName(element)}" : $"{file}:{line}:{column}";
          if(!_seen.Add(key)) return;
 
          string containingType = null;
@@ -275,10 +275,15 @@ public class SearchSymbolTool : IMcpTool
                      });
       }
 
+      /// <summary>
+      ///   Where <paramref name="element"/> is declared, its file a path or a <see cref="GeneratedFile"/>'s name; no
+      ///   file for a compiled element. Until 2026-11-26 every generated declaration was at <c>[generated]:0:0</c>, so
+      ///   a search listed only the first one it found.
+      /// </summary>
       static (string file, int line, int column) FirstDeclaration(IDeclaredElement element)
       {
-         var site = DeclarationSite.WhereDeclaredInAFileWithAPath(element);
-         return site == null ? (null, 0, 0) : (site.File, site.Line, site.Column);
+         var site = DeclarationSite.WhereDeclared(element);
+         return site == null ? (null, 0, 0) : (site.GeneratedFile?.Name ?? site.File, site.Line, site.Column);
       }
    }
 

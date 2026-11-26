@@ -12,9 +12,19 @@ public sealed class TypeJson
    [JsonProperty("kind")] public string Kind { get; private set; } = "";
    [JsonProperty("name")] public string Name { get; private set; } = "";
    [JsonProperty("qualifiedName")] public string QualifiedName { get; private set; } = "";
+   /// <summary>The file's full path; null for a type a source generator wrote whole, whose file has none.</summary>
    [JsonProperty("file")] public string? File { get; private set; }
+
+   /// <summary>The line of its name, in its file or its generated file.</summary>
    [JsonProperty("line")] public int? Line { get; private set; }
+
    [JsonProperty("column")] public int? Column { get; private set; }
+
+   /// <summary>For a type a source generator wrote whole, the generator's full type name, as in <see cref="DeclarationJson.Generator"/>; left out otherwise.</summary>
+   [JsonProperty("generator", NullValueHandling = NullValueHandling.Ignore)] public string? Generator { get; private set; }
+
+   /// <summary>For a type a source generator wrote whole, the name it gave its file, as in <see cref="DeclarationJson.HintName"/>; left out otherwise.</summary>
+   [JsonProperty("hintName", NullValueHandling = NullValueHandling.Ignore)] public string? HintName { get; private set; }
 
    /// <summary>Its declared members, when the call asked for them; left out otherwise.</summary>
    [JsonProperty("members", NullValueHandling = NullValueHandling.Ignore)] public List<MemberJson>? Members { get; private set; }
@@ -24,15 +34,17 @@ public sealed class TypeJson
 
    public static TypeJson Of(ITypeElement type, bool withMembers)
    {
-      var site = DeclarationSite.WhereDeclaredInAFileWithAPath(type);
+      var site = DeclarationSite.WhereDeclared(type);
       return new TypeJson
              {
                 Kind = JsonNaming.KindOf(type),
                 Name = JsonNaming.NameOf(type),
                 QualifiedName = JsonNaming.QualifiedNameOf(type),
-                File = site?.File,
+                File = site?.GeneratedFile == null ? site?.File : null,
                 Line = site?.Line,
                 Column = site?.Column,
+                Generator = site?.GeneratedFile?.Generator,
+                HintName = site?.GeneratedFile?.HintName,
                 Members = withMembers ? MemberJson.OfTheMembersOf(type) : null,
                 NestedTypes = [.. type.NestedTypes.Where(it => it is not ITypeExtension).OrderBy(it => it.ShortName).Select(it => Of(it, withMembers))]
              };

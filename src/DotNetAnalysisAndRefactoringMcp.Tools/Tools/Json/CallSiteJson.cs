@@ -5,9 +5,16 @@ using Newtonsoft.Json;
 namespace DotNetAnalysisAndRefactoringMcp.Tools.Json;
 
 /// <summary>A call with which a caller in <c>get_call_hierarchy</c>'s incoming tree calls the node above, in the <see cref="JsonFormat">JSON form</see>.</summary>
-public sealed class CallSiteJson(string file, int line, int column, string code, string? through, bool? asDelegate)
+public sealed class CallSiteJson(string? file, GeneratedFile? generatedFile, int line, int column, string code, string? through, bool? asDelegate)
 {
-   [JsonProperty("file")] public string File { get; } = file;
+   /// <summary>The file's full path; null for a call in code a source generator wrote, whose file has none.</summary>
+   [JsonProperty("file")] public string? File { get; } = file;
+
+   /// <summary>For a call in code a source generator wrote, the generator's full type name; left out otherwise.</summary>
+   [JsonProperty("generator", NullValueHandling = NullValueHandling.Ignore)] public string? Generator { get; } = generatedFile?.Generator;
+
+   /// <summary>For a call in code a source generator wrote, the name it gave the file the line is in; left out otherwise.</summary>
+   [JsonProperty("hintName", NullValueHandling = NullValueHandling.Ignore)] public string? HintName { get; } = generatedFile?.HintName;
 
    [JsonProperty("line")] public int Line { get; } = line;
 
@@ -24,7 +31,8 @@ public sealed class CallSiteJson(string file, int line, int column, string code,
    [JsonProperty("asDelegate", NullValueHandling = NullValueHandling.Ignore)] public bool? AsDelegate { get; } = asDelegate;
 
    public static CallSiteJson Of(CallSite site) =>
-      new(site.File,
+      new(site.GeneratedFile == null ? site.File : null,
+          site.GeneratedFile,
           site.Line,
           site.Column,
           site.Code,
