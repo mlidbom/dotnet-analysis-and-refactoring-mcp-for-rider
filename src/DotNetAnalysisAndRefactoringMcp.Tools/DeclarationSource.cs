@@ -61,7 +61,8 @@ public sealed class DeclarationSource
       var first = (int)TreeNodeExtensions.GetDocumentRange(firstNode).StartOffset.ToDocumentCoords().Line;
       var last = (int)range.EndOffset.ToDocumentCoords().Line;
       var lines = Enumerable.Range(first, last - first + 1).Select(it => LineText(document, it)).ToList();
-      return new DeclarationSource(PsiHelpers.GetQualifiedName(element), declaration.GetSourceFile()?.GetLocation().FullPath ?? "", first + 1, lines);
+      var file = declaration.GetSourceFile() is {} sourceFile ? GeneratedFile.NameOrPathOf(sourceFile) : "";
+      return new DeclarationSource(PsiHelpers.GetQualifiedName(element), file, first + 1, lines);
    }
 
    /// <summary>The first of <paramref name="declaration"/>'s parts that isn't its doc comment, or the line break after it.</summary>

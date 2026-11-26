@@ -112,7 +112,7 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
          {
             var sf = decl.GetSourceFile();
             if(sf != null)
-               declFilePaths.Add(sf.GetLocation().FullPath);
+               declFilePaths.Add(GeneratedFile.NameOrPathOf(sf));
          }
       }
 
@@ -136,9 +136,7 @@ public class FindUsagesTool : IMcpAlwaysLoadedTool
             var refSourceFile = refNode.GetSourceFile();
             if(refSourceFile != null)
             {
-               var filePath = refSourceFile.GetLocation().FullPath;
-               if(string.IsNullOrEmpty(filePath))
-                  return FindExecution.Continue;
+               var filePath = GeneratedFile.NameOrPathOf(refSourceFile);
 
                if(excludeDeclFile && declFilePaths.Contains(filePath))
                   return FindExecution.Continue;

@@ -1,4 +1,5 @@
 #nullable enable
+using System;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Resolve;
 using JetBrains.ReSharper.Psi.Tree;
@@ -11,8 +12,11 @@ namespace DotNetAnalysisAndRefactoringMcp.CallTrees;
 /// </summary>
 public sealed class CallSite
 {
-   /// <summary>The file's full path.</summary>
+   /// <summary>The file's full path; empty for a file that has none.</summary>
    public string File { get; }
+
+   /// <summary>For a call in a file a source generator wrote, which has no path, that file's name: <see cref="GeneratedFile"/>.</summary>
+   public string? GeneratedFileName { get; }
 
    /// <summary>1-based: the line of the called member's name, not of the start of an expression it is the end of.</summary>
    public int Line { get; }
@@ -32,15 +36,26 @@ public sealed class CallSite
    /// <summary>Whether the code passes the member as a delegate, <c>shapes.Select(AreaOf)</c>, rather than calling it.</summary>
    public bool AsDelegate { get; }
 
-   CallSite(string file, int line, int column, string code, IDeclaredElement? through, bool asDelegate)
+   CallSite(string file, string? generatedFileName, int line, int column, string code, IDeclaredElement? through, bool asDelegate)
    {
       File = file;
+      GeneratedFileName = generatedFileName;
       Line = line;
       Column = column;
       Code = code;
       Through = through;
       AsDelegate = asDelegate;
    }
+
+   /// <summary>
+   ///   Its file as the text answers write it: <c>Shapes\Palette.cs</c>, the path relative to <paramref name="root"/>, or
+   ///   the <see cref="GeneratedFileName"/>.
+   /// </summary>
+   public string FileAsWritten(SolutionRoot root) => GeneratedFileName ?? root.Relative(File);
+
+   /// <summary>Whether it is in the file of <paramref name="declaration"/>: never when that is nothing.</summary>
+   public bool IsInTheFileOf(DeclarationSite? declaration) =>
+      string.Equals(File, declaration?.File, StringComparison.OrdinalIgnoreCase) && GeneratedFileName == declaration?.GeneratedFileName;
 
    /// <summary>
    ///   The site of <paramref name="call"/>, made through <paramref name="reference"/>, which names
@@ -57,6 +72,7 @@ public sealed class CallSite
          return null;
 
       var (line, column) = PsiHelpers.GetLineColumn(range.StartOffset);
-      return new CallSite(sourceFile.GetLocation().FullPath, line, column, PsiHelpers.LineText(range.Document, line), through, call.Reached == HowReached.AsDelegate);
+      return new CallSite(sourceFile.GetLocation().FullPath, GeneratedFile.NameOf(sourceFile), line, column,
+                          PsiHelpers.LineText(range.Document, line), through, call.Reached == HowReached.AsDelegate);
    }
 }

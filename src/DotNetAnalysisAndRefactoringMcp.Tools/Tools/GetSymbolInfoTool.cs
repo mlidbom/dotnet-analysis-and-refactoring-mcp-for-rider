@@ -124,9 +124,8 @@ public class GetSymbolInfoTool : IMcpTool
       }
 
       // Declaration location
-      var site = DeclarationSite.OfMainDeclarationOf(declaredElement);
-      if(site != null)
-         sb.Append("declared: ").Append(SolutionRoot.Of(_solution).Relative(site.File)).Append(':').Append(site.Line).Append(':').AppendLine(site.Column.ToString());
+      if(DeclarationSite.WhereDeclared(declaredElement) is {} site)
+         sb.Append("declared: ").AppendLine(site.LocationWithColumn(SolutionRoot.Of(_solution)));
 
       DocComment.Of(declaredElement).AppendTo(sb);
 

@@ -131,7 +131,7 @@ public class GoToDefinitionTool : IMcpAlwaysLoadedTool
       if(MainDeclaration.Of(member) is not {} declaration)
          return Text($"{Signature.Of(member)} — {PsiHelpers.AssemblyLabel(member) ?? "no source declarations (may be source-generated)"}", summary);
 
-      var where = DeclarationSite.Of(declaration) is { File.Length: > 0 } site ? $"{SolutionRoot.Of(_solution).Relative(site.File)}:{site.Line}:{site.Column}" : "[generated]";
+      var where = DeclarationSite.Of(declaration)?.LocationWithColumn(SolutionRoot.Of(_solution)) ?? "[no source]";
       return Text($"{Signature.Of(member)} — {where}", summary, DeclarationSource.AfterTheDocCommentOf(member, declaration)?.Lines(maxTextLength));
 
       static string Text(params string[] linesThatMayBeMissing) => string.Join("\n", linesThatMayBeMissing.Where(it => it != null));

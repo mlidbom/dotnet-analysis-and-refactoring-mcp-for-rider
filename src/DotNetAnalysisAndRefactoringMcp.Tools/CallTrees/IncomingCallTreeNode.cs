@@ -1,5 +1,4 @@
 #nullable enable
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -65,19 +64,18 @@ public sealed class IncomingCallTreeNode
 
    /// <summary>
    ///   The first <see cref="MostLinesListed"/> lines on which it calls the node above, <c>12: public double
-   ///   AreaOfTheFirst() =&gt; _shapes[0].Area();</c>, each with its file's path when it isn't the file of
-   ///   <paramref name="declarationSite"/>, and how many more there are.
+   ///   AreaOfTheFirst() =&gt; _shapes[0].Area();</c>, each with its <see cref="CallSite.FileAsWritten">file</see> when it
+   ///   isn't the file of <paramref name="declarationSite"/>, and how many more there are.
    /// </summary>
    void WriteTheLinesThatCallTheNodeAbove(StringBuilder text, string indentation, DeclarationSite? declarationSite, SolutionRoot root)
    {
-      var firstCallOnEachLine = CallSites.GroupBy(it => (it.File, it.Line)).Select(it => it.First()).ToList();
+      var firstCallOnEachLine = CallSites.GroupBy(it => (it.File, it.GeneratedFileName, it.Line)).Select(it => it.First()).ToList();
       foreach(var call in firstCallOnEachLine.Take(MostLinesListed))
          text.Append(indentation).Append(FileOf(call)).Append(call.Line).Append(": ").Append(call.Code).Append('\n');
       if(firstCallOnEachLine.Count > MostLinesListed)
          text.Append(indentation).Append("… and ").Append(firstCallOnEachLine.Count - MostLinesListed).Append(" more lines that call it\n");
 
-      string FileOf(CallSite call) =>
-         string.Equals(call.File, declarationSite?.File, StringComparison.OrdinalIgnoreCase) ? "" : root.Relative(call.File) + ":";
+      string FileOf(CallSite call) => call.IsInTheFileOf(declarationSite) ? "" : call.FileAsWritten(root) + ":";
    }
 
    string Suffix =>

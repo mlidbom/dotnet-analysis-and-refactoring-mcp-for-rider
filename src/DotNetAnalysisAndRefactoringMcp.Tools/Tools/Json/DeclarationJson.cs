@@ -35,7 +35,10 @@ public sealed class DeclarationJson
 
    public static DeclarationJson Of(IDeclaredElement element)
    {
-      var site = DeclarationSite.WhereWritten(element);
+      //todo: DeclarationSite.WhereWritten, with a generated member at its own generated file rather than at its partial
+      //   type's name, once the session symbol-linker has a specification for it: the symbol linker reads this form
+      //   (optimize-royder, 2026-11-26). Its declarations then need to say which generated file, as the text answers do.
+      var site = DeclarationSite.WhereWrittenInAFileWithAPath(element);
       return new DeclarationJson
              {
                 Kind = JsonNaming.KindOf(element),
