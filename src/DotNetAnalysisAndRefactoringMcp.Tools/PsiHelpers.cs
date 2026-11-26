@@ -491,21 +491,19 @@ public static class PsiHelpers
 
    /// <summary>
    ///   Where <paramref name="element"/> is written, as the text answers say it: <c>Shapes\Palette.cs:9</c>, the path
-   ///   relative to <paramref name="root"/>, for one in source; <c>[generated]</c> for one a source generator declares,
-   ///   whose in-memory file has no path; <c>[assembly Name.dll]</c> for a compiled one; <c>[no source]</c> for one with
-   ///   neither.
+   ///   relative to <paramref name="root"/>, for one in source; <c>[assembly Name.dll]</c> for a compiled one;
+   ///   <c>[generated]</c> for one a source generator declares, whose declarations are all in in-memory files without a
+   ///   path; <c>[no source]</c> for one with none of these.
    /// </summary>
    /// <remarks>
    ///   From 2026-11-25 01:07 until 2026-11-26, a generated one was <c>[no source]</c> too, which reads as if it had no
-   ///   source at all.
+   ///   source at all. <see cref="DeclarationSite.WhereWritten"/> has no site for it: it keeps only declarations in a
+   ///   file with a path.
    /// </remarks>
    public static string Location(IDeclaredElement element, SolutionRoot root) =>
-      DeclarationSite.WhereWritten(element) switch
-      {
-         { File.Length: > 0 } site => site.Location(root),
-         not null                  => "[generated]",
-         null                      => AssemblyLabel(element) ?? "[no source]"
-      };
+      DeclarationSite.WhereWritten(element)?.Location(root)
+      ?? AssemblyLabel(element)
+      ?? (element.GetDeclarations().Count > 0 ? "[generated]" : "[no source]");
 
    static bool MatchesKind(IDeclaredElement element, string kind)
    {
