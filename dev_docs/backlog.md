@@ -106,6 +106,12 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   has no `notnull` on `TResult`; the static method the compiler emits for it has. The compiler binds through the
   declaration, ReSharper through the emitted method. Royder passes ReSharper's analysis on and can't fix it; JetBrains
   can. Where Royder and the build disagree on such a call, the build is right.
+- **Installing a primary package drops every Claude Code session's Royder tools** (agentharness-facades, 2026-11-26).
+  The update stops the old primary before the new one binds port 23751: about 20 seconds with
+  `-CloseOpenProjects`. A Claude Code session that calls in that window gets `ECONNREFUSED`, marks the server failed,
+  and loses its tools until it reconnects through tool search or `/mcp`; it doesn't retry by itself. The agent took it
+  for Royder being down, and renamed by text. A handover with no gap needs the old primary to keep the port until the
+  new one is ready, such as by passing it the listening socket, or a small proxy that outlives both.
 - **`sandbox start` gave up on one solution while the sandbox ran another** (royder-agent-rep, 2026-11-26). Three
   probe solutions in one folder, opened by switching: `Relative.slnx`, then `Plain.slnx`, opened. `Missing.slnx`, whose
   solution settings inject a layer by a relative path that resolves under the settings file itself, didn't open:
