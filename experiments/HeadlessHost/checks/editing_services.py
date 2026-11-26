@@ -45,8 +45,9 @@ def run_tool(engine, files):
     if case == "move-type":
         return engine.call("move_type_to_namespace", symbolName=files.subject, newNamespace=files.namespace + ".Destination")
     if case in {"quick-fix", "scoped-fix"}:
-        diagnostics = json.loads(engine.call("get_diagnostics", filePath=source, minSeverity="hint"))["diagnostics"]
-        if not any(d["inspectionId"] == "ConvertClosureToMethodGroup" for d in diagnostics):
+        # get_diagnostics answers in text since 2026-11-25, a line per issue: "12:5 hint ConvertClosureToMethodGroup: ...".
+        diagnostics = engine.call("get_diagnostics", filePath=source, minSeverity="hint")
+        if " ConvertClosureToMethodGroup: " not in diagnostics:
             raise RuntimeError("The method-group inspection was missing from the prepared fixture.")
         if case == "quick-fix":
             caret = position(files.source, "Execute();")
@@ -77,11 +78,13 @@ def check_service(engine, files):
     changed = before != after
     case = files.check
     if case == "rename-preview":
-        preview = json.loads(reply) if reply.lstrip().startswith("{") else {}
-        affected = {item["file"] for item in preview.get("changedFiles", [])}
-        result = (not changed and preview.get("dryRun") is True and preview.get("applied") is False
-                  and preview.get("oldName") == BEFORE_METHOD and preview.get("newName") == AFTER_METHOD
-                  and affected == {str(files.source), str(files.caller)})
+        # Since 2026-11-25 rename_symbol answers in text: what it would rename, then the files by their paths in the
+        # work tree, each on a line indented two spaces.
+        heading = reply.splitlines()[0] if reply else ""
+        affected = {line.strip().replace("\\", "/").rsplit("/", 1)[-1] for line in reply.splitlines() if line.startswith("  ")}
+        result = (not changed and heading.startswith("Would rename ") and "a dry run" in heading
+                  and f".{BEFORE_METHOD} to {AFTER_METHOD}:" in heading
+                  and affected == {files.source.name, files.caller.name})
     elif case == "rename":
         result = all(AFTER_METHOD in (after[path.name]["text"] or "") and BEFORE_METHOD not in after[path.name]["text"]
                      for path in (files.source, files.caller))
