@@ -58,6 +58,16 @@ bites now and then:
    incoming tree names an initializer by its field, `Shapes.Drawing.SketchBook._first`, and says that its callers
    aren't followed, where it could go on to `new Shapes.Drawing.SketchBook`. It does find a primary constructor's base
    call as a call of `new DetailedSketch`.
+3. **`find_dependencies`, what a folder, a namespace or a set of files uses and what uses it** (agentharness-facades,
+   2026-11-25, choosing what to move out of the hub). The question before each seam: what has to move first, or go
+   behind an interface. Outgoing, the solution's types its code references, and incoming, the code that references the
+   types it declares, each grouped by project and namespace, each type with its count of references and the files
+   they are in; compiled assemblies on a line each. The agent's script matched type names in the text and counted
+   files of Cloyd and Peers, which don't reference the hub. Today it takes `list_symbols_in_file` over the files and
+   `find_usages` with every type in `symbols`, mode `files` and `excludeDeclarationFile`, and that answers only the
+   incoming half, not grouped. Incoming builds on `IFinder.FindReferences` over the declared types; outgoing on
+   resolving every reference in the scope's files, as `CallTrees/CallsInCode` resolves calls. ReSharper's own forms,
+   the type dependency diagram and Find Code Dependent on Module, are a diagram and a module's references.
 
 `get_symbol_source`'s answer, item 4 here until 2026-11-24, is text now; so are `get_call_hierarchy`'s trees: the
 outgoing one, item 1 until 2026-11-25, which follows implementations, `new`, properties, indexers and operators, within
@@ -225,6 +235,27 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   file qualifies its other crefs by namespace (`Skills.LinkedSkills`). A cref rewritten as its file writes the others
   would fit. Not checked: whether that is ReSharper's own Move refactoring following its reference-qualification
   settings.
+
+  A third case (agentharness-facades, 2026-11-25, splitting the hub in the `m-test-structure` worktree of `~/.claude`):
+  34 files moved from `ClaudeTooling/StatusLine` to the project `ClaudeTooling.ClaudeCode`, their namespace from
+  `ClaudeTooling.StatusLine.*` to `ClaudeTooling.ClaudeCode.StatusLine.*`. One type per call would have been 34 calls,
+  so the agent rewrote the usings with a script, which broke files holding several of them: it rewrote at offsets that
+  had shifted. Finding 4 of `dev_docs/what-agents-lack.md` counts 74 renames by hand, mostly of namespaces.
+
+  Decided 2026-11-26, as two tools rather than a batch form of `move_type_to_namespace`, since moves come as a namespace
+  or a folder, not as a list of types:
+  - **`rename_symbol` takes a namespace:** ReSharper's own namespace rename, which renames it in every file that
+    declares it or a namespace under it, and rewrites every reference. A prefix such as `ClaudeTooling.StatusLine` to
+    `ClaudeTooling.ClaudeCode.StatusLine` is such a rename.
+  - **`move_to_folder`, a new tool:** files, or everything under a folder, moved to a folder in any project of the
+    solution, each namespace made the target folder's and every reference rewritten, as ReSharper's Move to Folder does
+    into another project; files moved on disk as `move_type_to_namespace` moves them (`Disk/FileMoves.cs`). That is the
+    whole of the case above, in one call.
+
+  Both check what the bullets above want: the solution still compiling over every reference to the namespaces they
+  change. Once they exist, the handshake instructions or the always-on rule on tool use should name them: the agent
+  reached for a script since neither says Royder moves code. Not before, and not before optimize-royder reads the
+  usage measurement of the instructions changed on 23 November: they have 12 of their 250 characters left.
 
 - **`rename_symbol` of a nested type leaves its file's name** (gpt-collaborators' refactoring subagent, 2026-11-21
   ~16:55, in `~/.claude`). `Peers.Codex.CodexSessions.ReadFromCodex`, nested in the partial class `CodexSessions`, in
