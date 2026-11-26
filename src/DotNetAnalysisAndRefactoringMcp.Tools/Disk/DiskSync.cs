@@ -35,12 +35,25 @@ namespace DotNetAnalysisAndRefactoringMcp.Disk;
 ///     also reconciled on the backend (<see cref="Reconciliation"/>). A file that still differs is reported as such,
 ///     and edit tools refuse it.
 ///   </para>
+///   <para>
+///     A change that the call doesn't name is a suspect only once <see cref="DiskChanges"/>' watcher has reported it:
+///     within 12 ms on an idle machine, and up to 247 ms under load (measured). An agent's next call comes later than
+///     that.
+///   </para>
 /// </remarks>
 public sealed class DiskSync
 {
    // A tab open in an editor reloads at the frontend's pace: 0.2 s to 9 s measured. Waiting beats a stale answer.
    static readonly TimeSpan ReloadTimeout = TimeSpan.FromSeconds(10);
    static readonly TimeSpan ReloadPoll = TimeSpan.FromMilliseconds(100);
+
+   /// <summary>
+   ///   How long a wait for Rider goes before it asks the frontend to rescan again. Under load, the frontend answered a
+   ///   rescan and then didn't pass a deletion on before the 10 s wait ended, in 1 of 40 rounds of
+   ///   <c>tests/live_deletion_under_load.py</c>; asked again each second, it did within 4.2 s in 60 of 60
+   ///   (2026-11-26).
+   /// </summary>
+   static readonly TimeSpan RescanAgainAfter = TimeSpan.FromSeconds(1);
 
    /// <summary>
    ///   How long the watcher's events of a change on disk may take to arrive. A rename sent as a file was written found
@@ -103,7 +116,7 @@ public sealed class DiskSync
 
       IReadOnlyList<string> projectFolders = absent.Count == 0 ? [] : await execution.Read(ProjectFolders);
       var waited = stale.Concat(deleted).Concat(absent.Where(WillJoinAProject)).ToList();
-      var after = waited.Count > 0 ? await WaitForReload(execution, waited) : DiskState.Clean;
+      var after = waited.Count > 0 ? await WaitForReload(lifetime, execution, waited, rescan) : DiskState.Clean;
       var state = before.Without(waited).With(after);
       Remember(suspects, state);
 
@@ -166,14 +179,21 @@ public sealed class DiskSync
          _changes.Watch(directory!);
    }
 
-   async Task<DiskState> WaitForReload(McpToolExecution execution, IReadOnlyCollection<string> files)
+   async Task<DiskState> WaitForReload(Lifetime lifetime, McpToolExecution execution, IReadOnlyCollection<string> files, IReadOnlyCollection<string> rescanned)
    {
       var deadline = DateTime.UtcNow + ReloadTimeout;
+      var nextRescan = DateTime.UtcNow + RescanAgainAfter;
       while(true)
       {
          var state = await execution.Read(() => Check(files));
          if(state.IsClean || DateTime.UtcNow > deadline)
             return state;
+
+         if(DateTime.UtcNow > nextRescan && rescanned.Count > 0)
+         {
+            await new Rescans(_solution, _locks).Request(lifetime, rescanned);
+            nextRescan = DateTime.UtcNow + RescanAgainAfter;
+         }
 
          await Task.Delay(ReloadPoll);
       }

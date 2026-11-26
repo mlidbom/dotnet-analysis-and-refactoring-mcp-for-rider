@@ -32,12 +32,12 @@ public class When_a_file_declaring_a_type_is_deleted_on_disk(TheSandboxWithTheFi
       var original = File.ReadAllBytes(_declaration);
       try
       {
-         File.Delete(_declaration);
+         _server.ChangeOnDiskAndWaitForTheFileWatcher(() => File.Delete(_declaration));
          return firstCall();
       }
       finally
       {
-         File.WriteAllBytes(_declaration, original);
+         _server.ChangeOnDiskAndWaitForTheFileWatcher(() => File.WriteAllBytes(_declaration, original));
       }
    }
 

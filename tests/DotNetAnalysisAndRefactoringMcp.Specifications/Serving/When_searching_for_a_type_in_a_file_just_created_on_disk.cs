@@ -18,17 +18,17 @@ public class When_searching_for_a_type_in_a_file_just_created_on_disk(TheSandbox
 
    static string CreateAndSearch(TheSandboxWithTheFixtureSolution sandbox)
    {
-      File.WriteAllText(sandbox.PathOf("Shapes/Triangle.cs"),
-                        """
-                        namespace Shapes;
+      sandbox.McpServer.ChangeOnDiskAndWaitForTheFileWatcher(() => File.WriteAllText(sandbox.PathOf("Shapes/Triangle.cs"),
+                                                                                     """
+                                                                                     namespace Shapes;
 
-                        /// <summary>A triangle whose sides are all <paramref name="side"/> long.</summary>
-                        public sealed class Triangle(double side)
-                        {
-                          public double Side => side;
-                        }
+                                                                                     /// <summary>A triangle whose sides are all <paramref name="side"/> long.</summary>
+                                                                                     public sealed class Triangle(double side)
+                                                                                     {
+                                                                                       public double Side => side;
+                                                                                     }
 
-                        """);
+                                                                                     """));
       return sandbox.McpServer.CallTool("search_symbol", new { query = "Triangle" });
    }
 }

@@ -580,6 +580,13 @@ Found while doing this, to fix:
   why an open of a solution Rider already had ready went through a close at all. The primary logs only warnings, which
   don't say. The maintenance loop failed with the same "fresh job membership" error meanwhile, under heavy load from
   three specification suites at once.
+- *Done 2026-11-26:* **the deletion specifications failed under load,** for two causes, which
+  `tests/live_deletion_under_load.py` reproduces with the sandbox's Rider held to two cores shared with four busy
+  processes. Rider's frontend answered a rescan and then didn't pass the deletion on before the 10 s wait ended, in 1
+  of 40 rounds, or another 1 of 24: the disk sync now asks it again each second, and it passed the deletion on within
+  4.2 s in 60 of 60. And the specifications called within a millisecond of the change, before the file watcher had
+  reported it, which took 33 to 247 ms under that load (1 to 12 ms idle): they now wait for the watcher's report,
+  through `/health`'s `pendingDiskChanges`, as an agent's next call, seconds later, always does. Before that fix:
 - **`When_a_file_declaring_a_type_is_deleted_on_disk.find_usages_by_name_reports_the_symbol_was_not_found` found the
   deleted type 10 seconds later,** once, in the runs before the first fix. It recurred on 2026-11-24 at 03:34, in one
   run of three: `search_symbol_by_name_finds_no_declaration` got "DrawingStencil — 1 results" right after the deletion.

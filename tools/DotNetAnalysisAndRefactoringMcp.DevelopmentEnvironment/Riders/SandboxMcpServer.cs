@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -27,6 +28,32 @@ public sealed class SandboxMcpServer
    {
       using var health = JsonDocument.Parse(Client.GetStringAsync(new Uri(_address, "health")).GetAwaiter().GetResult());
       return health.RootElement.Clone();
+   }
+
+   /// <summary>
+   ///   Makes <paramref name="change"/> to files on disk, and returns once the plugin's file watcher has reported it:
+   ///   once <c>/health</c>'s <c>pendingDiskChanges</c> has risen. The change must be to a file no call has yet to take
+   ///   a change of, or the count doesn't rise.
+   /// </summary>
+   /// <remarks>
+   ///   A call sees a change it doesn't name only once the watcher has reported it: 1 to 12 ms after it, measured on an
+   ///   idle machine, and 33 to 247 ms with the sandbox's Rider sharing two cores with four busy processes
+   ///   (<c>tests/live_deletion_under_load.py</c>, 2026-11-26). An agent's next call comes seconds after its change;
+   ///   a specification's, within a millisecond, and so it failed under load until 2026-11-26.
+   /// </remarks>
+   public void ChangeOnDiskAndWaitForTheFileWatcher(Action change)
+   {
+      var before = PendingDiskChanges();
+      change();
+      var reported = Stopwatch.StartNew();
+      while(PendingDiskChanges() <= before)
+      {
+         if(reported.Elapsed > TimeSpan.FromSeconds(30))
+            throw new TimeoutException("The plugin's file watcher hadn't reported the change after 30 s");
+         Thread.Sleep(5);
+      }
+
+      int PendingDiskChanges() => Health().GetProperty("pendingDiskChanges").GetInt32();
    }
 
    /// <summary>What <c>internal/status</c> answers, the request the Riders' servers and the standalone primary send each other.</summary>

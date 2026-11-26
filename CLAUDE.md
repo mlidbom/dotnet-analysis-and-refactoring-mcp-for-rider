@@ -100,9 +100,14 @@ measured). Before every call `McpServerComponent` runs `DiskSync.Run`:
    main thread under the write lock (Rider's own reconcile: an external change, file marked reconciled).
 4. Ask the frontend to rescan stale files, new files and their folders: `FileSystemModel.RefreshPaths`
    (`Disk/Rescans.cs`, see gotchas), on the main thread. It is queued and debounced, not synchronous.
-5. Poll until the documents match disk (10 s). Closed files match at once after step 3; a tab open in an editor
-   matches whenever the frontend reloads it. A file still stale after that wait is "settled": it is not waited
-   on again until its disk time changes.
+5. Poll until the documents match disk (10 s), asking the frontend to rescan again each second: under load it answered
+   a rescan and then didn't pass a deletion on within the 10 s (`tests/live_deletion_under_load.py`). Closed files
+   match at once after step 3; a tab open in an editor matches whenever the frontend reloads it. A file still stale
+   after that wait is "settled": it is not waited on again until its disk time changes.
+
+The watcher reports a change within 12 ms on an idle machine, and up to 247 ms under load (measured 2026-11-26). A call
+that arrives before then misses a change it doesn't name. An agent's next call comes seconds later, but a
+specification's comes at once: specifications change files through `SandboxMcpServer.ChangeOnDiskAndWaitForTheFileWatcher`.
 
 A new file is waited for, as in step 5, when the call names it or it lies in a project's folder, which an SDK-style
 project takes in: a call that reaches its types by name finds them only once Rider has it. Not every new file the work

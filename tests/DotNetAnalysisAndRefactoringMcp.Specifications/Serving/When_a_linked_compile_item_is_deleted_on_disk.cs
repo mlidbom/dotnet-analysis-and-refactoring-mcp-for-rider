@@ -56,12 +56,12 @@ public class When_a_linked_compile_item_is_deleted_on_disk(TheSandboxWithTheFixt
       var original = File.ReadAllBytes(_linked);
       try
       {
-         File.Delete(_linked);
+         _server.ChangeOnDiskAndWaitForTheFileWatcher(() => File.Delete(_linked));
          check();
       }
       finally
       {
-         File.WriteAllBytes(_linked, original);
+         _server.ChangeOnDiskAndWaitForTheFileWatcher(() => File.WriteAllBytes(_linked, original));
       }
    }
 }
