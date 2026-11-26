@@ -40,6 +40,7 @@ plugin is a fork of.
 
 ### Fixed
 
+- An edit no longer keeps Rider from saving its files. While waiting for Rider's save, Royder read each file in a way that let no one write it meanwhile, and Rider's save of one failed as "being used by another process": a rename was left in its caller and not in the declaration, with Rider's `~` copy of the file beside it
 - The JSON form gives a declaration a source generator wrote at its name in its generated file: `file` null, its `line` and `column` there, and `generator` and `hintName`, such as `Shapes.Generators.SwatchGenerator` and `Swatch.g.cs`, in `go_to_definition`'s declarations, `browse_namespace`'s types and `get_call_hierarchy`'s call sites. A member generated into a partial type was at the type's name in the file of its other part, a wholly generated type had no line, and a call in generated code had the file `""`
 - `search_symbol` lists each declaration a source generator wrote that it finds: it listed only the first
 - Under heavy load, the first call after a file was deleted or added on disk could answer as if it hadn't been, after waiting 10 seconds, with a note that the file was still, or not yet, in Rider's project model: Rider's frontend had taken the request to rescan the file's folder and then not passed the change on. While a call waits for Rider, it now asks again each second
