@@ -19,13 +19,21 @@ sealed class RenameConflicts
    /// <summary>The conflicts' and their parts' failures to be read, which cost only what failed.</summary>
    readonly SkippedElements _unreadable = new();
 
+   /// <summary>
+   ///   The conflicts <paramref name="driver"/> collected, each read once: what ReSharper fails to read of one counts
+   ///   once in <see cref="UnreadableLine"/>.
+   /// </summary>
    public RenameConflicts(RefactoringDriverWithConflicts driver)
    {
-      var conflicts = driver.Conflicts.Where(it => it != null).ToList();
-      Lines = [.. conflicts.Select(LineOf)];
-      //bug: an error conflict whose validity ReSharper fails to read is listed twice in UnreadableLine, as LineOf has
-      //   read IsValid too. Read each conflict once, into a value both its line and HasAnError are made from.
-      HasAnError = conflicts.Any(IsAValidError);
+      var lines = new List<string>();
+      foreach(var conflict in driver.Conflicts.Where(it => it != null))
+      {
+         var isValid = _unreadable.Read(() => "whether a conflict is valid", () => (bool?)conflict.IsValid);
+         lines.Add(LineOf(conflict, isValid));
+         HasAnError |= conflict.Severity == ConflictSeverity.Error && isValid != false;
+      }
+
+      Lines = lines;
    }
 
    /// <summary>Each conflict on a line of its own: <c>error conflict: Containing type has the same name as the new name</c>.</summary>
@@ -44,13 +52,13 @@ sealed class RenameConflicts
    /// <summary>The line saying what of the conflicts ReSharper failed to read, or <c>null</c> when it read them all.</summary>
    public string? UnreadableLine => _unreadable.Line;
 
-   string LineOf(IConflict conflict)
+   /// <summary>
+   ///   <paramref name="conflict"/>'s line, saying so when <paramref name="isValid"/> is false; a validity ReSharper failed
+   ///   to read is taken as valid.
+   /// </summary>
+   string LineOf(IConflict conflict, bool? isValid)
    {
       var description = _unreadable.Read(() => "a conflict's description", () => conflict.Description) ?? "[its description couldn't be read]";
-      var noLongerValid = _unreadable.Read(() => "whether a conflict is valid", () => (bool?)conflict.IsValid) == false ? " [no longer valid]" : "";
-      return $"{conflict.Severity.ToString().ToLowerInvariant()} conflict: {description}{noLongerValid}";
+      return $"{conflict.Severity.ToString().ToLowerInvariant()} conflict: {description}{(isValid == false ? " [no longer valid]" : "")}";
    }
-
-   bool IsAValidError(IConflict conflict) =>
-      conflict.Severity == ConflictSeverity.Error && _unreadable.Read(() => "whether a conflict is valid", () => (bool?)conflict.IsValid) != false;
 }
