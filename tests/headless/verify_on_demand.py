@@ -234,6 +234,46 @@ def verify(args):
         (late / "Late.cs").write_text("namespace Lates;\npublic class Late;\n")
         trusted = request("tools/call", dict(name="get_diagnostics", arguments=dict(filePath=str(late / "Late.cs"))))
         assert trusted.get("isError") and f"Worktree '{late}' contains" in trusted["content"][0]["text"], trusted
+        if args.check_solution_choice:
+            # Until 2026-11-27 the primary refused a file of a work tree with several solutions in one folder, as Compze
+            # has twenty: by where the file lies, every one of them fit as well.
+            many = trusted_folder / "many-solutions"
+            command("git", "init", "-q", many)
+            (many / ".gitignore").write_text("bin/\nobj/\n.idea/\n")
+            for project in ("Listed", "Other", "Unlisted"):
+                (many / project).mkdir()
+                (many / project / f"{project}.csproj").write_text(
+                    '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>')
+                (many / project / f"{project}Type.cs").write_text(f"namespace {project};\npublic sealed class {project}Type;\n")
+            def solution(name, *projects):
+                (many / name).write_text("<Solution>" + "".join(f'<Project Path="{it}/{it}.csproj" />' for it in projects) + "</Solution>")
+                return many / name
+            everything, fewer = solution("Everything.slnx", "Listed", "Other"), solution("Fewer.slnx", "Listed")
+            solution("OnlyOther.slnx", "Other")
+            command("git", "add", ".", cwd=many)
+            command("git", "-c", "user.name=Royder specification", "-c", "user.email=royder@localhost", "commit", "-qm", "Three solutions", cwd=many)
+            command("dotnet", "restore", everything, "--disable-build-servers", "-p:NuGetAudit=false")
+            def symbols(path):
+                return request("tools/call", dict(name="list_symbols_in_file", arguments=dict(filePath=str(path))))
+            unlisted = symbols(many / "Unlisted/UnlistedType.cs")
+            assert unlisted.get("isError") and "Neither where the files lie nor their projects" in unlisted["content"][0]["text"], unlisted
+            listed = many / "Listed/ListedType.cs"
+            repository_solution = many / ".royder.json"
+            repository_solution.write_text('{"solution": "Missing.slnx"}')
+            misnamed = symbols(listed)
+            assert misnamed.get("isError") and "'Missing.slnx'" in misnamed["content"][0]["text"], misnamed
+            repository_solution.unlink()
+            # Of the two that list its project, the one with more projects.
+            assert "sealed class ListedType" in tool("list_symbols_in_file", dict(filePath=str(listed)))
+            assert listing() == {everything}, listing()
+            closed(everything)
+            # The solution the repository names, which lists it too.
+            repository_solution.write_text('{"solution": "Fewer.slnx"}')
+            assert "sealed class ListedType" in tool("list_symbols_in_file", dict(filePath=str(listed)))
+            assert listing() == {fewer}, listing()
+            closed(fewer)
+            print("PASS: the primary opens the solution that lists a file's project, or the one the repository names", flush=True)
+            return lab
         if args.check_timeout:
             source = first / SOURCE
             original = source.read_bytes()
@@ -381,6 +421,7 @@ if __name__ == "__main__":
     parser.add_argument("--check-replacement", action="store_true", help="Immediately reuse an externally removed worktree path")
     parser.add_argument("--check-idle", action="store_true", help="Wait for the final idle solution and JVM to stop")
     parser.add_argument("--check-timeout", action="store_true", help="Verify a timed-out cold edit never executes")
+    parser.add_argument("--check-solution-choice", action="store_true", help="Verify which of several solutions in one folder is opened for a file: by its project, or as the repository names")
     parser.add_argument("--check-solution-edit", action="store_true", help="Verify a project added to an open solution's file joins the others")
     parser.add_argument("--check-unregistered-close", action="store_true", help="Verify close_worktree lets go of a worktree Git no longer lists")
     parser.add_argument("--check-global-settings", action="store_true", help="Verify the private Rider applies the everyday Rider's global settings and the files they inject")
