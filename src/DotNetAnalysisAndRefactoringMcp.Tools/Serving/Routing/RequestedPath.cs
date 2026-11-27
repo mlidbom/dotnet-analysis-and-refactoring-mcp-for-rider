@@ -1,7 +1,7 @@
 #nullable enable
 using System.IO;
 
-namespace DotNetAnalysisAndRefactoringMcp.Serving;
+namespace DotNetAnalysisAndRefactoringMcp.Serving.Routing;
 
 /// <summary>A file or folder named in a call, resolved to an absolute path before choosing an open solution.</summary>
 sealed class RequestedPath

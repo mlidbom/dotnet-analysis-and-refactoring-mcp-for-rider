@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using DotNetAnalysisAndRefactoringMcp.Protocol;
+using DotNetAnalysisAndRefactoringMcp.Serving.Routing;
 using Newtonsoft.Json.Linq;
 
 namespace DotNetAnalysisAndRefactoringMcp.Serving;

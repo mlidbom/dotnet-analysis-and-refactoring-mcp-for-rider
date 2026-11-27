@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 
-namespace DotNetAnalysisAndRefactoringMcp.Serving;
+namespace DotNetAnalysisAndRefactoringMcp.Serving.Routing;
 
 /// <summary>The same solution names, path segments and worktree ownership rules at either MCP endpoint.</summary>
 sealed class SolutionRouting<T>(IReadOnlyList<T> solutions) where T : SolutionLocation

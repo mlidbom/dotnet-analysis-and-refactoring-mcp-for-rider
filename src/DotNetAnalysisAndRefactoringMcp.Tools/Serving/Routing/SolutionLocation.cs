@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using Newtonsoft.Json.Linq;
 
-namespace DotNetAnalysisAndRefactoringMcp.Serving;
+namespace DotNetAnalysisAndRefactoringMcp.Serving.Routing;
 
 /// <summary>A solution's address in the tool catalog and the worktree its file arguments belong to.</summary>
 abstract class SolutionLocation(string name, string filePath)
