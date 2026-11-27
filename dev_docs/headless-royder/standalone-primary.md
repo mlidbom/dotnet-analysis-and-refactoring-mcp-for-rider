@@ -139,8 +139,10 @@ Build a package on the new Rider, verify it with `tests/headless/verify_on_deman
 
 ## Call and removal behavior
 
-- A cold `tools/list` works immediately. File tools open a trusted main checkout or linked worktree on first use. Use an
-  absolute `.sln` or `.slnx` in `solutionName` when solution discovery is ambiguous. Use `warm_worktree` with
+- A cold `tools/list` works immediately. File tools open a trusted main checkout or linked worktree on first use: of
+  the solutions Git lists there, the one that fits the files best, as for open solutions (`SolutionFit`, in CLAUDE.md's
+  routing). The private Rider serves one solution per worktree, so once one is open, the worktree's calls go to it.
+  Use an absolute `.sln` or `.slnx` in `solutionName` when solution discovery is ambiguous. Use `warm_worktree` with
   `solutionPath` to start it explicitly. Concurrent callers share one open. Tool calls, including edits, are
   dispatched once.
 - Every tool call is answered within `answerWithinSeconds`, 55 by default, since Claude Code gives up on an MCP call

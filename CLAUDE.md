@@ -71,8 +71,14 @@ Component breakdown:
   and names the requested work trees and open solutions. Outside Git, a solution uses its own directory as its root.
 - Relative paths try the solution directory and then the work tree, as in `SolutionRoot.Absolute`. An existing
   path takes precedence. For a missing path the router compares its existing ancestor folders. If several solutions
-  still qualify, pass an absolute path or `solutionName`. For absolute paths in a shared work tree the closest
-  solution directory still wins. An explicit `solutionName` selects the solution, including for an external linked file.
+  still qualify, pass an absolute path or `solutionName`. An explicit `solutionName` selects the solution, including
+  for an external linked file.
+- Of several solutions holding absolute paths in one work tree, `Serving/Routing/SolutionFit` ranks them, the tools
+  among open solutions and the primary when choosing one to open alike: first the one the repository names in a
+  `.royder.json` at its work tree's root (`RepositorySolution`, `{"solution": "<path from the root>"}`) if it lists the
+  files' projects, then one that lists them (`ProjectFolder`: the nearest folder with a project file), then the
+  deepest folder holding them all, then the most projects. Compze, with 20 `.slnx` files side by side, needs it. A
+  `.royder.json` naming no existing solution is a refusal that says so.
 - The specifications in `Serving/WithAPeer` run a second sandbox Rider as the first one's peer (`peer start|stop|status`
   in the development tools).
 

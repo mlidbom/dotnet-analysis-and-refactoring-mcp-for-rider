@@ -133,6 +133,12 @@ Set `DOTNET_ANALYSIS_AND_REFACTORING_MCP_PORT` environment variable to override 
 
 File arguments pick a solution in their own Git work tree, even when only one solution is open. Files in a nested work tree need a solution there. A relative path shared by several open solutions needs an absolute path or `solutionName`. You can also select a solution explicitly for a linked file outside its work tree.
 
+Of several solutions in the work tree, a call goes to one that lists the files' projects, and of those, to the one in the deepest folder holding them all, then to the one listing the most projects. The standalone primary opens one by the same order. A repository can name the solution for its files in a `.royder.json` at its root, a path relative to that root, which wins when that solution lists the files' projects:
+
+```json
+{"solution": "Compze.AllProjects.slnx"}
+```
+
 ### On-demand worktrees on Windows
 
 On Windows, the standalone Royder primary opens a trusted repository's main checkout or any of its linked worktrees
