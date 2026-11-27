@@ -210,6 +210,19 @@ def verify(args):
     log = (lab / "primary.log").open("w", encoding="utf8")
     proc = subprocess.Popen(primary + ["serve", str(config)], stdout=log, stderr=subprocess.STDOUT, env=environment)
     listening = False
+    def stopped_with_an_event_stream_open():
+        # Each Claude Code session holds an event stream open. Until 2026-11-27 a graceful stop waited out its three
+        # minutes' timeout for them, and the port refused every connection meanwhile: an agent that called then lost
+        # Royder's tools.
+        stream = HTTP.open(urllib.request.Request(url, headers={"Accept": "text/event-stream"}), timeout=30)
+        assert stream.readline().startswith(b": connected"), "The primary opened no event stream"
+        started = time.monotonic()
+        command(*primary, "stop", config)
+        proc.wait(timeout=200)
+        took = time.monotonic() - started
+        stream.close()
+        assert took < 20, f"The primary took {took:.0f} s to stop with a client's event stream open"
+
     def healthy():
         if proc.poll() is not None:
             raise AssertionError("Primary exited during startup: " + (lab / "primary.log").read_text(errors="replace")[-1200:])
@@ -392,7 +405,9 @@ def verify(args):
             after_settings = idea_files()
             (lab / "main-settings-comparison.json").write_text(json.dumps(dict(before=before_settings, after=after_settings), indent=2))
             assert after_settings == before_settings, "The private host changed the main checkout's .idea settings"
-        print("PASS: cold catalog, concurrent first call, generated symbols, shared JVM worktrees, both removal orders and final close", flush=True)
+        stopped_with_an_event_stream_open()
+        print("PASS: cold catalog, concurrent first call, generated symbols, shared JVM worktrees, both removal orders, final close"
+              " and a stop with an event stream open", flush=True)
     finally:
         try:
             if listening and proc.poll() is None:
