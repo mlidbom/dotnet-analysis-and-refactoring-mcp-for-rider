@@ -86,6 +86,13 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
+- **The private Rider serves one solution per worktree, whatever the next call's files need** (royder-agent-rep,
+  2026-11-27). Since `c69f557` the primary opens the solution that fits a call's files best (`SolutionFit`), but once
+  a solution of a worktree is open there, every call for that worktree goes to it (`ManagedWorktrees.Use`: "This
+  worktree already serves ..."), even for a file whose project it doesn't list. In Compze, a first call with
+  `solutionName` `Compze.Core.slnx` leaves the worktree's other projects unreachable until Core closes. Fix: when the
+  best fit for the files is another solution, close the open one and open that one, or serve several solutions of a
+  worktree at once.
 - **`rename_symbol`'s conflicts don't say where they are** (state-store-in-tables, 2026-11-24). "Usage of
   IMemoryImageStateStore.ChangesCommittedElsewhere cannot be updated correctly" named no file or line. Since
   `0cfccae` a rename with such an error conflict is refused unless `applyDespiteConflicts` is true, so nothing is
