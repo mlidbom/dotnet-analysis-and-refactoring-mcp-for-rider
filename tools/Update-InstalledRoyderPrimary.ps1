@@ -86,11 +86,18 @@ if ($oldExecutable -eq $newExecutable) { throw 'Stage the updated primary in a n
 # The private Rider runs nothing once its run has stopped or failed and no process of its job is left. Its journal's
 # projects are then open nowhere. On 2026-11-24 a Rider update closed it, the old package could no longer start one, and
 # every agent's call left an entry behind: the journal never emptied, and the run stayed 'Failed'.
+# The primary and the private Rider's supervisor replace these records while this script reads them. A reader that
+# doesn't share delete, as Get-Content's, keeps them from replacing it: a supervisor that couldn't publish its state
+# failed a private Rider's start on 2026-11-27.
+function Read-RiderRecord([string]$Path) {
+   $stream = [IO.FileStream]::new($Path, 'Open', 'Read', [IO.FileShare]'ReadWrite,Delete')
+   try { [IO.StreamReader]::new($stream).ReadToEnd() | ConvertFrom-Json } finally { $stream.Dispose() }
+}
 $runFile = Join-Path $current.rider.profileDirectory 'current.json'
 function Test-PrivateRiderRuns {
    if (!(Test-Path -LiteralPath $runFile)) { return $false }
-   $run = Get-Content -Raw -LiteralPath $runFile | ConvertFrom-Json
-   $state = Get-Content -Raw -LiteralPath (Join-Path $run 'state.json') | ConvertFrom-Json
+   $run = Read-RiderRecord $runFile
+   $state = Read-RiderRecord (Join-Path $run 'state.json')
    $state.phase -notin 'Stopped','Failed' -or $state.jobRemaining.Count -or $state.survivors.Count
 }
 
@@ -107,7 +114,7 @@ $health = if ($oldListener) { Invoke-RestMethod $publicUrl -NoProxy -TimeoutSec 
 $riderRuns = Test-PrivateRiderRuns
 $journal = Join-Path $current.rider.profileDirectory 'worktrees.json'
 if (($health -and @($health.openingWorktrees).Count) -or
-    ($riderRuns -and (Test-Path -LiteralPath $journal) -and @(Get-Content -Raw -LiteralPath $journal | ConvertFrom-Json).Count)) {
+    ($riderRuns -and (Test-Path -LiteralPath $journal) -and @(Read-RiderRecord $journal).Count)) {
    throw 'The primary has managed projects open or opening. Switch after they close.'
 }
 if ($riderRuns) { throw 'The private Rider job has not drained.' }

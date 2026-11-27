@@ -9,5 +9,6 @@
     <PackageReference Include="Compze.Threading" Version="0.9.0-alpha" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <Compile Include="../DotNetAnalysisAndRefactoringMcp.Tools/Serving/Routing/*.cs;../DotNetAnalysisAndRefactoringMcp.Tools/Tools/FileArguments.cs;../DotNetAnalysisAndRefactoringMcp.Tools/McpInstructions.cs" Link="Routing/%(Filename)%(Extension)" />
+    <Compile Include="../../experiments/RemoteDevHost/FileReplacement.cs" Link="Hosting/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

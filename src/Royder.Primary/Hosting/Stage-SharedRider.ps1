@@ -29,7 +29,7 @@ $stageName = '.royder-package-' + [guid]::NewGuid().ToString('N')
 $stage = [IO.Directory]::CreateDirectory((Join-Path $parent $stageName)).FullName
 try {
    $null = [IO.Directory]::CreateDirectory((Join-Path $stage launcher))
-   foreach ($file in 'RemoteDevHost.ps1','Common.ps1','HostProfile.ps1','ProfileAudit.ps1','Supervise.ps1','ManagedRider.ps1','WindowsJob.cs','ConnectedRiderRequest.cs') {
+   foreach ($file in 'RemoteDevHost.ps1','Common.ps1','HostProfile.ps1','ProfileAudit.ps1','Supervise.ps1','ManagedRider.ps1','WindowsJob.cs','ConnectedRiderRequest.cs','FileReplacement.cs') {
       Copy-Item -LiteralPath (Join-Path $launcher $file) -Destination (Join-Path $stage launcher)
    }
    Copy-PluginTree $RoyderPlugin (Join-Path $stage "plugins/$name")

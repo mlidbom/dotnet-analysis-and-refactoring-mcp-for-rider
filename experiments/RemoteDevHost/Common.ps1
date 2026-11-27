@@ -5,11 +5,12 @@ $ErrorActionPreference = 'Stop'
 function Write-HostJson($Path, $Value) {
    $pending = "$Path.$([guid]::NewGuid().ToString('N')).tmp"
    [IO.File]::WriteAllText($pending, (ConvertTo-Json -InputObject $Value -Depth 12))
+   if (!('RemoteDevHost.FileReplacement' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot FileReplacement.cs) }
    try {
-      # A Windows reader without FILE_SHARE_DELETE briefly prevents replacing its open snapshot.
+      # Readers that share delete keep their snapshot through the replacement; one that doesn't briefly prevents it.
       $until = [datetime]::UtcNow.AddSeconds(2)
       while ($true) {
-         try { [IO.File]::Move($pending, $Path, $true); break }
+         try { [RemoteDevHost.FileReplacement]::Replace($pending, $Path); break }
          catch {
             $cause = $_.Exception.GetBaseException()
             if (($cause.HResult -band 0xffff) -notin 5,32,33 -or [datetime]::UtcNow -ge $until) { throw }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Royder.Primary.Hosting;
+using RemoteDevHost;
 
 namespace Royder.Primary.Worktrees;
 
@@ -14,7 +15,7 @@ sealed class WorktreeJournal(string profile)
    {
       _projects.Clear();
       if(File.Exists(_path))
-         foreach(var it in JsonSerializer.Deserialize<Project[]>(File.ReadAllText(_path)) ?? throw new InvalidDataException("Invalid worktree journal."))
+         foreach(var it in RiderSupervisor.Read<Project[]>(_path))
             _projects.Add(it.Registration.Root, it);
       return _projects.Values.ToArray();
    }
@@ -45,7 +46,7 @@ sealed class WorktreeJournal(string profile)
    {
       var pending = _path + ".pending";
       File.WriteAllText(pending, JsonSerializer.Serialize(_projects.Values));
-      File.Move(pending, _path, true);
+      FileReplacement.Replace(pending, _path);
    }
 
    public static FileStream OwnProfile(string profile)

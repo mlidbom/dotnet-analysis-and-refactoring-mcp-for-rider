@@ -1,5 +1,6 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RemoteDevHost;
 
 namespace Royder.Primary.Transport;
 
@@ -37,7 +38,7 @@ sealed class ToolCatalog
       try
       {
          await File.WriteAllTextAsync(temporary, manifest.ToString(Formatting.Indented), cancel);
-         File.Move(temporary, target, true);
+         FileReplacement.Replace(temporary, target);
       }
       finally { File.Delete(temporary); }
 

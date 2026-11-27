@@ -5,6 +5,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using RemoteDevHost;
 
 namespace Royder.Primary.Hosting;
 
@@ -25,7 +26,7 @@ internal sealed class RiderSupervisor(SharedRiderSettings settings)
       try
       {
          File.WriteAllBytes(pending, JsonSerializer.SerializeToUtf8Bytes(value));
-         File.Move(pending, path, true);
+         FileReplacement.Replace(pending, path);
       }
       finally { File.Delete(pending); }
    }
