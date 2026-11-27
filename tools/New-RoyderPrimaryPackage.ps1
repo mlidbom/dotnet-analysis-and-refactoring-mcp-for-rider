@@ -35,7 +35,8 @@ function New-Package {
    $captureSettings = Join-Path $PackagesFolder "capture-settings-$commit.json"
    [ordered]@{
       port = 24930
-      repositories = $installed.repositories
+      repositories = @($installed.repositories | Where-Object { $_ })
+      repositoryFolders = @($installed.repositoryFolders | Where-Object { $_ })
       catalogFile = Join-Path $package 'catalog.json'
       rider = [ordered]@{
          profileDirectory = $captureProfile
