@@ -118,7 +118,9 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   `-CloseOpenProjects`. A Claude Code session that calls in that window gets `ECONNREFUSED`, marks the server failed,
   and loses its tools until it reconnects through tool search or `/mcp`; it doesn't retry by itself. The agent took it
   for Royder being down, and renamed by text. A handover with no gap needs the old primary to keep the port until the
-  new one is ready, such as by passing it the listening socket, or a small proxy that outlives both.
+  new one is ready, such as by passing it the listening socket, or a small proxy that outlives both. Again on
+  2026-11-27, at the 445b1ef install (tessaging-and-taggregates): `list_symbols_in_file` got `ECONNREFUSED`, and Claude
+  Code removed the server's tools.
 - **An edit dispatched late in the primary's deadline answers no one** (usage-tracking, 2026-11-26 16:50). A
   `rename_symbol` on a checkout the private Rider had closed: opening it took about 44 of the call's 55 seconds, the
   primary dispatched the rename with about 11 left, and answered at the deadline that Rider had not answered. Rider's
