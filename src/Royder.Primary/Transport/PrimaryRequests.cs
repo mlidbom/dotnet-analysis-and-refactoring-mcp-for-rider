@@ -101,7 +101,7 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
       if(desktop.Any(it => RegisteredWorktree.SamePath(it.WorkTree, registration.Root)))
       {
          await worktrees.YieldToOrdinaryRider(registration.Root, cancel);
-         throw new InvalidOperationException($"An ordinary Rider owns this worktree. Select its open solution: {registration.Root}");
+         throw new InvalidOperationException($"An ordinary Rider owns this worktree. Select its open solution: {registration.Root}{(refusal == null ? "" : $". {refusal}")}");
       }
       if(selector == null && absolutePaths.Any(path => worktrees.Registration(path) != registration))
          return Rpc.ToolResult(id, "The files belong to different worktrees. Send one worktree per call.", true);

@@ -80,8 +80,8 @@ sealed class SolutionRouting<T>(IReadOnlyList<T> solutions) where T : SolutionLo
    }
 
    /// <summary>
-   ///   The solution that holds every one of <paramref name="paths"/>, and most closely, by
-   ///   <see cref="T.Closeness"/>. Only solutions of the file's own work tree compete on closeness.
+   ///   The solution that holds every one of <paramref name="paths"/>, those of their own work tree: of several, the one
+   ///   that fits them best (<see cref="SolutionFit"/>), or the first listed of those that fit them equally well.
    ///   A relative path found in several checkouts names none of them.
    /// </summary>
    (T?, string?) HoldingEvery(IReadOnlyList<string> paths)
@@ -96,20 +96,29 @@ sealed class SolutionRouting<T>(IReadOnlyList<T> solutions) where T : SolutionLo
          requestedWorkTrees.UnionWith(locations.Select(it => it.Path.DescribeWorkTree()));
          candidates.IntersectWith(locations.Where(it => it.Solution.Holds(it.Path)).Select(it => it.Solution));
       }
-      var holders = All.Where(candidates.Contains)
-                       .OrderByDescending(solution => paths.Min(solution.Closeness))
-                       .ToList();
+      var holders = All.Where(candidates.Contains).ToList();
 
-      if(holders.Count > 1 && !paths.All(Path.IsPathRooted))
+      if(holders.Count == 0)
+         return (null, $"Path is outside open solutions: {WithWorkTrees(All)}. Requested work trees: {string.Join(", ", requestedWorkTrees)}. Pass 'solutionName' to pick one anyway.");
+
+      if(holders.Count == 1)
+         return (holders[0], null);
+
+      if(!paths.All(Path.IsPathRooted))
       {
          var why = hasMissingRelativePath ? "The relative path could belong to" : "The relative path exists in";
          return (null, $"{why} several open solutions: {WithWorkTrees(holders)}. Pass 'solutionName' or an absolute path.");
       }
 
-      if(holders.Count == 0)
-         return (null, $"Path is outside open solutions: {WithWorkTrees(All)}. Requested work trees: {string.Join(", ", requestedWorkTrees)}. Pass 'solutionName' to pick one anyway.");
-
-      return (holders[0], null);
+      var toRoute = new PathsToRoute(paths.Select(Path.GetFullPath).ToList());
+      try
+      {
+         return (holders.OrderByDescending(it => it.FitFor(toRoute)).First(), null);
+      }
+      catch(RepositorySolution.UnusableFile unusable)
+      {
+         return (null, unusable.Message);
+      }
 
       static string WithWorkTrees(IEnumerable<T> solutions) => string.Join(", ", solutions.Select(it => $"{it.Name} ({it.WorkTree})"));
    }

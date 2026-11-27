@@ -27,26 +27,14 @@ abstract class SolutionLocation(string name, string filePath)
 
    /// <summary>Whether this solution owns the path's Git work tree. Outside Git, its own folder defines its reach.</summary>
    public bool Holds(RequestedPath path) =>
-      path.GitWorkTree != null
-         ? string.Equals(path.GitWorkTree.TrimEnd(Path.DirectorySeparatorChar), WorkTree.TrimEnd(Path.DirectorySeparatorChar), PathComparison)
-         : IsUnder(path.Absolute, Folder);
+      path.GitWorkTree != null ? FilePaths.Same(path.GitWorkTree, WorkTree) : FilePaths.IsUnder(path.Absolute, Folder);
 
    /// <summary>
-   ///   How closely it holds the absolute <paramref name="path"/>, which it <see cref="Holds"/>: by its own folder, when
-   ///   the path is under it, more closely than by the work tree around it, and by a deeper folder more closely than by
-   ///   a shallower one. Two solutions in one work tree, such as a client's and a server's, then each hold their own
-   ///   files more closely than the other does. A relative path is held by none more closely than by another.
+   ///   How well it fits <paramref name="paths"/>, which it <see cref="Holds"/>, against the other solutions that hold
+   ///   them. Two solutions in one work tree, such as a client's and a server's, then each fit their own files better
+   ///   than the other does.
    /// </summary>
-   public int Closeness(string path)
-   {
-      if(!Path.IsPathRooted(path)) return 0;
-      return IsUnder(Path.GetFullPath(path), Folder) ? Folder.Length : WorkTree.Length;
-   }
-
-   static readonly StringComparison PathComparison = Path.DirectorySeparatorChar == '\\' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-   static bool IsUnder(string path, string folder) =>
-      (path.Replace('\\', '/').TrimEnd('/') + "/").StartsWith(folder.Replace('\\', '/').TrimEnd('/') + "/", PathComparison);
+   public SolutionFit FitFor(PathsToRoute paths) => paths.FitOf(FilePath, WorkTree);
 
    /// <summary>Its name and path, as every listing of the solutions starts.</summary>
    public JObject NameAndPath() => new() { ["name"] = Name, ["path"] = FilePath };

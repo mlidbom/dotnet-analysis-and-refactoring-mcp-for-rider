@@ -65,11 +65,13 @@ sealed record RegisteredWorktree(string Root, string GitDirectory, string Genera
                 throw new InvalidOperationException(
                    $"{(File.Exists(explicitSolution) ? $"'{explicitSolution}' is a solution Git doesn't list, as ignored" : $"'{explicitSolution}' doesn't exist")}. "
                  + $"Worktree '{Root}' contains: {(candidates.Length == 0 ? "no solution" : string.Join(", ", candidates))}");
+      if(candidates.Length == 0) throw new InvalidOperationException($"Worktree '{Root}' contains no solution.");
       if(candidates.Length == 1) return candidates[0];
-      var enclosing = candidates.Where(it => paths.All(path => IsWithin(path, Path.GetDirectoryName(it)!)))
-                                .GroupBy(it => Path.GetDirectoryName(it)!.Length).OrderByDescending(it => it.Key).FirstOrDefault();
-      if(enclosing?.Count() == 1) return enclosing.First();
-      throw new InvalidOperationException($"Choose a solution with its absolute path in 'solutionName'. Worktree '{Root}' contains: {string.Join(", ", candidates)}");
+      var toRoute = new PathsToRoute(paths);
+      var ranked = candidates.Select(it => (Solution: it, Fit: toRoute.FitOf(it, Root))).OrderByDescending(it => it.Fit).ToList();
+      if(ranked[0].Fit.CompareTo(ranked[1].Fit) > 0) return ranked[0].Solution;
+      throw new InvalidOperationException($"Neither where the files lie nor their projects tell which solution to open for them: pass one's absolute path as 'solutionName', "
+                                        + $"or name one in a {RepositorySolution.FileName} at the work tree's root. Worktree '{Root}' contains: {string.Join(", ", candidates)}");
    }
 
    public async Task Remove(TrustedRepositories trusted)
@@ -89,7 +91,4 @@ sealed record RegisteredWorktree(string Root, string GitDirectory, string Genera
    {
       if(IsMainCheckout) throw new InvalidOperationException($"remove-worktree only removes linked Git worktrees. '{Root}' is a main checkout.");
    }
-
-   public static bool IsWithin(string path, string root) =>
-      SamePath(path, root) || path.StartsWith(Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 }

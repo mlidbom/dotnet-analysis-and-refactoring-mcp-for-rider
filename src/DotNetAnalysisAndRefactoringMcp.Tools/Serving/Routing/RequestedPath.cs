@@ -31,11 +31,15 @@ sealed class RequestedPath
    public static string? WorkTreeOf(string? directory)
    {
       for(var folder = directory; folder != null; folder = Path.GetDirectoryName(folder))
-      {
-         var marker = Path.Combine(folder, ".git");
-         if(Directory.Exists(marker) || File.Exists(marker)) return folder;
-      }
+         if(IsWorkTreeRoot(folder)) return folder;
       return null;
+   }
+
+   /// <summary>Whether <paramref name="folder"/> is the root of a Git work tree: it holds a <c>.git</c> folder, or a linked work tree's <c>.git</c> file.</summary>
+   public static bool IsWorkTreeRoot(string folder)
+   {
+      var marker = Path.Combine(folder, ".git");
+      return Directory.Exists(marker) || File.Exists(marker);
    }
 
    public string DescribeWorkTree() => GitWorkTree ?? $"{Absolute} (outside a Git work tree)";
