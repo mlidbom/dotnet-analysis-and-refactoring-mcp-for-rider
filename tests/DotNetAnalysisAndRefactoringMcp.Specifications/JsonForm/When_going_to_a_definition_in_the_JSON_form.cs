@@ -18,6 +18,8 @@ public class When_going_to_a_definition_in_the_JSON_form(TheSandboxWithTheFixtur
    readonly List<string> _unknown = DeclarationsOf(sandbox, "NoSuchSymbol");
    readonly List<string> _recordProperty = DeclarationsOf(sandbox, "Measurement.Unit");
    readonly List<string> _extensionMember = DeclarationsOf(sandbox, "Grown");
+   readonly List<string> _extensionMemberInItsClass = DeclarationsOf(sandbox, "ShapeExtensions.Grown");
+   readonly List<string> _extensionPropertyInItsClass = DeclarationsOf(sandbox, "ShapeExtensions.Diameter");
    readonly List<string> _typeInParts = DeclarationsOf(sandbox, "Shapes.Palette");
    readonly List<string> _overloaded = DeclarationsOf(sandbox, "Shapes.Palette.Mix");
    readonly JsonNode _theThreeColorOverload = Answer(sandbox, "Shapes.Palette.Mix")["declarations"]![1]!;
@@ -37,6 +39,13 @@ public class When_going_to_a_definition_in_the_JSON_form(TheSandboxWithTheFixtur
 
    [XF] public void an_extension_blocks_member_is_in_its_static_class() =>
       _extensionMember.Must().Satisfy(it => it.SequenceEqual(["method Grown Shapes.ShapeExtensions.Grown ShapeExtensions.cs:17:19"]));
+
+   /// <summary>The symbol linker reported on 2026-11-26 that a member of an extension block had no declarations by its name in its class.</summary>
+   [XF] public void an_extension_blocks_method_is_found_by_its_name_in_its_static_class() =>
+      _extensionMemberInItsClass.Must().Satisfy(it => it.SequenceEqual(["method Grown Shapes.ShapeExtensions.Grown ShapeExtensions.cs:17:19"]));
+
+   [XF] public void and_so_is_an_extension_blocks_property() =>
+      _extensionPropertyInItsClass.Must().Satisfy(it => it.SequenceEqual(["property Diameter Shapes.ShapeExtensions.Diameter ShapeExtensions.cs:14:19"]));
 
    /// <summary>
    ///   Palette is declared in Palette.cs and Palette.Mixing.cs, and ReSharper lists Palette.Mixing.cs first: until

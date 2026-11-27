@@ -287,6 +287,13 @@ public static class PsiHelpers
       {
          foreach(var member in type.GetMembers())
          {
+            // A C# 14 extension block's property is in its static class as the accessors it compiles to, get_Diameter.
+            if(member is ITypeExtension block)
+            {
+               AddMembers(block, qualified);
+               continue;
+            }
+
             if(!name.IsShort(member.ShortName) || kind != null && !MatchesKind(member, kind))
                continue;
 
