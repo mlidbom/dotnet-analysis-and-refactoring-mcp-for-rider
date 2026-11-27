@@ -114,8 +114,10 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   declaration, ReSharper through the emitted method. Royder passes ReSharper's analysis on and can't fix it; JetBrains
   can. Where Royder and the build disagree on such a call, the build is right.
 - **Installing a primary package drops every Claude Code session's Royder tools** (agentharness-facades, 2026-11-26).
-  The update stops the old primary before the new one binds port 23751: about 20 seconds with
-  `-CloseOpenProjects`. A Claude Code session that calls in that window gets `ECONNREFUSED`, marks the server failed,
+  The update stops the old primary before the new one binds port 23751. Until b06ba6a the stop waited out its three
+  minutes' timeout for the event streams the sessions hold open: the port refused connections for 182 s at the 1043dc3
+  install (measured 2026-11-27). Since b06ba6a the streams end as the primary stops, and what is left is the drain of
+  the calls in flight and the new primary's start, about 4 s. A Claude Code session that calls in that window gets `ECONNREFUSED`, marks the server failed,
   and loses its tools until it reconnects through tool search or `/mcp`; it doesn't retry by itself. The agent took it
   for Royder being down, and renamed by text. A handover with no gap needs the old primary to keep the port until the
   new one is ready, such as by passing it the listening socket, or a small proxy that outlives both. Again on
