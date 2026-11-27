@@ -73,7 +73,7 @@ sealed class SolutionRouting<T>(IReadOnlyList<T> solutions) where T : SolutionLo
          var listed = string.Join("\n", matches.Select(it => $"  - {it.Name} ({it.FilePath}){Hint(it)}"));
          return (null, $"Ambiguous solution name '{solutionName}'. Matches:\n{listed}");
 
-         string Hint(T solution) => segments.TryGetValue(solution.FilePath, out var segment) ? $" — use solutionName: \"{segment}\"" : "";
+         string Hint(T solution) => segments.TryGetValue(solution.FilePath, out var segment) ? $" â€” use solutionName: \"{segment}\"" : "";
       }
 
       return (matches[0], null);
