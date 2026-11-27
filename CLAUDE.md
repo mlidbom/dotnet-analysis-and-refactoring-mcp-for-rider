@@ -185,8 +185,8 @@ Mutation-capable tools (main-thread execution, with dispatch controlled by the m
 The .NET Terminal Symbol Linker (`C:\Dev\ClaudeSymbolLinker`) relies on this plugin, and its session asked to be told
 before any of the following changes, so it can add a specification first (2026-11-17):
 
-- the JSON form, `format: "json"`, of `go_to_definition` and `browse_namespace`, and `list_solutions`' JSON, which it
-  reads: a contract (`Tools/Json/`), agreed with its session, which the `JsonForm` specifications check. Its 0.2.11
+- the JSON form, `format: "json"`, of `go_to_definition` and `browse_namespace`, which it reads: a contract
+  (`Tools/Json/`), agreed with its session, which the `JsonForm` specifications check. Its 0.2.11
   reads only the JSON form, and requires our 0.15.0, the first release with it; its releases up to 0.2.10 parsed the
   text of `list_solutions`, `browse_namespace`, `get_symbol_info`'s members section and `go_to_definition` instead.
   Since 2026-11-24 a type declared in parts is at its `MainDeclaration`, the part in the file named after it, as in
@@ -195,9 +195,13 @@ before any of the following changes, so it can add a specification first (2026-1
   every declaration has a `signature`, such as `method Mix(first:string, second:string) : string`: agreed with
   `symbol-linker`, whose picker shows it. Since 2026-11-26 a declaration or type a source generator wrote has `file`
   null, its `line` and `column` in the generated file, and `generator` and `hintName` beside them: agreed with
-  `symbol-linker`, whose linker keeps only declarations with a file. Since its 84bd64d, of 2026-11-27, it links
-  qualified names and namespaces as Cloyd's chat does, so it reads `qualifiedName`, `file`, `line`, `column` and
-  `nestedTypes` of `browse_namespace`'s types too;
+  `symbol-linker`. Since its 6b28821 the linker opens such a declaration's file: the file named `hintName` under the
+  node named `generator` in Rider's project model, at `line` and `column`, so it relies on those four of generated
+  declarations in `go_to_definition` and of generated types in `browse_namespace`. Since its 84bd64d, of 2026-11-27,
+  it links qualified names and namespaces as Cloyd's chat does, so it reads `qualifiedName`, `file`, `line`, `column`
+  and `nestedTypes` of `browse_namespace`'s types too;
+- `/health`'s `solutions[].path`: since its 5ed07e1 it calls no `list_solutions`, and calls a tool only once `/health`
+  lists the absolute path of the solution file Rider has open, which it passes as `solutionName`;
 - what its sandbox Rider copies from ours: the everyday plugin folder, the tools builds in
   `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp\tools`, each with its `host.sha256`, and `/health`'s
   `solutions[].tools.build` and `.host`, by which it waits until its sandbox serves the newest build;
