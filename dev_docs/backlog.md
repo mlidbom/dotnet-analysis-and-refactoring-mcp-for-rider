@@ -113,16 +113,6 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   has no `notnull` on `TResult`; the static method the compiler emits for it has. The compiler binds through the
   declaration, ReSharper through the emitted method. Royder passes ReSharper's analysis on and can't fix it; JetBrains
   can. Where Royder and the build disagree on such a call, the build is right.
-- **Installing a primary package drops every Claude Code session's Royder tools** (agentharness-facades, 2026-11-26).
-  The update stops the old primary before the new one binds port 23751. Until b06ba6a the stop waited out its three
-  minutes' timeout for the event streams the sessions hold open: the port refused connections for 182 s at the 1043dc3
-  install (measured 2026-11-27). Since b06ba6a the streams end as the primary stops, and what is left is the drain of
-  the calls in flight and the new primary's start, about 4 s. A Claude Code session that calls in that window gets `ECONNREFUSED`, marks the server failed,
-  and loses its tools until it reconnects through tool search or `/mcp`; it doesn't retry by itself. The agent took it
-  for Royder being down, and renamed by text. A handover with no gap needs the old primary to keep the port until the
-  new one is ready, such as by passing it the listening socket, or a small proxy that outlives both. Again on
-  2026-11-27, at the 445b1ef install (tessaging-and-taggregates): `list_symbols_in_file` got `ECONNREFUSED`, and Claude
-  Code removed the server's tools.
 - **An edit dispatched late in the primary's deadline answers no one** (usage-tracking, 2026-11-26 16:50). A
   `rename_symbol` on a checkout the private Rider had closed: opening it took about 44 of the call's 55 seconds, the
   primary dispatched the rename with about 11 left, and answered at the deadline that Rider had not answered. Rider's
