@@ -97,14 +97,17 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 - **The private Rider's solution caches fail when another process holds a table file their database just wrote**
   (royder-agent-rep, 2026-11-28). Six times on 2026-11-28, each within minutes of a ClaudeTooling worktree opening;
   the desktop Riders' 81 databases logged no such error. It is one of a machine-wide family of brief denials on files
-  just written that `~/.claude`'s helper `files-just-written-denied` investigates, told of these on 2026-11-28; a
-  Defender exclusion that covers the desktop Riders' folders and not the private Rider's would explain the difference.
-  Since `911f4c5` the answers say so and the primary reopens the solution with new caches (`CorruptedCaches`), so the
-  harm is a cold reopen; a corrupted cache also left implicit global usings unresolved, hundreds of false errors in
-  `get_diagnostics`. Which process held the file is unknown:
-  200 writes and exclusive reopens in the same folder were never blocked, and Defender's exclusions need an
-  administrator to read. Finding it takes a look at the moment it happens, such as a `who-holds` run from a watcher
-  of the caches' `Db/LOG`. Reproduced at will by holding each newly created `.ldb` under the profile's
+  just written that `~/.claude`'s helper `files-just-written-denied` investigates, told of these on 2026-11-28.
+  Not Defender: its Operational log (event 5007) shows `Rider.BackendHost.exe`, the process that writes these files for
+  the desktop Riders and the private Rider alike, excluded by name. Since `911f4c5` the answers say so and the primary
+  reopens the solution with new caches (`CorruptedCaches`), so the harm is a cold reopen; a corrupted cache also left
+  implicit global usings unresolved, hundreds of false errors in `get_diagnostics`. Which process held the file is
+  unproven. The lead: a search of the machine's handles, ClaudeTooling's `OpenHandlesOfTheMachine`, copies every
+  process's file handles with their access and sharing, and a copy that outlives the backend's own close refuses
+  LevelDB's reopen. All six corruptions fell inside a `merger gate` or `merger merge` of ClaudeTooling, whose
+  specifications run such searches, two of them 82 and 83 s into a gate; those runs covered 68% of the day. Holding a
+  new table with read access while sharing read, write and delete corrupted nothing; holding it unshared did. 200 writes
+  and exclusive reopens in the same folder were never blocked. Reproduced at will by holding each newly created `.ldb` under the profile's
   `system/resharper-host/temp` exclusively, once its writer has closed it, for 1.5 s while a large solution opens: no
   repeatable check runs that yet, and `verify_on_demand.py`'s small repository may write too little to flush a table.
 - **The private Rider serves one solution per worktree, whatever the next call's files need** (royder-agent-rep,
