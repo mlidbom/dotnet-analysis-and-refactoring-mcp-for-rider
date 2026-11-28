@@ -31,7 +31,7 @@ Use a dedicated, private, current-user profile and disjoint loopback port ranges
 ports starting at `BackendMcpPort` for this host, separately from the public primary. Use a loopback HTTP client
 with proxies and automatic redirects disabled for MCP health/registration. The default heap is 768 MiB.
 The launch profile requires PowerShell 7.4+ x64. Each managed JVM has private settings, temp files and a private
-Roslyn working directory. [Launcher behavior](../../../experiments/RemoteDevHost/README.md)
+Roslyn working directory. [Launcher behavior](Launcher/README.md)
 
 ## Ownership and recovery
 

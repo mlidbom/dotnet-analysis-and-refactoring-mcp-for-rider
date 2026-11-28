@@ -6,7 +6,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RemoteDevHost;
+namespace Royder.Primary.Hosting.Launcher;
 
 /// <summary>Posts on the exact established loopback socket whose remote endpoint the supervisor verified belongs to its JVM.</summary>
 public static class ConnectedRiderRequest

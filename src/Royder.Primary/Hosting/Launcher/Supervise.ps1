@@ -14,7 +14,7 @@ try {
    Publish-State
    $activeProfile = [IO.File]::Open((Join-Path $plan.profile host.lock), 'OpenOrCreate','ReadWrite','None')
    Add-Type -Path "$PSScriptRoot/WindowsJob.cs"
-   $job = [RemoteDevHost.WindowsJob]::new()
+   $job = [Royder.Primary.Hosting.Launcher.WindowsJob]::new()
    $lockDir = [IO.Directory]::CreateDirectory((Join-Path ([IO.Path]::GetTempPath()) 'royder-headless/RemoteDevHost-ports')).FullName
    foreach ($port in (Get-ExperimentPorts $plan | Sort-Object)) {
       $portLocks += [IO.File]::Open((Join-Path $lockDir "$port.lock"), 'OpenOrCreate', 'ReadWrite', 'None')
@@ -58,7 +58,7 @@ try {
             if (!$identity) { continue } # A short-lived worker can exit between enumeration and reading its start time.
             $identityKey = "$member/$($identity.started)"
             if (!$observed.ContainsKey($identityKey)) {
-               $identity.parentPid = [RemoteDevHost.WindowsJob]::ParentOf($member)
+               $identity.parentPid = [Royder.Primary.Hosting.Launcher.WindowsJob]::ParentOf($member)
                $observed[$identityKey] = $identity
             } else { $identity = $observed[$identityKey] }
             $identity

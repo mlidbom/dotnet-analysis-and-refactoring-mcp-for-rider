@@ -43,7 +43,7 @@ try {
    $encrypted = [IO.File]::ReadAllBytes((Join-Path $run host-token.dpapi))
    $token = [Text.Encoding]::ASCII.GetString([Security.Cryptography.ProtectedData]::Unprotect($encrypted, $null, 'CurrentUser'))
    $ifMatch = if ($Operation -ne 'open') { $tag } else { '' }
-   $reply = [RemoteDevHost.ConnectedRiderRequest]::PostAsync($client, [uri]"http://127.0.0.1:$port/api/$path", $token, $Solution, $ifMatch, $openId).GetAwaiter().GetResult()
+   $reply = [Royder.Primary.Hosting.Launcher.ConnectedRiderRequest]::PostAsync($client, [uri]"http://127.0.0.1:$port/api/$path", $token, $Solution, $ifMatch, $openId).GetAwaiter().GetResult()
    if (($Operation -eq 'open' -or ($Operation -eq 'status' -and $openId -and $reply.Status -eq 200)) -and $reply.ETag) {
       if ($tag -and $tag -cne $reply.ETag) { throw 'Rider returned a different project instance at the same path. The original close tag has been preserved.' }
       Write-HostJson $tagFile $reply.ETag

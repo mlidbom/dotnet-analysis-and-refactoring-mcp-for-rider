@@ -9,7 +9,7 @@
    Exits 0 when it passes; prints what failed and exits 1 otherwise.
 #>
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot '../../experiments/RemoteDevHost/Common.ps1')
+. (Join-Path $PSScriptRoot '../../src/Royder.Primary/Hosting/Launcher/Common.ps1')
 
 $folder = [IO.Directory]::CreateDirectory((Join-Path ([IO.Path]::GetTempPath()) "record-replacement-$([guid]::NewGuid().ToString('N'))")).FullName
 $failures = [Collections.Generic.List[string]]::new()

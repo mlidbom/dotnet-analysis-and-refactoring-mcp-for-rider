@@ -9,7 +9,8 @@
     <PackageReference Include="Compze.Threading" Version="0.9.0-alpha" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <Compile Include="../DotNetAnalysisAndRefactoringMcp.Tools/Serving/Routing/*.cs;../DotNetAnalysisAndRefactoringMcp.Tools/Tools/FileArguments.cs;../DotNetAnalysisAndRefactoringMcp.Tools/McpInstructions.cs" Link="Routing/%(Filename)%(Extension)" />
-    <Compile Include="../../experiments/RemoteDevHost/FileReplacement.cs" Link="Hosting/%(Filename)%(Extension)" />
+    <!-- The private Rider's launcher compiles these with Add-Type. Of its code, the primary uses FileReplacement.cs. -->
+    <Compile Remove="Hosting/Launcher/WindowsJob.cs;Hosting/Launcher/ConnectedRiderRequest.cs" />
   </ItemGroup>
   <ItemGroup>
     <!-- It replaces its records and hands its public port over with Windows' own calls, and hosts Rider only there. -->

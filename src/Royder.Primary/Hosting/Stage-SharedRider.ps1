@@ -8,7 +8,7 @@ param([Parameter(Mandatory)][string]$OutputDirectory,
       [string]$ToolsDirectory)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../../..").Path
-$launcher = Join-Path $repo experiments/RemoteDevHost
+$launcher = Join-Path $PSScriptRoot Launcher
 . "$launcher/Common.ps1"
 . "$launcher/HostProfile.ps1"
 $product = Read-HostJson (Join-Path $RiderHome product-info.json)

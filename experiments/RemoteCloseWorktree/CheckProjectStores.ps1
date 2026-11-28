@@ -8,7 +8,7 @@ param(
    [switch]$ExerciseHandoff,
    [string]$RiderHome = (Join-Path $env:LOCALAPPDATA 'Programs/Rider')
 )
-$harness = Join-Path (Split-Path -Parent $PSScriptRoot) RemoteDevHost
+$harness = Join-Path $PSScriptRoot ../../src/Royder.Primary/Hosting/Launcher
 . "$harness/Common.ps1"
 if ($ExerciseHandoff -and $Mode -ne 'Private') { throw 'The owner-edit handoff check requires Private mode.' }
 Add-Type -Path "$harness/ConnectedRiderRequest.cs"
@@ -97,7 +97,7 @@ function Send-Management($operation, $solution, $tag = '') {
       $route = "royder-$operation-worktree"
       if ($Mode -eq 'Private' -and $operation -eq 'open') { $route += '/private' }
       $url = [uri]"http://127.0.0.1:$builtIn/api/$route"
-      $result = [RemoteDevHost.ConnectedRiderRequest]::PostAsync($client, $url, $token, $solution, $tag, '').GetAwaiter().GetResult()
+      $result = [Royder.Primary.Hosting.Launcher.ConnectedRiderRequest]::PostAsync($client, $url, $token, $solution, $tag, '').GetAwaiter().GetResult()
       if ($result.Status -ne 200) { throw "$operation $solution failed: $($result.Status) $($result.Message)" }
       $result.ETag
    } finally { $client.Dispose() }

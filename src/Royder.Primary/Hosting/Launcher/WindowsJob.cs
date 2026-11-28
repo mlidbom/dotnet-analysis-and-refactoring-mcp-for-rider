@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 
-namespace RemoteDevHost;
+namespace Royder.Primary.Hosting.Launcher;
 
 /// <summary>Owns one experiment's Windows process tree. Windows ends the tree when its supervisor exits.</summary>
 public sealed class WindowsJob : IDisposable

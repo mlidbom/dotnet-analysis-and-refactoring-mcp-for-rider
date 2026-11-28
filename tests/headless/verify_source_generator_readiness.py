@@ -14,7 +14,7 @@ from xml.sax.saxutils import escape
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-HARNESS = Path(__file__).with_name("RemoteDevHost.ps1")
+HARNESS = REPOSITORY / "src/Royder.Primary/Hosting/Launcher/RemoteDevHost.ps1"
 HOST = "DotNetAnalysisAndRefactoringMcp"
 TOOLS = HOST + ".Tools"
 REAL_PROJECT = HOST + ".DevelopmentEnvironment"

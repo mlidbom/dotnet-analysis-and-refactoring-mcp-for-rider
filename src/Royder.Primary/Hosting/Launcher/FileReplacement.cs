@@ -4,7 +4,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
-namespace RemoteDevHost;
+namespace Royder.Primary.Hosting.Launcher;
 
 /// <summary>
 ///   A file replaced by another in one step: how a writer publishes a record that other processes read, such as a

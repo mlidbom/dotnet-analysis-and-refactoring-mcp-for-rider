@@ -1,6 +1,10 @@
-# RemoteDevHost
+# The private Rider's launcher
 
-Run the installed Windows Rider Remote Development host on a worktree, with Royder as its own primary and private IDE,
+Every primary package ships these scripts in `RiderHost/launcher`, and the primary runs `ManagedRider.ps1` there to
+start and stop its private Rider (`../RiderSupervisor.cs`). Until 2026-11-28 they were the experiment
+`experiments/RemoteDevHost`.
+
+`RemoteDevHost.ps1` runs the installed Windows Rider Remote Development host on a worktree, with Royder as its own primary and private IDE,
 ReSharper, plugin and discovery directories. With the default standalone options, `start` returns after the requested
 solution is indexed and serving the specified tools build. The host stays up after the calling shell exits. Requires Windows x64, PowerShell 7.4 or
 later, Git, an installed Rider with Royder, and a restored solution. Tested on Rider 2026.3.0.1, RD-263.7307.325.
@@ -9,7 +13,7 @@ The packaged manager, and a standalone run using `-IsolateProjectStores`, start 
 For these runs, `start` returns when the private JVM owns both listeners. The primary's first authenticated
 `POST /api/royder-open-worktree/private` opens the real solution with private project settings. Later opens follow
 the same path. The primary still waits for the correct backend, tools build and readiness after the POST.
-[Project store implementation and fixture](../RemoteCloseWorktree/README.md#private-intellij-project-stores)
+[Project store implementation and fixture](../../../../experiments/RemoteCloseWorktree/README.md#private-intellij-project-stores)
 
 ## Run
 
@@ -18,7 +22,7 @@ profile **under the current user's TEMP** and choose free loopback ports. The de
 `%LOCALAPPDATA%\Programs\Rider`. Supply `-RiderHome` to use a different installation.
 
 ```powershell
-$tool = (Resolve-Path .\experiments\RemoteDevHost\RemoteDevHost.ps1).Path
+$tool = (Resolve-Path .\src\Royder.Primary\Hosting\Launcher\RemoteDevHost.ps1).Path
 $profileDir = Join-Path $env:TEMP 'royder-headless\my-worktree'
 $solution = 'C:\Dev\RoyderRemoteRound9-tool\worktree\ReSharperMcp.sln'
 $launch = @{
@@ -74,8 +78,8 @@ variables cannot replace the harness's private directories, ports or tools build
   the private home's `.dotnet/tools` directory out of the Windows user PATH.
   It disables IDE and plugin updates, statistics reporting and shared-index downloads and sets
   `JETBRAINS_NO_CHECK_FOR_UPDATES=1`. It trusts the supplied solution directory in this profile.
-- The experiment copies Royder from the installed Rider profile and the named build from
-  `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp\tools`. It hashes each copy and checks the build's `host.sha256`
+- A standalone start copies Royder from the installed Rider profile and the named build from
+  `%LOCALAPPDATA%\DotNetAnalysisAndRefactoringMcp\tools`; a packaged one (`-ManagedAssets`) copies the package's. It hashes each copy and checks the build's `host.sha256`
   against the copied host DLL. Readiness checks the solution path, indexing state, exact build, private tools directory
   and host hash on `/health`, the primary role and port on `internal/status`, and the Java PID listening on the RD port.
   On Windows, HTTP.sys can report kernel PID 4 as owner of the Royder HTTP listener.
@@ -146,12 +150,12 @@ A repeat start/stop check recorded JVM exit code 0, terminated only the remainin
 found zero job members, surviving recorded identities or occupied experiment ports. Its audit matched all 197
 roaming files, all 29 Local JetBrains top-level entries and Git status. The earlier audit spanned an everyday Rider
 restart and recorded concurrent settings and discovery changes. The target worktree stayed clean and plain
-`git worktree remove` removed it. Nothing was deployed. [Round 8 measurements](../../dev_docs/headless-royder/remote-dev-server-lifecycle.md#round-8--direct-java-launch-deletion-and-heap-size)
+`git worktree remove` removed it. Nothing was deployed. [Round 8 measurements](../../../../dev_docs/headless-royder/remote-dev-server-lifecycle.md#round-8--direct-java-launch-deletion-and-heap-size)
 
 ## Checking source-generator readiness
 
 On Windows with Python 3 and the project SDK installed, run
-`python -B experiments/RemoteDevHost/TestSourceGeneratorReadiness.py` from the repository root.
+`python -B tests/headless/verify_source_generator_readiness.py` from the repository root.
 It builds this checkout's host and tools, stages private copies, and runs one host at a time. By default it makes
 two cold opens of each fixture on loopback 25031 and 25041–25050. Use `--remote-port` and `--port` to choose
 another free set. Every open has its own solution copy, profile and indexes.
