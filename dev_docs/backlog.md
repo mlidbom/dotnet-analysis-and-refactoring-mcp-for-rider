@@ -672,6 +672,12 @@ without a Rider open on his desktop for it, taking memory and processor time. A 
 against for that cost ("An agent Rider", under "Decided against"). The same host would give code intelligence with
 Rider closed, in cloud sessions and in CI.
 
+**Next, a refactoring (royder-agent-rep, 2026-11-28): the private Rider's launcher moves out of
+`experiments/RemoteDevHost`.** Every primary package ships it (`Stage-SharedRider.ps1` copies its scripts, the primary
+compiles its `FileReplacement.cs`), so it is product code, not an experiment: move it beside the primary, such as to
+`src/Royder.Primary/Hosting/Launcher`, with the folder's references in `Stage-SharedRider.ps1`, `Royder.Primary.csproj`,
+`tests/headless/verify_record_replacement.ps1` and the documents, then build, verify and install a package.
+
 What is known (2026-11-19):
 
 - **Rider's lightweight backend is no way to it.** `Rider.LightweightBackend.exe`, new in 2026.3, runs beside each
