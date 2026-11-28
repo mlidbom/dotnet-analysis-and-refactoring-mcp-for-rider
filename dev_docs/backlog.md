@@ -1019,6 +1019,15 @@ backend.
   67 s, and stopping and starting the sandbox, with the fresh copy's restore, about 20 s of it. It would add a second
   way to run, and weaken the check that ReSharper keeps nothing of the tools build that first ran each feature, which
   takes a fresh process.
+- **A Windows Job Object that ends a killed specification run's sandbox Riders with it** (proposed 2026-11-18; Magnus
+  asked on 2026-11-28 whether it was still relevant). A run killed before its `Dispose` leaves the sandbox, and the
+  peer if its collection was running, open until the next run's setup stops them, holding gigabytes; since 2026-11-26
+  on a hidden desktop, where nobody sees them. The logs show no such leftover: from 11-21 to 11-28 the sandbox
+  started 114 times, each start followed by a clean `IDE SHUTDOWN` before the next, and only two lived over 15 minutes
+  (21 and 20, on 11-24 and 11-26). The peer started 88 times; 5, all on 11-24, logged no shutdown, and each stopped
+  logging within 30 seconds of its start: most likely ended then, though an idle Rider may log nothing. Reopen it when a sandbox Rider is found
+  running with no run holding the sandbox turn: `sandbox status` and `peer status` show them, and the machine stall
+  recorder's log of the processes' starts and exits (since 2026-11-27) shows whether their test host had exited.
 - **Hobbling the private Rider to cut its load:** solution-wide analysis off there, and at most about four managed
   worktrees open (2026-11-24). Magnus, through tooling-with-magnus: "Royder is NOT our performance problem do not go
   hobbling it when it is not our problem please :)". The measurement that settled it, at 23:26 with the 16 cores
