@@ -2,10 +2,10 @@ using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
 
-namespace Royder.Primary.Worktrees;
+namespace Royder.Primary.Transport;
 
 /// <summary>The local CLI asks the primary in this Windows login to remove a worktree or shut down gracefully.</summary>
-sealed class PrimaryControlPipe(PrimarySettings settings, Transport.PrimaryRequests requests, IHostApplicationLifetime lifetime, ILogger<PrimaryControlPipe> log) : BackgroundService
+sealed class PrimaryControlPipe(PrimarySettings settings, PrimaryRequests requests, IHostApplicationLifetime lifetime, ILogger<PrimaryControlPipe> log) : BackgroundService
 {
    static string Name(int port) => $"Royder.Primary.RemoveWorktree.{port}";
    static readonly Encoding Utf8 = new UTF8Encoding(false, true);
