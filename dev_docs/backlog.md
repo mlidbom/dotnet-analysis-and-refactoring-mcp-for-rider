@@ -86,6 +86,14 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
+- **A worktree removed while the private Rider opens it leaves a backend that blocks every later close and open**
+  (royder-agent-rep, 2026-11-28). I removed a probe worktree at 12:48 during its reopen. Its backend stayed in the
+  private Rider's job serving no solution, as the cluster's primary on 24720 with `solutions: []`.
+  `SharedRiderHost.CloseAsync` then refused every project whose backend had gone ("Cannot identify the current backend
+  ... Unassigned backend PIDs: 59696. No close was dispatched"), every 2 seconds for 100 minutes, and two opens timed out
+  at 4 minutes. Recovery, which loses nothing when no project there answers: an empty `stop.request` in the run folder
+  `current.json` names; with no generation left, the primary's closes succeed. Fix to weigh: once a close fails for an
+  unassigned backend, stop the private Rider as soon as no call uses it. The projects still open there then reopen cold.
 - **The private Rider's solution caches fail when another process holds a table file their database just wrote**
   (royder-agent-rep, 2026-11-28). Twice on 2026-11-28, each within three minutes of a ClaudeTooling worktree opening;
   the desktop Riders' 81 databases logged no such error. Since `911f4c5` the answers say so and the primary reopens the
