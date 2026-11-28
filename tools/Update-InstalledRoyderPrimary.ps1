@@ -5,8 +5,8 @@ param([Parameter(Mandatory)][string]$PackageDirectory,
       # A folder of tools builds for the private Rider to serve the newest of, such as the everyday Riders'. An update
       # keeps the one the settings name.
       [string]$ToolsFolder,
-      # Where the primary has projects open, stop it gracefully first, which lets the calls in flight finish and closes
-      # them, instead of refusing until they have closed by themselves. Their agents' next calls open them again, cold.
+      # Where the primary has projects open, close them as it stops, once the calls in flight are answered, instead of
+      # refusing until they have closed by themselves. Their agents' next calls open them again, cold.
       [switch]$CloseOpenProjects)
 
 $ErrorActionPreference = 'Stop'
@@ -20,7 +20,11 @@ $taskName = 'RoyderPrimary'
 
 function Get-Listener {
    $socket = Get-NetTCPConnection -LocalAddress 127.0.0.1 -LocalPort $current.port -State Listen -ErrorAction SilentlyContinue
-   if ($socket) { Get-Process -Id $socket.OwningProcess }
+   if (!$socket) { return }
+   # The TCP table names the process that bound the port first, also once that primary has handed the port over and
+   # ended. A primary that hands its port over names its own process in its health.
+   $serving = (Invoke-RestMethod $publicUrl -NoProxy -TimeoutSec 15).primary
+   Get-Process -Id ($serving ? $serving.processId : $socket.OwningProcess)
 }
 
 function Stop-Primary([string]$Executable) {
@@ -52,16 +56,31 @@ function Set-Configuration([string]$Json) {
 }
 
 function Start-Primary([string]$Executable) {
-   & "$PSScriptRoot/Register-RoyderPrimaryAtLogon.ps1" -PrimaryExecutable $Executable -SettingsFile $settingsPath | Out-Null
+   Register-Primary $Executable
    Start-ScheduledTask -TaskName $taskName
+   Wait-ForPrimary $Executable
+}
+
+# The running primary hands the public port to the new one, which a start of the task runs beside it, and stops once its
+# clients have let go of it, closing its projects and stopping its private Rider. The port refuses no connection.
+function Switch-Primary([string]$Executable) {
+   Register-Primary $Executable -HandOver
+   try {
+      Start-ScheduledTask -TaskName $taskName
+      Wait-ForPrimary $Executable -Replacing
+   } finally { Register-Primary $Executable }
+}
+
+function Register-Primary([string]$Executable, [switch]$HandOver) {
+   & "$PSScriptRoot/Register-RoyderPrimaryAtLogon.ps1" -PrimaryExecutable $Executable -SettingsFile $settingsPath -HandOver:$HandOver | Out-Null
+}
+
+function Wait-ForPrimary([string]$Executable, [switch]$Replacing) {
    $until = [datetime]::UtcNow.AddSeconds(35)
    do {
       $listener = Get-Listener
-      if ($listener) {
-         if ($listener.Path -ne $Executable) { throw "Unexpected public listener: $($listener.Path)" }
-         $null = Invoke-RestMethod $publicUrl -NoProxy -TimeoutSec 15
-         return
-      }
+      if ($listener.Path -eq $Executable) { return }
+      if ($listener -and !$Replacing) { throw "Unexpected public listener: $($listener.Path)" }
       Start-Sleep -Milliseconds 200
    } while ([datetime]::UtcNow -lt $until)
    throw "The scheduled primary did not start. Check $installation/logs."
@@ -101,23 +120,33 @@ function Test-PrivateRiderRuns {
    $state.phase -notin 'Stopped','Failed' -or $state.jobRemaining.Count -or $state.survivors.Count
 }
 
-if ($CloseOpenProjects -and $oldListener) {
+function Wait-ForPrivateRiderToDrain {
+   $until = [datetime]::UtcNow.AddSeconds(120)
+   while ((Test-PrivateRiderRuns) -and [datetime]::UtcNow -lt $until) { Start-Sleep -Seconds 2 }
+}
+
+$health = if ($oldListener) { Invoke-RestMethod $publicUrl -NoProxy -TimeoutSec 15 }
+# A primary that hands its port over to the next one names its own process in its health. One before 2026-11-28 is
+# stopped first, and the port refuses connections until the next one has started.
+$handsOver = [bool]$health.primary
+if ($CloseOpenProjects -and $oldListener -and !$handsOver) {
    # A graceful stop returns once the calls in flight are answered; the private Rider then closes its projects.
    try {
       Stop-Primary $oldExecutable
-      $until = [datetime]::UtcNow.AddSeconds(120)
-      while ((Test-PrivateRiderRuns) -and [datetime]::UtcNow -lt $until) { Start-Sleep -Seconds 2 }
+      Wait-ForPrivateRiderToDrain
    } finally { Enable-ScheduledTask -TaskName $taskName -TaskPath '\' | Out-Null }
    $oldListener = $null
+   $health = $null
 }
-$health = if ($oldListener) { Invoke-RestMethod $publicUrl -NoProxy -TimeoutSec 15 }
 $riderRuns = Test-PrivateRiderRuns
 $journal = Join-Path $current.rider.profileDirectory 'worktrees.json'
-if (($health -and @($health.openingWorktrees).Count) -or
-    ($riderRuns -and (Test-Path -LiteralPath $journal) -and @(Read-RiderRecord $journal).Count)) {
-   throw 'The primary has managed projects open or opening. Switch after they close.'
+$projectsOpen = ($health -and @($health.openingWorktrees).Count) -or
+                ($riderRuns -and (Test-Path -LiteralPath $journal) -and @(Read-RiderRecord $journal).Count)
+# One that hands its port over closes its projects as it stops after the hand-over.
+if ($projectsOpen -and !($handsOver -and $CloseOpenProjects)) {
+   throw 'The primary has managed projects open or opening. Switch after they close, or close them with -CloseOpenProjects.'
 }
-if ($riderRuns) { throw 'The private Rider job has not drained.' }
+if ($riderRuns -and !$handsOver) { throw 'The private Rider job has not drained.' }
 
 $updated = $original | ConvertFrom-Json
 $updated.catalogFile = $newCatalog
@@ -128,26 +157,44 @@ $label = Split-Path -Leaf $package
 $updated.rider.profileDirectory = Join-Path $installation ("everyday-state-" + $label)
 $backup = Join-Path $installation ("settings.before-" + $label + "-" + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + ".json")
 [IO.File]::Copy($settingsPath, $backup)
-# A successful stop returns only after the primary has drained. Older releases can be stopped in a coordinated maintenance window first.
+$previous = $oldListener
+if ($previous) { $null = $previous.Handle } # Its exit stays observable once it has ended.
 try {
-   Stop-Primary $oldExecutable
-   Set-Configuration ($updated | ConvertTo-Json -Depth 8)
-   Start-Primary $newExecutable
+   if ($handsOver) {
+      Set-Configuration ($updated | ConvertTo-Json -Depth 8)
+      Switch-Primary $newExecutable
+   } else {
+      # A successful stop returns only after the primary has drained.
+      Stop-Primary $oldExecutable
+      Set-Configuration ($updated | ConvertTo-Json -Depth 8)
+      Start-Primary $newExecutable
+   }
 } catch {
    $failure = $_.Exception.Message
    $remaining = Get-Listener
    if ($remaining -and $remaining.Path -eq $oldExecutable) {
-      Enable-ScheduledTask -TaskName $taskName -TaskPath '\' | Out-Null
+      # A new primary that hasn't taken the port over by now never will.
+      Get-Process -Name Royder.Primary -ErrorAction SilentlyContinue | Where-Object Path -eq $newExecutable | Stop-Process -Force
+      Set-Configuration $original
+      Register-Primary $oldExecutable
       throw "Update stopped before cutover: $failure. The previous executable still holds the public port. Previous settings: $backup"
    }
    try {
       Stop-Primary $newExecutable
+      # One that handed the port over goes on stopping, and holds its profile until it has.
+      if ($previous -and !$previous.WaitForExit(190000)) { throw "The previous primary, PID $($previous.Id), is still stopping." }
       Set-Configuration $original
       Start-Primary $oldExecutable
    } catch { throw "Update failed: $failure. Rollback also failed: $($_.Exception.Message). The $taskName task stays disabled until it is registered again. Previous settings: $backup" }
    throw "Restored the previous primary after the update failed: $failure"
 }
 Write-Output "Active primary: $newExecutable on $($current.port). Previous settings: $backup."
+if ($handsOver) {
+   # The new primary opens no project until the previous one has stopped, and with it its private Rider.
+   if (!$previous.WaitForExit(190000)) { throw "Installed, but the previous primary, PID $($previous.Id), is still stopping: the new one opens no project until it has." }
+   Wait-ForPrivateRiderToDrain
+   if (Test-PrivateRiderRuns) { throw "Installed, but the previous primary's private Rider is still running: see $runFile." }
+}
 
 # Each package's private Rider gets a profile of its own, about 2 GB of packages, caches and indexes. Only the new one
 # runs, and the previous one is what a rollback to the previous settings uses: the others are deleted.

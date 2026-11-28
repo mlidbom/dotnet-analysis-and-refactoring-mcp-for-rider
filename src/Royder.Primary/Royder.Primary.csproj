@@ -11,4 +11,10 @@
     <Compile Include="../DotNetAnalysisAndRefactoringMcp.Tools/Serving/Routing/*.cs;../DotNetAnalysisAndRefactoringMcp.Tools/Tools/FileArguments.cs;../DotNetAnalysisAndRefactoringMcp.Tools/McpInstructions.cs" Link="Routing/%(Filename)%(Extension)" />
     <Compile Include="../../experiments/RemoteDevHost/FileReplacement.cs" Link="Hosting/%(Filename)%(Extension)" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- It replaces its records and hands its public port over with Windows' own calls, and hosts Rider only there. -->
+    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute">
+      <_Parameter1>windows</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

@@ -2,6 +2,7 @@
 import argparse
 import concurrent.futures
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.request
 
@@ -207,9 +209,76 @@ def verify(args):
         # The primary's private Rider takes the everyday Rider's global settings from the APPDATA it runs with.
         environment = dict(os.environ, APPDATA=str(everyday_settings(lab / "appdata", args.rider)))
         (first / "SettingsProbe.cs").write_text("namespace Consumers;\npublic class SettingsProbe\n{\n   int unused_field;\n}\n")
-    log = (lab / "primary.log").open("w", encoding="utf8")
-    proc = subprocess.Popen(primary + ["serve", str(config)], stdout=log, stderr=subprocess.STDOUT, env=environment)
+    logs = []
+    def serve(settings, name):
+        logs.append((lab / name).open("w", encoding="utf8"))
+        return subprocess.Popen(primary + ["serve", str(settings)], stdout=logs[-1], stderr=subprocess.STDOUT, env=environment)
+    proc = serve(config, "primary.log")
+    primaries = [proc]
     listening = False
+
+    def handed_over_with_calls_throughout():
+        # At an install the primary hands its port to the next one, with the MCP session its clients hold. Until
+        # 2026-11-28 it stopped first, and the port refused connections meanwhile: Claude Code then drops Royder's
+        # tools. The successor opens a project only once its predecessor's private Rider, which holds the ports, has
+        # stopped. Calls on new connections and on one kept alive go on throughout.
+        nonlocal proc, profile
+        generated(first)
+        predecessor_run = generation()[0]
+        successor_profile = lab / "profile-successor"
+        successor_config = lab / "primary-successor.json"
+        settings = json.loads(config.read_text(encoding="utf8"))
+        settings["rider"]["profileDirectory"] = str(successor_profile)
+        successor_config.write_text(json.dumps(settings), encoding="utf8")
+        session = HTTP.open(url + "/health", timeout=10).headers["Mcp-Session-Id"]
+        calling, failures, servers = threading.Event(), [], []
+        def on_new_connections():
+            while not calling.is_set():
+                try:
+                    answer = json.load(HTTP.open(urllib.request.Request(url + "/health", headers={"Mcp-Session-Id": session}), timeout=30))
+                    if not servers or servers[-1] != answer["primary"]["processId"]:
+                        servers.append(answer["primary"]["processId"])
+                except Exception as error:
+                    failures.append("health: " + repr(error))
+                time.sleep(.02)
+        def on_a_connection_kept_alive():
+            connection = http.client.HTTPConnection("127.0.0.1", args.port, timeout=30)
+            body = json.dumps(dict(jsonrpc="2.0", id=1, method="tools/list", params={}))
+            while not calling.is_set():
+                try:
+                    connection.request("POST", "/", body, {"Content-Type": "application/json", "Mcp-Session-Id": session})
+                    response = connection.getresponse()
+                    response.read()
+                    assert response.status == 200, f"HTTP {response.status}"
+                except Exception as error:
+                    failures.append("tools/list on a connection kept alive: " + repr(error))
+                    connection.close()
+                time.sleep(.3)
+        callers = [threading.Thread(target=it) for it in (on_new_connections, on_a_connection_kept_alive)]
+        for caller in callers:
+            caller.start()
+        try:
+            time.sleep(1)
+            predecessor = proc
+            proc = serve(successor_config, "primary-successor.log")
+            primaries.append(proc)
+            wait_until(lambda: servers and servers[-1] == proc.pid, 30, "the successor to serve the port")
+            profile = successor_profile
+            # Its predecessor is still stopping: the successor waits for its private Rider before it opens the project.
+            generated(first)
+            assert predecessor.poll() is not None, "The successor opened a project while its predecessor's private Rider ran"
+            time.sleep(2)
+        finally:
+            calling.set()
+            for caller in callers:
+                caller.join()
+        assert not failures, failures[:5]
+        assert servers == [predecessor.pid, proc.pid], f"Served by {servers}, not by {predecessor.pid} and then {proc.pid}"
+        assert predecessor.returncode == 0, f"The predecessor exited {predecessor.returncode}"
+        stopped = json.loads((predecessor_run / "state.json").read_text(encoding="utf-8-sig"))
+        assert stopped["phase"] == "Stopped" and not stopped["jobRemaining"], stopped
+        assert closed(first / SOLUTION).startswith("Closed")
+
     def stopped_with_an_event_stream_open():
         # Each Claude Code session holds an event stream open. Until 2026-11-27 a graceful stop waited out its three
         # minutes' timeout for them, and the port refused every connection meanwhile: an agent that called then lost
@@ -405,18 +474,21 @@ def verify(args):
             after_settings = idea_files()
             (lab / "main-settings-comparison.json").write_text(json.dumps(dict(before=before_settings, after=after_settings), indent=2))
             assert after_settings == before_settings, "The private host changed the main checkout's .idea settings"
+        handed_over_with_calls_throughout()
         stopped_with_an_event_stream_open()
-        print("PASS: cold catalog, concurrent first call, generated symbols, shared JVM worktrees, both removal orders, final close"
-              " and a stop with an event stream open", flush=True)
+        print("PASS: cold catalog, concurrent first call, generated symbols, shared JVM worktrees, both removal orders, final close,"
+              " a hand-over with calls throughout and a stop with an event stream open", flush=True)
     finally:
         try:
             if listening and proc.poll() is None:
                 for solution in listing():
                     closed(solution)
         finally:
-            proc.terminate()
-            proc.wait(timeout=20)
-            log.close()
+            for running in primaries:
+                running.terminate()
+                running.wait(timeout=20)
+            for log in logs:
+                log.close()
             for path in [second, first]:
                 if (path / ".git").is_file():
                     command("git", "worktree", "remove", "--force", path, cwd=repo)

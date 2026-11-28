@@ -2,7 +2,10 @@
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$PrimaryExecutable,
       [Parameter(Mandatory)][string]$SettingsFile,
-      [switch]$Serve)
+      [switch]$Serve,
+      # For a hand-over: a start of the task then runs the new primary beside the running one, which hands it the public
+      # port. With no repeating trigger, nothing else starts meanwhile. Register the task again without it once it runs.
+      [switch]$HandOver)
 
 $ErrorActionPreference = 'Stop'
 $name = 'RoyderPrimary'
@@ -44,5 +47,8 @@ $atSignIn = New-ScheduledTaskTrigger -AtLogOn -User $user
 # firing do nothing; while the user isn't signed in, the interactive principal does. To keep it stopped, disable the task.
 $everyMinute = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
-Register-ScheduledTask -TaskName $name -TaskPath '\' -Description $description -Action $action -Trigger $atSignIn,$everyMinute -Principal $principal -Settings $settings -Force | Select-Object TaskName,State
+# Registering the task anew leaves its running instances running: during a hand-over, both primaries'.
+$triggers = if ($HandOver) { @($atSignIn) } else { @($atSignIn, $everyMinute) }
+$instances = if ($HandOver) { 'Parallel' } else { 'IgnoreNew' }
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances $instances -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+Register-ScheduledTask -TaskName $name -TaskPath '\' -Description $description -Action $action -Trigger $triggers -Principal $principal -Settings $settings -Force | Select-Object TaskName,State

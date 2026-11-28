@@ -1,4 +1,4 @@
-using System.Net;
+using Microsoft.AspNetCore.Connections;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Royder.Primary;
@@ -39,8 +39,12 @@ if(args is not ["serve", var settingsFile])
 var settings = PrimarySettings.Read(settingsFile);
 using var owner = WorktreeJournal.OwnProfile(settings.Rider.ProfileDirectory);
 var pinned = new ToolCatalog(settings.CatalogFile, settings.Rider.ToolsBuild);
+var publicPort = await PublicPort.Open(settings.Port);
 var host = WebApplication.CreateSlimBuilder();
-host.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, settings.Port));
+host.WebHost.ConfigureKestrel(server => server.Listen(new PublicEndPoint(publicPort.Address)));
+host.Services.AddSingleton(publicPort);
+host.Services.AddSingleton(publicPort.Predecessor);
+host.Services.AddSingleton<IConnectionListenerFactory, PublicPortListener>();
 // Without a time, what happened when had to be worked out from the private Rider's own logs (2026-11-24).
 host.Logging.AddSimpleConsole(it => it.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ");
 host.Services.Configure<HostOptions>(it => it.ShutdownTimeout = TimeSpan.FromMinutes(3));
@@ -63,7 +67,7 @@ host.Services.AddSingleton<ToolCatalogEvents>();
 host.Services.AddHostedService(it => it.GetRequiredService<ToolCatalogEvents>());
 
 await using var app = host.Build();
-var session = Guid.NewGuid().ToString("N");
+if(publicPort.Predecessor.ProcessId is { } predecessor) app.Logger.LogInformation("Took over the public port from the primary in process {Predecessor}.", predecessor);
 app.Use(async (context, next) =>
 {
    // Loopback clients may start local processes. Reject browser requests from foreign origins and DNS rebinding.
@@ -74,12 +78,14 @@ app.Use(async (context, next) =>
       context.Response.StatusCode = 403;
       return;
    }
-   if(request.Headers.TryGetValue("Mcp-Session-Id", out var clientSession) && clientSession != session)
+   if(request.Headers.TryGetValue("Mcp-Session-Id", out var clientSession) && clientSession != publicPort.Session)
    {
       context.Response.StatusCode = 404;
       return;
    }
-   context.Response.Headers["Mcp-Session-Id"] = session;
+   context.Response.Headers["Mcp-Session-Id"] = publicPort.Session;
+   // The client's next request opens a connection that the successor accepts.
+   if(publicPort.HasBeenHandedOver) context.Response.Headers.Connection = "close";
    await next(context);
 });
 app.MapGet("/health", async (PrimaryRequests requests, CancellationToken cancel) => Json(await requests.Health(cancel)));

@@ -98,9 +98,21 @@ Start-ScheduledTask -TaskName RoyderPrimary
 ~~~
 
 For subsequent local updates, stage the new package and its verified `catalog.json` together in a new
-directory. `tools/Update-InstalledRoyderPrimary.ps1 -PackageDirectory <directory>` asks an idle primary to
-shut down, waits for requests to drain, updates the sign-in task and checks the new public listener. It keeps
-the old settings for rollback. Earlier packages that lack the `stop` command require a coordinated stop first.
+directory. `tools/Update-InstalledRoyderPrimary.ps1 -PackageDirectory <directory>` writes the new settings and starts
+the new primary beside the running one, which hands it the public port's listening socket and the MCP session its
+clients hold (`Transport/PublicPort.cs`). The port refuses no connection meanwhile: until 2026-11-28 an update stopped
+the primary first, and Claude Code drops a server's tools at a refused connection. The previous primary goes on serving
+the connections it had for 5 seconds, each answer closing its connection, then answers the calls in flight, closes its
+projects, stops its private Rider and exits. The new one opens no project before then, since that Rider holds the ports
+its own listens on. The update waits for that, and keeps the old settings for rollback. A primary from before
+2026-11-28, whose health names no `primary`, can't hand its port over: the update stops it gracefully first, and the
+port refuses connections until the new one has started. Earlier packages that lack the `stop` command require a
+coordinated stop first.
+
+During a hand-over the sign-in task runs two instances: the update registers it with parallel instances and no
+repeating trigger, starts it, and registers it as usual once the new primary serves. Windows' TCP table goes on naming
+the process that bound the port first, also once it has handed the port over and ended: the update asks the primary's
+health which process serves it.
 Each package's private Rider has a profile of its own, `everyday-state-<package>`, about 2 GB: once the new primary
 answers, the update deletes all but the new package's and the previous one's, which a rollback to the old settings uses.
 
@@ -120,8 +132,8 @@ profile directory of its own, about 600 MB, deleted afterwards with the settings
 `assetsDirectory` and `toolsBuild` are the package's, and it names no `toolsFolder`, so the capture checks the
 package's own build. The update refuses while the primary has a managed project open; `-Install` retries it until
 they have closed, which they do after 30 idle minutes (`idleSeconds`), for an hour at most.
-`Update-InstalledRoyderPrimary.ps1 -CloseOpenProjects` doesn't wait: it stops the primary gracefully first, which
-answers the calls in flight and closes the projects, and their agents' next calls open them again, cold. Projects in a journal
+`Update-InstalledRoyderPrimary.ps1 -CloseOpenProjects` doesn't wait: the previous primary closes them as it stops,
+once the calls in flight are answered, and their agents' next calls open them again, cold. Projects in a journal
 whose private Rider runs nothing any more, its run stopped or failed with no process left, count as closed.
 
 **When the running primary can't close its projects,** as on 2026-11-24 when every close failed, the update would

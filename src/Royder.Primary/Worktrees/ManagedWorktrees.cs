@@ -6,7 +6,7 @@ namespace Royder.Primary.Worktrees;
 
 /// <summary>Owns the worktrees in one private Rider JVM, from opening a project to releasing the last worker.</summary>
 sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, RiderReadiness readiness, OrdinaryRiders ordinary,
-                             WorktreeJournal journal, TimeProvider clock, IHostApplicationLifetime lifetime,
+                             WorktreeJournal journal, PreviousPrimary predecessor, TimeProvider clock, IHostApplicationLifetime lifetime,
                              ILogger<ManagedWorktrees> log) : BackgroundService
 {
    readonly ConcurrentDictionary<string, ManagedWorktree> _open = new(StringComparer.OrdinalIgnoreCase);
@@ -73,6 +73,11 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
       try
       {
          ManagedWorktree project;
+         if(!predecessor.HasStopped)
+         {
+            warmUp.WaitsFor("the primary that handed this one the port to close its projects and stop its private Rider");
+            await predecessor.Stopped(cancel);
+         }
          await _changes.WaitAsync(cancel);
          try
          {

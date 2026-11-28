@@ -207,7 +207,9 @@ sealed class PrimaryRequests(PrimarySettings settings, OrdinaryRiders ordinary, 
       var managed = worktrees.Open.Length == 0 && opening.Length == 0 ? null : await backend.Health(cancel);
       var rows = new JArray(new[] { desktop, managed }.OfType<JObject>().SelectMany(it => it["solutions"]?.OfType<JObject>() ?? [])
          .DistinctBy(it => (string?)it["path"], StringComparer.OrdinalIgnoreCase));
-      return new JObject { ["solutions"] = rows, ["openingWorktrees"] = new JArray(opening),
+      // The install script asks it which process serves the port: Windows' TCP table names the one that bound it first.
+      return new JObject { ["primary"] = new JObject { ["processId"] = Environment.ProcessId },
+                           ["solutions"] = rows, ["openingWorktrees"] = new JArray(opening),
                            ["indexing"] = opening.Length > 0 || rows.Any(it => (bool?)it["indexing"] != false || it["healthFailed"] != null),
                            ["pendingDiskChanges"] = rows.Sum(it => (int?)it["pendingDiskChanges"] ?? 0) };
    }
