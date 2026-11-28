@@ -86,6 +86,15 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
 
 ## Known bugs
 
+- **The private Rider's solution caches fail when another process holds a table file their database just wrote**
+  (royder-agent-rep, 2026-11-28). Twice on 2026-11-28, each within three minutes of a ClaudeTooling worktree opening;
+  the desktop Riders' 81 databases logged no such error. Since `911f4c5` the answers say so and the primary reopens the
+  solution with new caches (`CorruptedCaches`), so the harm is a cold reopen. Which process held the file is unknown:
+  200 writes and exclusive reopens in the same folder were never blocked, and Defender's exclusions need an
+  administrator to read. Finding it takes a look at the moment it happens, such as a `who-holds` run from a watcher
+  of the caches' `Db/LOG`. Reproduced at will by holding each newly created `.ldb` under the profile's
+  `system/resharper-host/temp` exclusively, once its writer has closed it, for 1.5 s while a large solution opens: no
+  repeatable check runs that yet, and `verify_on_demand.py`'s small repository may write too little to flush a table.
 - **The private Rider serves one solution per worktree, whatever the next call's files need** (royder-agent-rep,
   2026-11-27). Since `c69f557` the primary opens the solution that fits a call's files best (`SolutionFit`), but once
   a solution of a worktree is open there, every call for that worktree goes to it (`ManagedWorktrees.Use`: "This
