@@ -95,9 +95,13 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   `current.json` names; with no generation left, the primary's closes succeed. Fix to weigh: once a close fails for an
   unassigned backend, stop the private Rider as soon as no call uses it. The projects still open there then reopen cold.
 - **The private Rider's solution caches fail when another process holds a table file their database just wrote**
-  (royder-agent-rep, 2026-11-28). Twice on 2026-11-28, each within three minutes of a ClaudeTooling worktree opening;
-  the desktop Riders' 81 databases logged no such error. Since `911f4c5` the answers say so and the primary reopens the
-  solution with new caches (`CorruptedCaches`), so the harm is a cold reopen. Which process held the file is unknown:
+  (royder-agent-rep, 2026-11-28). Six times on 2026-11-28, each within minutes of a ClaudeTooling worktree opening;
+  the desktop Riders' 81 databases logged no such error. It is one of a machine-wide family of brief denials on files
+  just written that `~/.claude`'s helper `files-just-written-denied` investigates, told of these on 2026-11-28; a
+  Defender exclusion that covers the desktop Riders' folders and not the private Rider's would explain the difference.
+  Since `911f4c5` the answers say so and the primary reopens the solution with new caches (`CorruptedCaches`), so the
+  harm is a cold reopen; a corrupted cache also left implicit global usings unresolved, hundreds of false errors in
+  `get_diagnostics`. Which process held the file is unknown:
   200 writes and exclusive reopens in the same folder were never blocked, and Defender's exclusions need an
   administrator to read. Finding it takes a look at the moment it happens, such as a `who-holds` run from a watcher
   of the caches' `Db/LOG`. Reproduced at will by holding each newly created `.ldb` under the profile's
