@@ -1,13 +1,14 @@
 using System.Collections.Concurrent;
+using Newtonsoft.Json.Linq;
 using Royder.Primary.Hosting;
 using Royder.Primary.Transport;
 
 namespace Royder.Primary.Worktrees;
 
 /// <summary>Owns the worktrees in one private Rider JVM, from opening a project to releasing the last worker.</summary>
-sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, RiderReadiness readiness, OrdinaryRiders ordinary,
-                             WorktreeJournal journal, PreviousPrimary predecessor, TimeProvider clock, IHostApplicationLifetime lifetime,
-                             ILogger<ManagedWorktrees> log) : BackgroundService
+sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, RiderReadiness readiness, RiderEndpoint backend,
+                             OrdinaryRiders ordinary, WorktreeJournal journal, PreviousPrimary predecessor, TimeProvider clock,
+                             IHostApplicationLifetime lifetime, ILogger<ManagedWorktrees> log) : BackgroundService
 {
    readonly ConcurrentDictionary<string, ManagedWorktree> _open = new(StringComparer.OrdinalIgnoreCase);
    readonly ConcurrentDictionary<RegisteredWorktree, PendingWorktree> _starting = new();
@@ -42,7 +43,7 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
    public async Task<ManagedWorktree.Lease> Use(RegisteredWorktree registration, string solution, AnswerDeadline deadline, CancellationToken wait)
    {
       if(_open.TryGetValue(registration.Root, out var existing) && existing.Registration == registration &&
-         RegisteredWorktree.SamePath(existing.SolutionPath, solution) && !existing.SolutionFileChanged && existing.TryUse() is { } lease) return lease;
+         RegisteredWorktree.SamePath(existing.SolutionPath, solution) && !existing.NeedsReopening && existing.TryUse() is { } lease) return lease;
       var start = _starting.GetOrAdd(registration, _ => new PendingWorktree(solution, clock, (warmUp, cancel) => Start(registration, solution, warmUp, cancel)));
       var ready = start.Ready;
       ManagedWorktree opened;
@@ -83,7 +84,7 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
          {
             if(Registration(registration.Root) != registration) throw new InvalidOperationException("The requested Git registration changed.");
             _open.TryGetValue(registration.Root, out var existing);
-            if(existing != null && existing.Registration == registration && existing.Ready && !existing.SolutionFileChanged) return existing;
+            if(existing != null && existing.Registration == registration && existing.Ready && !existing.NeedsReopening) return existing;
             warmUp.WaitsFor("Rider to open the solution");
             project = await Within(HowLongOpeningMayTake, "Opening the solution in Rider", cancel, async opening =>
             {
@@ -231,11 +232,25 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
       catch { worktree.RetryCloseLater(); throw; }
    }
 
+   /// <summary>How often the maintenance asks the private Rider whether its caches of an open worktree's solution are corrupted.</summary>
+   static readonly TimeSpan BetweenCacheChecks = TimeSpan.FromSeconds(15);
+
+   /// <summary>How long the private Rider may take to answer that, before the maintenance goes on without it.</summary>
+   static readonly TimeSpan HowLongACacheCheckMayTake = TimeSpan.FromSeconds(10);
+
    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
    {
       using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1), clock);
+      var cachesChecked = clock.GetTimestamp();
       while(await timer.WaitForNextTickAsync(stoppingToken))
       {
+         if(clock.GetElapsedTime(cachesChecked) >= BetweenCacheChecks)
+         {
+            cachesChecked = clock.GetTimestamp();
+            try { await NoteCorruptedCaches(stoppingToken); }
+            catch(Exception ex) when(!stoppingToken.IsCancellationRequested) { log.LogWarning("Checking Rider's caches: {Reason}", ex.Message); }
+         }
+
          if(!await _changes.WaitAsync(0, stoppingToken)) continue;
          try
          {
@@ -247,13 +262,33 @@ sealed class ManagedWorktrees(PrimarySettings settings, SharedRiderHost host, Ri
                   var discard = Registration(item.Registration.Root) != item.Registration;
                   if(discard && _starting.TryGetValue(item.Registration, out var starting)) starting.Cancel();
                   if(item.Idle && (discard || !_starting.ContainsKey(item.Registration) &&
-                                   (!item.Ready || item.SolutionFileChanged || item.IdleFor >= TimeSpan.FromSeconds(settings.IdleSeconds))))
+                                   (!item.Ready || item.NeedsReopening || item.IdleFor >= TimeSpan.FromSeconds(settings.IdleSeconds))))
                      await Close(item, discard, stoppingToken);
                }
                catch(Exception ex) when(!stoppingToken.IsCancellationRequested) { log.LogWarning("Worktree maintenance: {Reason}", ex.Message); }
             }
          }
          finally { _changes.Release(); }
+      }
+   }
+
+   /// <summary>
+   ///   Marks each open worktree whose caches the private Rider's health says are corrupted, so that it is opened again,
+   ///   with new ones, as soon as no call uses it (<see cref="ManagedWorktree.CachesCorrupted"/>).
+   /// </summary>
+   async Task NoteCorruptedCaches(CancellationToken stopping)
+   {
+      var open = Open.Where(it => !it.CachesCorrupted).ToList();
+      if(open.Count == 0) return;
+      using var within = CancellationTokenSource.CreateLinkedTokenSource(stopping);
+      within.CancelAfter(HowLongACacheCheckMayTake);
+      var corrupted = ((await backend.Health(within.Token))?["solutions"] as JArray)?.OfType<JObject>()
+                                                                                 .Where(it => (bool?)it["cachesCorrupted"] == true)
+                                                                                 .Select(it => (string?)it["path"]).OfType<string>().ToList() ?? [];
+      foreach(var worktree in open.Where(it => corrupted.Any(path => RegisteredWorktree.SamePath(it.SolutionPath, path))))
+      {
+         worktree.MarkCachesCorrupted();
+         log.LogWarning("Rider's caches of {Solution} are corrupted: it is opened again once no call uses it.", worktree.SolutionPath);
       }
    }
 

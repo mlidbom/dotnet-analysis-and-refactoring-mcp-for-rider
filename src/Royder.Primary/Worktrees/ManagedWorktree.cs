@@ -32,6 +32,24 @@ sealed class ManagedWorktree(RegisteredWorktree registration, string solutionPat
       }
    }
 
+   /// <summary>
+   ///   Whether Rider's caches of the solution are corrupted, as its health said (<c>cachesCorrupted</c>): Rider stores
+   ///   nothing it learns of the code any more, and its answers go out of date. Closing the project deletes the caches,
+   ///   and the project is opened again with new ones.
+   /// </summary>
+   /// <remarks>
+   ///   On 2026-11-28 the caches of two ClaudeTooling worktrees failed within three minutes of opening. In one of them
+   ///   <c>inspect_code</c> answered errors from a moment when a file was half written for half an hour, while the build
+   ///   and the live daemon found none: solution-wide analysis no longer re-analyzed the files that use a declaration
+   ///   that changed.
+   /// </remarks>
+   public bool CachesCorrupted => _activity.Locked(it => it.CachesCorrupted);
+
+   public void MarkCachesCorrupted() => _activity.Locked(it => it.CachesCorrupted = true);
+
+   /// <summary>Whether Rider's model of the solution can't be trusted any more, and the project is to be opened again.</summary>
+   public bool NeedsReopening => SolutionFileChanged || CachesCorrupted;
+
    public bool Ready => _activity.Locked(it => it.Ready);
    public TimeSpan IdleFor => _activity.Locked(it => clock.GetElapsedTime(it.LastUse));
    public bool Idle => _activity.Locked(it => it.CanClose(clock.GetUtcNow()));
@@ -73,6 +91,7 @@ sealed class ManagedWorktree(RegisteredWorktree registration, string solutionPat
       public int Calls;
       public bool Ready;
       public bool Closing;
+      public bool CachesCorrupted;
       public DateTime? SolutionFileWrittenWhenReady;
       public DateTimeOffset UncertainUntil;
       public bool CanClose(DateTimeOffset now) => Calls == 0 && !Closing && now >= UncertainUntil;

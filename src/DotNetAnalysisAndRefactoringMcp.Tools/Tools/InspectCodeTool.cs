@@ -35,7 +35,9 @@ namespace DotNetAnalysisAndRefactoringMcp.Tools;
 ///     With solution-wide analysis on and complete, <see cref="CollectInspectionResults.RunGlobalInspections"/> takes
 ///     what that analysis found, and runs the global usage inspections (UnusedMember.Global and the like) besides. Its
 ///     task executor runs on the caller's thread, and with the analysis complete it only reads its results. Otherwise
-///     <see cref="CollectInspectionResults.RunLocalInspections"/> runs the file daemon on every file.
+///     <see cref="CollectInspectionResults.RunLocalInspections"/> runs the file daemon on every file, and so it does when
+///     Rider's caches of the solution are corrupted (<see cref="CorruptedCaches"/>): the analysis's results for files
+///     that use a declaration that changed then stay as they were.
 ///   </para>
 ///   <para>
 ///     Measured on Deskmancer, 1,749 files, in the sandbox (2026-11-15): 5.5 s with solution-wide analysis complete,
@@ -125,7 +127,8 @@ public sealed class InspectCodeTool : IMcpAsyncTool, IMcpExpandableTool
       }
 
       var solutionWide = SolutionAnalysisConfiguration.GetInstance(_solution);
-      var global = solutionWide.Enabled.Value && solutionWide.Completed.Value;
+      var cachesCorrupted = CorruptedCaches.In(_solution);
+      var global = solutionWide.Enabled.Value && solutionWide.Completed.Value && !cachesCorrupted;
 
       await _solution.Locks.Tasks.StartNew(call.Lifetime,
                                            Scheduling.MainGuard,
@@ -160,7 +163,9 @@ public sealed class InspectCodeTool : IMcpAsyncTool, IMcpExpandableTool
                     minSeverity,
                     maxResults,
                     stopwatch.Elapsed,
-                    global ? null : solutionWide.Enabled.Value ? "is still running" : "is off");
+                    global ? null
+                    : cachesCorrupted ? "can't be trusted with Rider's caches corrupted"
+                    : solutionWide.Enabled.Value ? "is still running" : "is off");
    }
 
    /// <param name="inspected">How many files were inspected, when they were inspected one by one.</param>

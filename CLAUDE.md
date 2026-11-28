@@ -420,6 +420,7 @@ src/DotNetAnalysisAndRefactoringMcp/   # THE HOST: what Rider loads; a change he
 src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between calls; same namespaces as before the split
   McpToolExecution.cs                  # Interruptible PSI reads and read-then-main-thread continuations
   Indexing.cs                          # ReSharper's indexing of a solution: whether it runs, a wait until it's done
+  CorruptedCaches.cs                   # Whether Rider's caches of a solution are corrupted, which /health, every answer and inspect_code say
   JsonOf.cs                            # JSON of the tools' objects without Newtonsoft's type caches, [JsonProperty] names
   Protocol/
     JsonRpc.cs                         # JSON-RPC request/response/error types, read and answered

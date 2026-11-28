@@ -182,7 +182,14 @@ Build a package on the new Rider, verify it with `tests/headless/verify_on_deman
 - When an agent project's solution file changes, such as by a project added to it, the primary closes the project
   once it is idle, or at the next call, and that call reopens it with the whole solution. The private Rider's own
   reload took in only the projects the edit touched and dropped the rest (2026-11-24).
-  Ordinary Rider stays running. To close and remove a worktree under the same lifecycle operation, run
+  Ordinary Rider stays running.
+- When the private Rider's caches of a solution are corrupted, as its health says (`cachesCorrupted`), the primary
+  closes the project as soon as no call uses it, and the next call opens it again with new caches: closing deletes the
+  corrupted ones. It checks every 15 seconds. Meanwhile every answer from the solution carries a WARNING, and
+  `inspect_code` runs the file daemon rather than take solution-wide analysis's results. On 2026-11-28 two ClaudeTooling
+  worktrees' caches failed within three minutes of opening, when another process held a table file their database had
+  just written. Which process held it is unknown.
+  To close and remove a worktree under the same lifecycle operation, run
   `Royder.Primary remove-worktree <settings.json> <absolute-worktree-root>`. The command uses a Windows named pipe restricted to the current user. Git uses its ordinary clean-worktree
   checks. This command refuses a main checkout, an untrusted repository, a changed registration and a worktree
   open in ordinary Rider.

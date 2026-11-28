@@ -214,6 +214,9 @@ sealed class ToolCall(IMcpSolution solution, IMcpTool tool)
       if(indexingAsTheWorkBegan)
          notes.Add("(index still building — results may be incomplete)");
 
+      if(CorruptedCaches.In(_solution.Solution))
+         notes.Add(CorruptedCaches.Warning);
+
       notes.AddRange(_solution.BuildNotes);
       return notes;
    }

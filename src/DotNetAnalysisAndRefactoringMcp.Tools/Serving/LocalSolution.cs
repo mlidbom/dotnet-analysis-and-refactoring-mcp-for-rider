@@ -55,6 +55,7 @@ sealed class LocalSolution(IMcpServer server, IMcpSolution solution) : OpenSolut
       {
          health["indexing"] = new Indexing(_solution.Solution).IsRunning;
          health["pendingDiskChanges"] = _solution.Changes.Count + _solution.DiskSyncState.Locked(it => it.Stale.Count);
+         health["cachesCorrupted"] = CorruptedCaches.In(_solution.Solution);
          health["tools"] = _server.ToolsBuilds;
       }
       catch(Exception exception)
