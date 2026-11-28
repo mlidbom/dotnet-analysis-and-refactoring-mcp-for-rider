@@ -94,20 +94,19 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   at 4 minutes. Recovery, which loses nothing when no project there answers: an empty `stop.request` in the run folder
   `current.json` names; with no generation left, the primary's closes succeed. Fix to weigh: once a close fails for an
   unassigned backend, stop the private Rider as soon as no call uses it. The projects still open there then reopen cold.
-- **The private Rider's solution caches fail when another process holds a table file their database just wrote**
+- **The private Rider's solution caches fail when a search of the machine's handles copies a table file's handle**
   (royder-agent-rep, 2026-11-28). Six times on 2026-11-28, each within minutes of a ClaudeTooling worktree opening;
-  the desktop Riders' 81 databases logged no such error. It is one of a machine-wide family of brief denials on files
-  just written that `~/.claude`'s helper `files-just-written-denied` investigates, told of these on 2026-11-28.
-  Not Defender: its Operational log (event 5007) shows `Rider.BackendHost.exe`, the process that writes these files for
-  the desktop Riders and the private Rider alike, excluded by name. Since `911f4c5` the answers say so and the primary
-  reopens the solution with new caches (`CorruptedCaches`), so the harm is a cold reopen; a corrupted cache also left
-  implicit global usings unresolved, hundreds of false errors in `get_diagnostics`. Which process held the file is
-  unproven. The lead: a search of the machine's handles, ClaudeTooling's `OpenHandlesOfTheMachine`, copies every
-  process's file handles with their access and sharing, and a copy that outlives the backend's own close refuses
-  LevelDB's reopen. All six corruptions fell inside a `merger gate` or `merger merge` of ClaudeTooling, whose
-  specifications run such searches, two of them 82 and 83 s into a gate; those runs covered 68% of the day. Holding a
-  new table with read access while sharing read, write and delete corrupted nothing; holding it unshared did. 200 writes
-  and exclusive reopens in the same folder were never blocked. Reproduced at will by holding each newly created `.ldb` under the profile's
+  the desktop Riders' 81 databases logged no such error. Since `911f4c5` the answers say so and the primary reopens the
+  solution with new caches (`CorruptedCaches`), so the harm is a cold reopen; a corrupted cache also left implicit
+  global usings unresolved, hundreds of false errors in `get_diagnostics`. The cause, shown on 2026-11-28 and told to
+  tooling-owner, whose fix it is: ClaudeTooling's `OpenHandlesOfTheMachine`, which `who-holds`, the hub's reviews of
+  worktrees, archiving and its specifications run, copies every process's file handles to name them. Rider's
+  `leveldb.dll` creates a table with write access and no sharing, and reopens it to read sharing only reading, so a copy
+  still open when the writer closes refuses the reopen ("being used by another process"), and the database fails for
+  good. Through Rider's `leveldb.dll` outside Rider, three loops of `who-holds` gave 3 such errors in 16,099 tables in
+  two minutes; a writer with its flags had 84 of 18,601 reopens blocked, and Windows named only `ClaudeTooling.Hub.exe`
+  as the holder; without searches, none. All six corruptions fell inside a ClaudeTooling `merger gate` or `merge`,
+  whose specifications search. Not Defender: it excludes `Rider.BackendHost.exe` by name. Reproduced at will also by holding each newly created `.ldb` under the profile's
   `system/resharper-host/temp` exclusively, once its writer has closed it, for 1.5 s while a large solution opens: no
   repeatable check runs that yet, and `verify_on_demand.py`'s small repository may write too little to flush a table.
 - **The private Rider serves one solution per worktree, whatever the next call's files need** (royder-agent-rep,
