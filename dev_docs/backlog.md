@@ -248,15 +248,32 @@ a header in its `.mcp.json`, which Claude Code sends with every request, if the 
   Rider, which ends every Claude session in its Claude Sessions tabs. So what a reload leaves stale is worth finding out
   when it next happens: what the MCP could reload that Rider's menu doesn't.
 
-- **`get_file_errors` checked a stale or half-reloaded copy right after an edit on disk** (deskmancer-agent-rep,
-  Deskmancer, `Deskmancer.Telemetry/Analytics/ObservedAnalyticsTevents.cs`, after Edit-tool edits of a doc comment
-  only). 2026-11-17: the first call answered "{ expected" at 39:40, a position that fitted the file as it was before
-  the edit, 10 lines shorter; a call a moment later answered 0 diagnostics. 2026-11-18: two calls in a row answered
-  "Cannot resolve symbol 'Deliver'" (a cref) and "Cannot resolve symbol '_dispatcher'", while `dotnet build` had 0
-  warnings and 0 errors; `reload_projects` on the project cleared it. The description promises that files edited on
-  disk are reloaded before each call. A false error reads as a real one, which the user-level rules say to report as
-  breakage, and costs a build to tell apart. Wanted: the call waits until Rider's copy holds the disk's text, and its
-  model of the file is rebuilt from it, before it inspects; or it says that it couldn't.
+- *Done 2026-11-28 (`4172651`):* **`get_file_errors` checked a stale or half-reloaded copy right after an edit on
+  disk** (deskmancer-agent-rep, Deskmancer, 2026-11-17/18; symbol-links-in-topics, ClaudeTooling, 2026-11-28).
+  Deskmancer: "{ expected" at a position that fitted the file before a doc comment edit, and "Cannot resolve symbol"
+  while `dotnet build` was clean. ClaudeTooling, in the private Rider, 2.3 s after a script rewrote doc comments:
+  "{ expected" exactly the comments' 30 added characters before each method body's `{`, and "Cannot resolve symbol
+  'Open'" for a member of a class whose comment grew. The cause, from the backend's log: the project model registered
+  the change only 7 s later, at the frontend's 15-second refresh; the files' documents weren't allocated, so the disk
+  sync created them from disk and found them current; and ReSharper counts its caches of a file current while the
+  project model's last write time is unchanged, so it rebuilt the trees from cached stubs of the old text.
+  `PsiCachesRepairService` noticed during the read and repaired the files after the answer. Now the disk sync rebuilds
+  ReSharper's caches of each file the watcher saw change whose change the project model hasn't registered
+  (`Disk/CacheRepairs.cs`), as that service does. The stale answer didn't reproduce on demand, since both Riders kept
+  the documents allocated in every try (`tests/live_errors_after_disk_change.py`): the evidence is the log. Watch for
+  `PsiCachesRepairService` lines right after a call in the private Rider's backend logs: there were 21 repairs on
+  2026-11-28 before the fix, most of them during the daemon's analysis rather than in a call.
+
+- **The private Rider's frontend passes changes on disk to the backend only every 15 seconds unless asked**
+  (royder-agent-rep, 2026-11-28). In `symbol-links-in-topics`' backend log, `ProjectFileImpl.ApplyFileSystemChange`
+  came in batches 15 s apart, though `NativeFileWatcherImpl` said it was operational; a `RefreshPaths` request got the
+  change in within 7 ms. Calls are covered: the disk sync rescans and rebuilds the caches of what it suspects. Rider's
+  own daemon is not: in the window it analyzes documents created from the new text against caches of the old, and
+  `PsiCachesRepairService` repairs them afterwards ("DaemonProcessBase.DoHighlighting: inconsistent text length",
+  "CSharpTypePart.GetDeclaration"), so solution-wide analysis may hold results from that window for a while. To find
+  out: why the frontend doesn't refresh on its watcher's events in the private Rider, and whether a setting of the
+  private profile makes it, which would close the window for everything. The sandbox shows the same lag only if its
+  frontend also waits for a rescan, which isn't known.
 
 - **A wide namespace rename broke code without saying so, and took one call per type** (tooling owner, renaming
   `ClaudeTooling.ResidentServer` to `ClaudeTooling.Hub` in `~/.claude`'s ClaudeTooling solution, 2026-11-19/20; the
