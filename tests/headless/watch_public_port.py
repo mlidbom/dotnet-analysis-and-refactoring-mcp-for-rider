@@ -29,7 +29,8 @@ def watch(port, seconds):
         with lock:
             if outcome is None:
                 answered[0] += 1
-            elif isinstance(outcome, ConnectionRefusedError):
+            # urllib says a refused connection as a URLError whose reason is the refusal.
+            elif isinstance(outcome, ConnectionRefusedError) or isinstance(getattr(outcome, "reason", None), ConnectionRefusedError):
                 refused[0] += 1
             else:
                 failures.append(f"{time.strftime('%H:%M:%S')} {outcome!r}")
