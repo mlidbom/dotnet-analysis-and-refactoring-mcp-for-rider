@@ -27,8 +27,10 @@ namespace DotNetAnalysisAndRefactoringMcp.Disk;
 ///     Suspects are the files a call names, the files <see cref="DiskChanges"/> saw change, and the files that
 ///     differed before. The frontend rescans changed files and the folders of added or deleted files. The call waits
 ///     for current document text, for a new file the call names or a project should include, and for a deleted file
-///     to leave the project model. Rider keeps some explicitly included files as missing project items. A call that
-///     waited for such a deletion reports it. Later calls can edit other files while the item remains missing.
+///     to leave the project model. ReSharper's caches of a changed file that the project model hasn't registered yet
+///     are rebuilt from its document (<see cref="CacheRepairs"/>). Rider keeps some explicitly included files as
+///     missing project items. A call that waited for such a deletion reports it. Later calls can edit other files while
+///     the item remains missing.
 ///   </para>
 ///   <para>
 ///     The frontend's rescan alone lands anywhere from 0.1 s to 9 s later (measured). So stale documents are
@@ -100,9 +102,13 @@ public sealed class DiskSync
       if(stale.Count > 0)
          await new Reconciliation(_solution, _locks).Reconcile(lifetime, () => stale.Select(Document).OfType<IDocument>());
 
+      var unregistered = await execution.Read(() => UnregisteredChanges(changes));
+      if(unregistered.Count > 0)
+         await new CacheRepairs(_solution, _locks).Repair(lifetime, unregistered);
+
       var deleted = before.Deleted.Where(x => IsUnsettled(it => it.Absent, x)).ToList();
       var absent = before.Absent.Where(x => IsUnsettled(it => it.Absent, x)).ToList();
-      var rescan = stale.Concat(deleted).Select(PathToRescan)
+      var rescan = stale.Concat(unregistered).Concat(deleted).Select(PathToRescan)
                   .Concat(absent)
                   .Concat(absent.Select(Path.GetDirectoryName))
                   .Concat(changes.Directories)
@@ -223,6 +229,21 @@ public sealed class DiskSync
 
       return new DiskState(stale, absent, deleted);
    }
+
+   /// <summary>
+   ///   The files of <paramref name="changes"/> whose change Rider's project model hasn't registered: it still has the
+   ///   last write time from before it (<see cref="CacheRepairs"/>).
+   /// </summary>
+   /// <remarks>
+   ///   Only changes the watcher reported, once each: after Rider saves a file itself, the project model keeps the last
+   ///   write time from before the save until a later change on disk reaches it, while its caches took the edit in from
+   ///   the document. Taking the files a call names as well would rebuild such a file's caches at every call naming it.
+   /// </remarks>
+   IReadOnlyList<string> UnregisteredChanges(DiskChangeSet changes) =>
+      changes.Files.Take(MaxChecked)
+             .Where(File.Exists)
+             .Where(file => ProjectFilesAt(file).Any(it => it.LastWriteTimeUtc != File.GetLastWriteTimeUtc(file)))
+             .ToList();
 
    IEnumerable<IProjectFile> ProjectFilesAt(string file) => _solution.FindProjectItemsByLocation(Parse(file)).OfType<IProjectFile>();
 

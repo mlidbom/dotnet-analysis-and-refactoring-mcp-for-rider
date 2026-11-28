@@ -104,9 +104,18 @@ measured). Before every call `McpServerComponent` runs `DiskSync.Run`:
 2. Under a read lock, compare each suspect's document text with disk (line endings and BOM normalized).
 3. Stale documents without unsaved edits: `DocumentOperationsImpl.SynchronizeDocumentContentsWithStorage` on the
    main thread under the write lock (Rider's own reconcile: an external change, file marked reconciled).
-4. Ask the frontend to rescan stale files, new files and their folders: `FileSystemModel.RefreshPaths`
+4. Files the watcher saw change whose change the project model hasn't registered, as it still has their old last
+   write time: ReSharper's caches of them rebuilt from their documents (`Disk/CacheRepairs.cs`), as its
+   `PsiCachesRepairService` does. ReSharper counts its caches of a file current while that time is unchanged, and a
+   document created after the change reads the new text, so it matches disk: until 2026-11-28 `get_file_errors`
+   answered from the trees and symbols of the old text, at its offsets ("{ expected" where a method's body had begun).
+   The frontend registers a change when asked to rescan, and otherwise every 15 s in the standalone primary's private
+   Rider. Only the watcher's changes, once each: after Rider saves a file itself, the project model keeps the old time.
+   `tests/live_errors_after_disk_change.py` runs that path, in the sandbox or the private Rider. It didn't reproduce the
+   stale answer in any try: that needs a document Rider created after the change, and both kept theirs allocated.
+5. Ask the frontend to rescan stale files, the files of step 4, new files and their folders: `FileSystemModel.RefreshPaths`
    (`Disk/Rescans.cs`, see gotchas), on the main thread. It is queued and debounced, not synchronous.
-5. Poll until the documents match disk (10 s), asking the frontend to rescan again each second: under load it answered
+6. Poll until the documents match disk (10 s), asking the frontend to rescan again each second: under load it answered
    a rescan and then didn't pass a deletion on within the 10 s (`tests/live_deletion_under_load.py`). Closed files
    match at once after step 3; a tab open in an editor matches whenever the frontend reloads it. A file still stale
    after that wait is "settled": it is not waited on again until its disk time changes.
@@ -115,7 +124,7 @@ The watcher reports a change within 12 ms on an idle machine, and up to 247 ms u
 that arrives before then misses a change it doesn't name. An agent's next call comes seconds later, but a
 specification's comes at once: specifications change files through `SandboxMcpServer.ChangeOnDiskAndWaitForTheFileWatcher`.
 
-A new file is waited for, as in step 5, when the call names it or it lies in a project's folder, which an SDK-style
+A new file is waited for, as in step 6, when the call names it or it lies in a project's folder, which an SDK-style
 project takes in: a call that reaches its types by name finds them only once Rider has it. Not every new file the work
 tree's watch sees, since one in no project's folder would cost a call the whole wait.
 
@@ -468,6 +477,7 @@ src/DotNetAnalysisAndRefactoringMcp.Tools/  # THE TOOLS: swapped in between call
     GitChanges.cs                      # Files changed since a git ref (for get_file_errors changedSince)
     DiskSync.cs                        # Reconcile + rescan + wait until Rider's copy matches disk, before every call
     Reconciliation.cs                  # Rider's copy of documents brought back in line with disk, Rider's own way
+    CacheRepairs.cs                    # ReSharper's caches of files rebuilt from their documents, as its PsiCachesRepairService does
     DiskText.cs                        # Whether a file on disk holds a document's text (line endings, BOM aside)
     UnsavedDocuments.cs                # An edit's documents saved before the answer: through Rider's frontend, waited for
     DocumentNotSaved.cs                # One that Rider hadn't saved in time, and how its file differed, for the note
